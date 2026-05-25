@@ -7,13 +7,27 @@ import time
 import logging
 import urllib.parse
 import psutil
-import pyautogui
 import config
 import wikipedia
 import pyjokes
 import app_launcher
 
 logger = logging.getLogger(__name__)
+
+
+class _UnavailablePyAutoGUI:
+    def __getattr__(self, name):
+        def _missing(*_args, **_kwargs):
+            raise RuntimeError("pyautogui is unavailable in this environment")
+
+        return _missing
+
+
+try:
+    import pyautogui
+except Exception:
+    logger.info("pyautogui unavailable; GUI automation commands are disabled")
+    pyautogui = _UnavailablePyAutoGUI()
 
 # Verbs that mean "open an app"
 _OPEN_VERBS = ("open", "launch", "start", "run")
