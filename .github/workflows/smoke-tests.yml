@@ -22,3 +22,14 @@ jobs:
       - name: Run microphone-free speech smoke tests
         run: |
           python -m pytest tests/test_speech_smoke.py tests/test_speech_engine.py -q
+
+      - name: HF dry-run publish (if configured)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_REPO: ${{ secrets.HF_REPO }}
+        run: |
+          if [ -n "$HF_TOKEN" ] && [ -n "$HF_REPO" ]; then
+            python scripts/publish_artifacts.py --artifact-dir models --dry-run
+          else
+            echo "HF_TOKEN/HF_REPO not configured; skipping HF dry-run"
+          fi

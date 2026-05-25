@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "vite",
     "test": "vitest",
+    "test:e2e": "playwright test",
+    "playwright:install": "playwright install",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -41,6 +43,10 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "vite": "^7.2.4",
-    "vitest": "^1.2.2"
+    "vitest": "^1.2.2",
+    "playwright": "^1.40.0",
+    "@playwright/test": "^1.60.0",
+    "wait-on": "^7.0.1"
   }
 }
+

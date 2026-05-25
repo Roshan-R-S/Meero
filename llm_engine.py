@@ -1,7 +1,7 @@
 import logging
 import os
 from gpt4all import GPT4All
-from prompt_templates import build_llama3_prompt
+from prompt_templates import build_llama3_prompt, clean_llm_response
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class LLMEngine:
         try:
             prompt = build_llama3_prompt(user_input, history, memory_summary=memory_summary)
             response = self.llm.generate(prompt, max_tokens=100, temp=0.7)
-            return response.strip()
+            return clean_llm_response(response)
             
         except Exception:
             logger.exception("GPT4All generation error")

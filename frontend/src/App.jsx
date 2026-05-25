@@ -59,6 +59,9 @@ function App() {
     setState,
   );
 
+  // Feature-detect Web Speech API availability so we can give feedback
+  const speechSupported = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+
   const { speak } = useSpeechSynthesis(
     setState,
     useCallback(() => {
@@ -101,6 +104,7 @@ function App() {
         });
         setPendingConfirmationCommand(null);
         if (confirmData.sentiment) setSentiment(confirmData.sentiment);
+        console.log("[Response]", confirmData.response, confirmData);
         speakRef.current(confirmData.response);
         return;
       }
@@ -123,12 +127,23 @@ function App() {
       setPendingConfirmationCommand(data.pending_command);
     }
     if (data.sentiment) setSentiment(data.sentiment);
+    console.log("[Response]", data.response, data);
     speakRef.current(data.response);
   }, [pendingConfirmationCommand]);
 
   // Keep refs in sync (must be in effect, not during render)
+  const [ariaResponse, setAriaResponse] = useState("");
+
   useEffect(() => {
-    speakRef.current = speak;
+    // Wrap speak to also update an aria-live region for screen readers
+    speakRef.current = (text) => {
+      try {
+        setAriaResponse(text);
+      } catch {
+        // Ignore aria-live update failures.
+      }
+      speak(text);
+    };
     handleCommandRef.current = handleCommand;
   }, [speak, handleCommand]);
 
@@ -147,6 +162,8 @@ function App() {
 
   return (
     <div className="min-h-screen text-white font-sans overflow-hidden flex flex-col items-center justify-center p-4 relative">
+      {/* Screen-reader live region for TTS responses */}
+      <div aria-live="polite" className="sr-only" data-testid="aria-response">{ariaResponse}</div>
       <Background />
       <HologramOverlay />
 
@@ -185,15 +202,18 @@ function App() {
 
           {/* Mic Button */}
           <button
-            onClick={toggleListen}
+            onClick={speechSupported ? toggleListen : undefined}
             aria-label={
               state === "listening" ? "Stop listening" : "Start listening"
             }
+            aria-disabled={!speechSupported}
+            title={!speechSupported ? "Speech recognition unavailable in this browser. Use Chrome or enable Web Speech API." : undefined}
+            disabled={!speechSupported}
             className={`p-6 rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 ${
               state === "listening"
                 ? "bg-red-500/90 shadow-[0_0_40px_rgba(239,68,68,0.6)] animate-pulse"
                 : "bg-cyan-600/90 hover:bg-cyan-500 shadow-[0_0_30px_rgba(8,145,178,0.4)]"
-            }`}
+            } ${!speechSupported ? "opacity-50 cursor-not-allowed" : ""}`}
           >
             {state === "listening" ? (
               <StopCircle size={32} />
@@ -201,6 +221,11 @@ function App() {
               <Mic size={32} />
             )}
           </button>
+          {!speechSupported && (
+            <div className="text-xs text-yellow-300 mt-2 text-center max-w-xs z-50">
+              Speech recognition is not available in this browser. Try Chrome or Edge and enable microphone permissions.
+            </div>
+          )}
         </div>
       </div>
 

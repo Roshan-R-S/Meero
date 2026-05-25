@@ -15,10 +15,6 @@ on:
         description: 'Upload artifacts to Hugging Face Hub'
         required: false
         default: 'true'
-      upload_s3:
-        description: 'Upload artifacts to S3'
-        required: false
-        default: 'false'
       dry_run:
         description: 'Perform a dry-run (validate credentials only)'
         required: false
@@ -73,7 +69,6 @@ jobs:
         run: |
           ARGS="--epochs ${{ inputs.epochs }} --batch ${{ inputs.batch_size }}"
           if [ "${{ inputs.upload_hf }}" = "true" ]; then ARGS="$ARGS --upload-hf"; fi
-          if [ "${{ inputs.upload_s3 }}" = "true" ]; then ARGS="$ARGS --upload-s3"; fi
           if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           echo "Running: python scripts/train_and_package.py $ARGS"
           python scripts/train_and_package.py $ARGS

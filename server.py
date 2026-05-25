@@ -20,6 +20,7 @@ except Exception:
 from actions import Actions
 from mock_engine import MockSpeechEngine
 from external_llm import ExternalLLM
+from prompt_templates import clean_llm_response
 import memory_store
 
 # neural_net and llm_engine may require large native deps; import safely
@@ -266,6 +267,7 @@ def process_command(request: CommandRequest):
                             history=CONVERSATION_HISTORY,
                             memory_summary=summary,
                         )
+                        response_text = clean_llm_response(response_text)
                         if response_text:
                             metadata.engine = "local_llm"
                     except Exception:
@@ -282,6 +284,7 @@ def process_command(request: CommandRequest):
                             history=CONVERSATION_HISTORY,
                             memory_summary=summary,
                         )
+                        response_text = clean_llm_response(response_text)
                         if response_text:
                             metadata.engine = "external_llm"
                     except Exception:

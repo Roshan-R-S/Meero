@@ -7,7 +7,7 @@ import logging
 from typing import Optional
 import httpx
 import config
-from prompt_templates import build_external_payload
+from prompt_templates import build_external_payload, clean_llm_response
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class ExternalLLM:
             resp = httpx.post(api_url, json=payload, headers=headers, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
-                return data.get("response") or data.get("text")
+                return clean_llm_response(data.get("response") or data.get("text"))
             logger.error("External LLM returned %s: %s", resp.status_code, resp.text)
         except Exception:
             logger.exception("External LLM request failed")

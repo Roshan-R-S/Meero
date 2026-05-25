@@ -18,18 +18,6 @@ const HologramOverlay = () => {
       </div>
 
       {/* 2. Corner Data Blocks */}
-      {/* Top Left */}
-      <div className="absolute top-10 left-10 flex flex-col gap-1 text-[10px] font-mono text-cyan-500/40 tracking-widest">
-        <div>SYS.ROOT.User: ACTIVE</div>
-        <div>MEM_ALLOC: 43.2%</div>
-        <Motion.div
-          animate={{ opacity: [0.2, 0.8, 0.2] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        >
-          NET_SPEED: 1.2 GB/s
-        </Motion.div>
-      </div>
-
       {/* Top Right */}
       <div className="absolute top-10 right-10 text-right">
         <div className="w-32 h-px bg-cyan-500/30 mb-2" />
@@ -43,12 +31,6 @@ const HologramOverlay = () => {
             />
           ))}
         </div>
-      </div>
-
-      {/* Bottom Left - Coordinates */}
-      <div className="absolute bottom-10 left-10 font-mono text-[8px] text-cyan-500/30">
-        <p>LAT: 32.443.12</p>
-        <p>LNG: 88.102.33</p>
       </div>
 
       {/* 3. Scanning Grid Line */}

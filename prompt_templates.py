@@ -1,6 +1,8 @@
 """Prompt builders for Meero's LLM fallback path."""
 from __future__ import annotations
 
+import re
+
 from typing import Iterable
 
 SYSTEM_PROMPT = (
@@ -8,6 +10,11 @@ SYSTEM_PROMPT = (
     "Be concise, useful, and action-oriented. "
     "Prefer one or two sentences unless the user asks for detail."
 )
+
+ASSISTANT_HEADER = "<|start_header_id|>assistant<|end_header_id|>"
+BEGIN_TEXT = "<|begin_of_text|>"
+EOT_TOKEN = "<|eot_id|>"
+RESERVED_TOKEN_RE = re.compile(r"<\|reserved_special_token_\d+\|>")
 
 
 def _format_turn(role: str, text: str) -> str:
@@ -48,3 +55,34 @@ def build_external_payload(
         "history": list(history or []),
         "memory_summary": memory_summary or "",
     }
+
+
+def clean_llm_response(text: str | None) -> str:
+    """Remove prompt artifacts from model output before returning it."""
+    if not text:
+        return ""
+
+    cleaned = text.strip()
+    cleaned = cleaned.replace(BEGIN_TEXT, "")
+    cleaned = cleaned.replace(EOT_TOKEN, "")
+    cleaned = RESERVED_TOKEN_RE.sub("", cleaned)
+
+    if ASSISTANT_HEADER in cleaned:
+        cleaned = cleaned.split(ASSISTANT_HEADER)[-1].strip()
+
+    if "Meero:" in cleaned:
+        cleaned = cleaned.rsplit("Meero:", 1)[-1].strip()
+
+    if "Assistant:" in cleaned:
+        cleaned = cleaned.rsplit("Assistant:", 1)[-1].strip()
+
+    if cleaned.startswith(SYSTEM_PROMPT):
+        cleaned = cleaned[len(SYSTEM_PROMPT):].strip()
+
+    if SYSTEM_PROMPT in cleaned:
+        cleaned = cleaned.split(SYSTEM_PROMPT, 1)[-1].strip()
+
+    if cleaned.startswith("User:"):
+        cleaned = cleaned.split("User:")[-1].strip()
+
+    return " ".join(cleaned.split())

@@ -10,6 +10,7 @@ export const sendCommand = async (command, options = {}) => {
       confirm: Boolean(options.confirm),
       pending_command: options.pendingCommand || null,
     });
+    console.log("[API] /command response:", response.data);
     return response.data;
   } catch (error) {
     console.error("API Error:", error);

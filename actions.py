@@ -1,5 +1,6 @@
 
 import os
+import re
 import subprocess
 import webbrowser
 import datetime
@@ -39,6 +40,10 @@ def start_file(path):
 _OPEN_VERBS = ("open", "launch", "start", "run")
 _CLOSE_VERBS = ("close", "kill", "stop", "quit", "exit")
 _CONFIRM_YES = ("yes", "y", "ok", "okay", "confirm", "proceed", "do it")
+_GREETING_RE = re.compile(
+    r"^(hi|hello|hey|yo|good morning|good afternoon|good evening)(\s+meero)?[.!?]*$",
+    re.IGNORECASE,
+)
 
 # Website name → URL registry
 _WEBSITES = {
@@ -81,6 +86,7 @@ class Actions:
         # Command registry: list of (matcher, handler) tuples checked in order.
         # Each matcher is a callable(query) -> bool. First match wins.
         self._commands = [
+            (self._match_greeting,      lambda q, **_: self.greet()),
             (self._match_play_youtube,   lambda q, **_: self.play_youtube(q)),
             (self._match_social_media,   self.open_social_media),
             (self._match_schedule,       lambda q, **_: self.schedule()),
@@ -103,6 +109,10 @@ class Actions:
     @staticmethod
     def _match_social_media(q):
         return any(p in q for p in ('facebook', 'discord', 'whatsapp', 'instagram', 'youtube'))
+
+    @staticmethod
+    def _match_greeting(q):
+        return bool(_GREETING_RE.match(q.strip().lower()))
 
     @staticmethod
     def _match_schedule(q):
@@ -382,6 +392,9 @@ class Actions:
         joke = pyjokes.get_joke()
         logger.info("Joke: %s", joke)
         self.speak(joke)
+
+    def greet(self):
+        self.speak("I'm here to help. What can I assist you with today?")
 
     def tell_time(self, query):
         now = datetime.datetime.now()

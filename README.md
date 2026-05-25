@@ -1,68 +1,122 @@
-# Meero Python 2.0 (AI Assistant)
+# Meero Python 2.0
 
-A modern, voice-activated virtual assistant powered by a Python backend (TensorFlow/FastAPI) and a React frontend. Meero can perform system automation, web browsing, and hold conversations using a trained neural network.
+Meero Python 2.0 is a voice-enabled AI assistant with a Python FastAPI backend and a React frontend. It supports speech input, text-to-speech, automation, and local AI fallback responses.
 
-## 🚀 Features
+## Features
 
-*   **Voice Interaction**: Full speech-to-text and text-to-speech capabilities.
-*   **Web Dashboard**: A beautiful, animated UI built with React, Tailwind CSS, and Framer Motion.
-*   **Intelligence**: Neural Network (Keras) for natural language understanding.
-*   **Automation**:
-    *   Open/Close Apps (Notepad, Calculator, Paint).
-    *   Social Media Shortcuts (YouTube, Facebook, WhatsApp).
-    *   System Control (Volume, Battery, CPU).
-    *   Information (Time, Date, Wikipedia).
+- Voice interaction with speech-to-text and text-to-speech
+- React frontend with an animated assistant UI
+- Rule-based command handling for apps, websites, and system actions
+- Neural network and LLM fallback for general conversation
+- Offline speech recognition support with Vosk
 
-## 🏗️ Architecture
+## Project Structure
 
-For a detailed breakdown of all 8+ modules, please see [PROJECT_ARCHITECTURE.md](./PROJECT_ARCHITECTURE.md).
+- `server.py` - FastAPI backend entry point
+- `actions.py` - Rule-based command engine
+- `neural_net.py` - Neural network fallback
+- `llm_engine.py` - Local GPT4All fallback
+- `main.py` - Legacy console-only entry point
+- `frontend/` - React + Vite web UI
 
-### **High Level**
-*   **Frontend**: React + Vite (Port 5173). Handles audio IO and visuals.
-*   **Backend**: Python FastAPI (Port 8000). Handles logic and automation.
+See [PROJECT_ARCHITECTURE.md](./PROJECT_ARCHITECTURE.md) for a full breakdown.
 
-## 🛠️ Installation
+## Requirements
 
-### 1. Prerequisites
-*   Python 3.8+
-*   Node.js & npm
+- Python 3.8+
+- Node.js 20+
+- `pnpm` recommended for the frontend
 
-### 2. Backend Setup
+## Setup
+
+### Backend
+
+From the project root:
+
 ```bash
-# Install Python dependencies
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 3. Frontend Setup
+### Frontend
+
 ```bash
 cd frontend
-npm install
+pnpm install
 ```
 
-## ▶️ Usage
+## How to Run
 
-### Running the Project (Integrated Mode)
+Run the backend and frontend in two separate terminals.
 
-1.  **Start the Backend**:
-    ```bash
-    # Root directory
-    python server.py
-    ```
-2.  **Start the Frontend**:
-    ```bash
-    cd frontend
-    npm run dev
-    ```
-3.  **Open Browser**: Visist `http://localhost:5173`.
+### Terminal 1: Backend
 
-### Training the Model
+```bash
+python server.py
+```
+
+Or run the FastAPI app directly with uvicorn:
+
+```bash
+python -m uvicorn server:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Terminal 2: Frontend
+
+```bash
+cd frontend
+pnpm run dev
+```
+
+Open `http://localhost:5173` in your browser.
+
+## Windows PowerShell Quick Start
+
+```powershell
+cd "E:\Meero Python 2.0"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+cd frontend
+pnpm install
+```
+
+Then open two terminals:
+
+```powershell
+cd "E:\Meero Python 2.0"
+.\.venv\Scripts\Activate.ps1
+python server.py
+```
+
+Or:
+
+```powershell
+cd "E:\Meero Python 2.0"
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn server:app --reload --host 0.0.0.0 --port 8000
+```
+
+```powershell
+cd "E:\Meero Python 2.0\frontend"
+pnpm run dev
+```
+
+If you are using the local speech backend, make sure your browser allows microphone access.
+
+## Training the Model
+
 If you modify `intents.json`, retrain the AI:
+
 ```bash
 python model_train.py
 ```
 
-### Running in Legacy Mode (Console Only)
+## Legacy Console Mode
+
 To run without the web UI:
+
 ```bash
 python main.py
 ```
@@ -71,20 +125,14 @@ python main.py
 
 Meero supports an offline STT backend using Vosk. By default the project prefers Vosk when available and falls back to Google Online STT.
 
-- **Install**: Vosk is already included in `requirements.txt`; install with:
-
 ```powershell
 pip install -r requirements.txt
 ```
-
-- **Download a Vosk model**: use the setup helper to download, safely extract, and verify the default small English model:
 
 ```powershell
 python scripts/setup_vosk.py
 python scripts/setup_vosk.py --verify-only
 ```
-
-- **Configure**: either place the model under `models/vosk-model-small` (default) or set the `VOSK_MODEL_PATH` environment variable to the model folder. To force Google recognizer instead, set `SPEECH_BACKEND` to `google`.
 
 ```powershell
 # Point to a custom model path for the current session
@@ -93,9 +141,8 @@ $env:VOSK_MODEL_PATH = "E:\path\to\models\vosk-model-small-en-us-0.15"
 $env:SPEECH_BACKEND = "google"
 ```
 
-- **Notes**:
-    - Vosk runs fully offline but requires downloading a language model (tens to hundreds of MB).
-    - If Vosk fails or is unavailable, Meero will automatically fall back to the Google recognizer.
+- Vosk runs fully offline but requires downloading a language model.
+- If Vosk fails or is unavailable, Meero will automatically fall back to the Google recognizer.
 
 ## Model Packaging and Release Automation
 
@@ -111,7 +158,7 @@ Quantize a Hugging Face model directory or source GGUF with llama.cpp tools:
 python scripts/package_gguf.py --input path\to\hf-model --out-dir build\model-artifacts\gguf --quantization Q4_K_M
 ```
 
-Tagged pushes (`v*`) and published GitHub releases build/package artifacts, attach them to the workflow/release, and optionally publish to Hugging Face when `HF_TOKEN` and `HF_REPO` secrets are configured.
+Tagged pushes (`v*`) and published GitHub releases build and package artifacts, attach them to the workflow or release, and optionally publish to Hugging Face when `HF_TOKEN` and `HF_REPO` secrets are configured.
 
 ## Security and Formatting
 
@@ -128,7 +175,7 @@ Run the secret scanner manually:
 python scripts/secret_scan.py
 ```
 
-Rotate GitHub Actions secrets with the helper by setting replacement values in `NEW_<SECRET_NAME>` environment variables, for example `NEW_HF_TOKEN`, then running:
+Rotate GitHub Actions secrets by setting replacement values in `NEW_<SECRET_NAME>` environment variables, for example `NEW_HF_TOKEN`, then running:
 
 ```powershell
 python scripts/rotate_tokens.py --secret HF_TOKEN --repo owner/repo

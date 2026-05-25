@@ -65,13 +65,12 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: build/model-artifacts/**
 
-      - name: Publish to Hugging Face Hub
+      - name: Require Hugging Face credentials and publish
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_REPO: ${{ secrets.HF_REPO }}
         run: |
           if [ -z "$HF_TOKEN" ] || [ -z "$HF_REPO" ]; then
-            echo "HF_TOKEN/HF_REPO not configured; skipping Hugging Face publish."
-            exit 0
+            echo "HF_TOKEN and HF_REPO must be configured for tag publish; aborting."; exit 1
           fi
           python scripts/publish_artifacts.py --artifact-dir build/model-artifacts
