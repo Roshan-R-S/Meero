@@ -29,6 +29,12 @@ except Exception:
     logger.info("pyautogui unavailable; GUI automation commands are disabled")
     pyautogui = _UnavailablePyAutoGUI()
 
+
+def start_file(path):
+    if not hasattr(os, "startfile"):
+        raise RuntimeError("os.startfile is only available on Windows")
+    os.startfile(path)
+
 # Verbs that mean "open an app"
 _OPEN_VERBS = ("open", "launch", "start", "run")
 _CLOSE_VERBS = ("close", "kill", "stop", "quit", "exit")
@@ -281,7 +287,7 @@ class Actions:
         for name, path in hardcoded.items():
             if name in app_name:
                 self.speak(f"Opening {name}")
-                os.startfile(path)
+                start_file(path)
                 return
 
         if "vscode" in app_name or "visual studio code" in app_name:

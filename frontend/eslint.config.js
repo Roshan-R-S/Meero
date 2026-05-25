@@ -32,4 +32,10 @@ export default defineConfig([
       globals: globals.vitest,
     },
   },
+  {
+    files: ['*.config.js', 'postcss.config.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
 ])

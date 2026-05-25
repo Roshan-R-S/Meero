@@ -33,4 +33,4 @@ jobs:
       - name: Run Vitest
         working-directory: frontend
         run: |
-          pnpm exec vitest run
+          VITEST=true pnpm exec vitest run

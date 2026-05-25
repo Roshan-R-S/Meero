@@ -1,6 +1,10 @@
+const isVitest = process.env.VITEST === 'true'
+
 export default {
-    plugins: {
+  plugins: isVitest
+    ? {}
+    : {
         '@tailwindcss/postcss': {},
         autoprefixer: {},
-    },
+      },
 }

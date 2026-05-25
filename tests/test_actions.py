@@ -89,7 +89,7 @@ class TestProcessCommand:
         response = engine.get_response()
         assert "date is" in response.lower()
 
-    @patch("actions.os.startfile")
+    @patch("actions.start_file")
     def test_open_calculator(self, mock_startfile, actions):
         act, engine = actions
         act.process_command("open calculator")
