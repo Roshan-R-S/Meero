@@ -77,14 +77,11 @@ Meero supports an offline STT backend using Vosk. By default the project prefers
 pip install -r requirements.txt
 ```
 
-- **Download a Vosk model**: Visit https://alphacephei.com/vosk/models to pick a model (e.g. English small). On Windows you can download and extract with PowerShell:
+- **Download a Vosk model**: use the setup helper to download, safely extract, and verify the default small English model:
 
 ```powershell
-# example - replace URL with chosen model
-$zip = "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
-Invoke-WebRequest -Uri $zip -OutFile vosk-model.zip
-Expand-Archive vosk-model.zip -DestinationPath .\models\
-Remove-Item vosk-model.zip
+python scripts/setup_vosk.py
+python scripts/setup_vosk.py --verify-only
 ```
 
 - **Configure**: either place the model under `models/vosk-model-small` (default) or set the `VOSK_MODEL_PATH` environment variable to the model folder. To force Google recognizer instead, set `SPEECH_BACKEND` to `google`.
@@ -100,3 +97,39 @@ $env:SPEECH_BACKEND = "google"
     - Vosk runs fully offline but requires downloading a language model (tens to hundreds of MB).
     - If Vosk fails or is unavailable, Meero will automatically fall back to the Google recognizer.
 
+## Model Packaging and Release Automation
+
+Build versioned intent-model artifacts locally:
+
+```powershell
+python scripts/train_and_package.py --epochs 5 --batch 32 --out-dir build/model-artifacts
+```
+
+Quantize a Hugging Face model directory or source GGUF with llama.cpp tools:
+
+```powershell
+python scripts/package_gguf.py --input path\to\hf-model --out-dir build\model-artifacts\gguf --quantization Q4_K_M
+```
+
+Tagged pushes (`v*`) and published GitHub releases build/package artifacts, attach them to the workflow/release, and optionally publish to Hugging Face when `HF_TOKEN` and `HF_REPO` secrets are configured.
+
+## Security and Formatting
+
+Install local hooks:
+
+```powershell
+pip install -r requirements-test.txt
+pre-commit install
+```
+
+Run the secret scanner manually:
+
+```powershell
+python scripts/secret_scan.py
+```
+
+Rotate GitHub Actions secrets with the helper by setting replacement values in `NEW_<SECRET_NAME>` environment variables, for example `NEW_HF_TOKEN`, then running:
+
+```powershell
+python scripts/rotate_tokens.py --secret HF_TOKEN --repo owner/repo
+```

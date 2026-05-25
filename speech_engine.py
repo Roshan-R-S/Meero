@@ -1,15 +1,26 @@
-
+import json
 import logging
-import pyttsx3
-import speech_recognition as sr
+import os
+
 import config
+
+try:
+    import pyttsx3
+except Exception:
+    pyttsx3 = None
+
+try:
+    import speech_recognition as sr
+except Exception:
+    sr = None
 
 _has_vosk = False
 try:
     from vosk import Model, KaldiRecognizer
-    import json
     _has_vosk = True
 except Exception:
+    Model = None
+    KaldiRecognizer = None
     _has_vosk = False
 
 logger = logging.getLogger(__name__)
@@ -18,6 +29,11 @@ logger = logging.getLogger(__name__)
 class SpeechEngine:
     def __init__(self):
         """Initialize the TTS engine once and reuse it."""
+        if pyttsx3 is None:
+            logger.warning("pyttsx3 unavailable, TTS disabled")
+            self._engine = None
+            return
+
         try:
             self._engine = pyttsx3.init("sapi5")
             voices = self._engine.getProperty('voices')
@@ -41,7 +57,7 @@ class SpeechEngine:
             self._engine.say(text)
             self._engine.runAndWait()
         except RuntimeError:
-            # Engine loop already running — re-init and retry once
+            # Engine loop already running; re-init and retry once.
             logger.warning("TTS engine busy, reinitializing")
             try:
                 self._engine = pyttsx3.init("sapi5")
@@ -50,23 +66,54 @@ class SpeechEngine:
             except Exception:
                 logger.exception("TTS retry failed")
 
+    def _capture_audio(self):
+        if sr is None:
+            raise RuntimeError("speech_recognition unavailable")
+
+        recognizer = sr.Recognizer()
+        with sr.Microphone() as source:
+            logger.info("Listening...")
+            if hasattr(recognizer, "adjust_for_ambient_noise"):
+                recognizer.adjust_for_ambient_noise(source, duration=0.5)
+            recognizer.pause_threshold = 1.0
+            recognizer.energy_threshold = config.ENERGY_THRESHOLD
+            try:
+                audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
+            except sr.WaitTimeoutError:
+                logger.info("Listen timeout")
+                return recognizer, None
+        return recognizer, audio
+
+    def _resolve_vosk_model_path(self):
+        model_path = config.VOSK_MODEL_PATH
+        if not model_path:
+            raise RuntimeError("Vosk model not configured")
+
+        required = ("am", "conf", "graph")
+        if all(os.path.isdir(os.path.join(model_path, name)) for name in required):
+            return model_path
+
+        if os.path.isdir(model_path):
+            for name in os.listdir(model_path):
+                candidate = os.path.join(model_path, name)
+                if all(os.path.isdir(os.path.join(candidate, part)) for part in required):
+                    return candidate
+
+        raise RuntimeError(f"Vosk model files not found under {model_path}")
+
     def listen(self):
         """Listen using configured backend (Vosk offline preferred, Google fallback)."""
         # If Vosk is configured and available, use it (offline)
         if config.SPEECH_RECOGNITION_BACKEND == 'vosk' and _has_vosk:
             try:
-                model_path = config.VOSK_MODEL_PATH
-                if not model_path or not Model:
-                    raise RuntimeError("Vosk model not configured")
+                if Model is None or KaldiRecognizer is None:
+                    raise RuntimeError("Vosk package not available")
 
-                # Use PyAudio via speech_recognition microphone capture
-                r = sr.Recognizer()
-                with sr.Microphone() as source:
-                    logger.info("Listening (Vosk)...")
-                    r.adjust_for_ambient_noise(source, duration=0.5)
-                    audio = r.listen(source, timeout=5, phrase_time_limit=10)
+                _, audio = self._capture_audio()
+                if audio is None:
+                    return "None"
 
-                # Convert to raw bytes for Vosk
+                model_path = self._resolve_vosk_model_path()
                 raw_data = audio.get_raw_data(convert_rate=16000, convert_width=2)
                 model = Model(model_path)
                 rec = KaldiRecognizer(model, 16000)
@@ -79,17 +126,14 @@ class SpeechEngine:
                 logger.exception("Vosk recognition failed, falling back to Google")
 
         # Fallback: speech_recognition with Google (online)
-        r = sr.Recognizer()
-        with sr.Microphone() as source:
-            logger.info("Listening...")
-            r.adjust_for_ambient_noise(source, duration=0.5)
-            r.pause_threshold = 1.0
-            r.energy_threshold = config.ENERGY_THRESHOLD
-            try:
-                audio = r.listen(source, timeout=5, phrase_time_limit=10)
-            except sr.WaitTimeoutError:
-                logger.info("Listen timeout")
-                return "None"
+        try:
+            r, audio = self._capture_audio()
+        except Exception:
+            logger.exception("Microphone capture failed")
+            return "None"
+
+        if audio is None:
+            return "None"
 
         try:
             logger.info("Recognizing (Google)...")

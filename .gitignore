@@ -13,6 +13,7 @@ build/
 *.pkl
 *.h5
 models/*.gguf
+*.db-journal
 
 # IDE / Editor
 .vscode/

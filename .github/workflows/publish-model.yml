@@ -1,49 +1,77 @@
-name: Publish model on tag
+name: Publish Model Artifacts
 
 on:
   push:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
-  build-and-publish:
+  build-package-publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}-py3.11
-          restore-keys: |
-            ${{ runner.os }}-pip-
+      - name: Install system audio headers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y portaudio19-dev
 
-      - name: Install dependencies
+      - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt || true
-          pip install huggingface-hub
+          pip install -r requirements.txt
 
-      - name: Check HF secrets
+      - name: Build model package
+        env:
+          MODEL_EPOCHS: ${{ vars.MODEL_EPOCHS }}
+          MODEL_BATCH: ${{ vars.MODEL_BATCH }}
+        run: |
+          python scripts/train_and_package.py \
+            --epochs "${MODEL_EPOCHS:-5}" \
+            --batch "${MODEL_BATCH:-32}" \
+            --version "${GITHUB_REF_NAME}" \
+            --out-dir build/model-artifacts
+
+      - name: Package GGUF artifacts
+        if: ${{ vars.GGUF_INPUT != '' }}
+        env:
+          GGUF_INPUT: ${{ vars.GGUF_INPUT }}
+          LLAMA_CPP_DIR: ${{ vars.LLAMA_CPP_DIR }}
+          LLAMA_CPP_CONVERT: ${{ vars.LLAMA_CPP_CONVERT }}
+          LLAMA_CPP_QUANTIZE: ${{ vars.LLAMA_CPP_QUANTIZE }}
+        run: |
+          python scripts/package_gguf.py \
+            --input "$GGUF_INPUT" \
+            --out-dir build/model-artifacts/gguf \
+            --model-name meero-llm
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meero-model-artifacts-${{ github.ref_name }}
+          path: build/model-artifacts/**
+
+      - name: Attach artifacts to GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: build/model-artifacts/**
+
+      - name: Publish to Hugging Face Hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_REPO: ${{ secrets.HF_REPO }}
         run: |
           if [ -z "$HF_TOKEN" ] || [ -z "$HF_REPO" ]; then
-            echo "HF_TOKEN or HF_REPO not set; aborting."; exit 1
+            echo "HF_TOKEN/HF_REPO not configured; skipping Hugging Face publish."
+            exit 0
           fi
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_REPO:  ${{ secrets.HF_REPO }}
-
-      - name: Run training and upload (smoke)
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_REPO:  ${{ secrets.HF_REPO }}
-        run: |
-          # Use dry-run in CI to validate auth/permissions without requiring TensorFlow
-          python scripts/train_and_package.py --dry-run --upload-hf
+          python scripts/publish_artifacts.py --artifact-dir build/model-artifacts

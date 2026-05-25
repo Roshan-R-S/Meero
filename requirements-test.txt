@@ -12,3 +12,7 @@ pyjokes==0.8.3
 prometheus-client==0.16.0
 python-json-logger==2.0.7
 huggingface-hub==0.18.1
+black==24.10.0
+isort==5.13.2
+flake8==7.1.1
+pre-commit==4.0.1
