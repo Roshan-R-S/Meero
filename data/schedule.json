@@ -1,0 +1,9 @@
+{
+    "monday": "Boss, from 9:00 to 9:50 you have Algorithms class, from 10:00 to 11:50 you have System Design class.",
+    "tuesday": "Boss, from 9:00 to 9:50 you have Web Development class.",
+    "wednesday": "Boss, today you have a full day of classes.",
+    "thursday": "Boss, today you have a full day of classes.",
+    "friday": "Boss, today you have a full day of classes.",
+    "saturday": "Boss, today you have a more relaxed day.",
+    "sunday": "Boss, today is a holiday."
+}

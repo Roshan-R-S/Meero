@@ -1,0 +1,8 @@
+{
+  "version": "20260525143046",
+  "model": "chat_model_20260525143046.h5",
+  "tokenizer": "tokenizer_20260525143046.pkl",
+  "label_encoder": "label_encoder_20260525143046.pkl",
+  "timestamp": "2026-05-25T14:30:47Z",
+  "git": null
+}
