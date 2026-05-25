@@ -23,10 +23,19 @@ jobs:
           pip install -r requirements.txt || true
           pip install huggingface-hub
 
+      - name: Check HF secrets
+        run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_REPO" ]; then
+            echo "HF_TOKEN or HF_REPO not set; aborting."; exit 1
+          fi
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_REPO:  ${{ secrets.HF_REPO }}
+
       - name: Run training and upload (smoke)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_REPO:  ${{ secrets.HF_REPO }}
         run: |
-          # Use small epochs for CI smoke test to produce artifacts quickly
-          python scripts/train_and_package.py --epochs 1 --batch 8 --upload-hf
+          # Use dry-run in CI to validate auth/permissions without requiring TensorFlow
+          python scripts/train_and_package.py --dry-run --upload-hf
