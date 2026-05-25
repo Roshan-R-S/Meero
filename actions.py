@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 # Verbs that mean "open an app"
 _OPEN_VERBS = ("open", "launch", "start", "run")
 _CLOSE_VERBS = ("close", "kill", "stop", "quit", "exit")
+_CONFIRM_YES = ("yes", "y", "ok", "okay", "confirm", "proceed", "do it")
 
 # Website name → URL registry
 _WEBSITES = {
@@ -386,6 +387,32 @@ class Actions:
         else:
             os._exit(0)
 
+    def _requires_confirmation(self, query):
+        q = query.lower().strip()
+        destructive_keywords = (
+            "delete", "remove", "format", "wipe", "reset",
+            "uninstall", "shutdown", "restart", "registry"
+        )
+
+        # Treat system-level changes as sensitive operations.
+        is_destructive = any(k in q for k in destructive_keywords)
+        is_settings_change = "settings" in q
+        is_app_termination = self._match_close_app(q) and "notepad" not in q
+        return is_destructive or is_settings_change or is_app_termination
+
+    def _confirm_sensitive_action(self, input_func):
+        self.speak("This action may delete data or change system settings. Should I continue? Say yes or no.")
+        if not input_func:
+            self.speak("I could not get your confirmation. Action cancelled.")
+            return False
+
+        answer = (input_func() or "").strip().lower()
+        if answer in _CONFIRM_YES:
+            return True
+
+        self.speak("Action cancelled.")
+        return False
+
     # ── Main Dispatcher ──────────────────────────────────────────────
     def process_command(self, query, input_func=None, exit_func=None):
         if not query or query == "None":
@@ -393,6 +420,9 @@ class Actions:
 
         for matcher, handler in self._commands:
             if matcher(query):
+                if self._requires_confirmation(query):
+                    if not self._confirm_sensitive_action(input_func):
+                        return "action_cancelled"
                 handler(query, input_func=input_func, exit_func=exit_func)
                 return
 

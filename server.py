@@ -4,6 +4,7 @@ import logging
 import threading
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 
 # Some optional heavy modules (ML, sentiment) are imported lazily
@@ -90,11 +91,14 @@ else:
 class CommandRequest(BaseModel):
     command: str
     mode: str = "voice" # 'voice' or 'text' from frontend perspective
+    confirm: bool = False
+    pending_command: Optional[str] = None
 
 class CommandResponse(BaseModel):
     response: str
     action_status: str
     sentiment: str = "neutral"
+    pending_command: Optional[str] = None
 
 def analyze_sentiment(text: str) -> str:
     """Use VADER to classify sentiment as positive/negative/neutral."""
@@ -123,7 +127,8 @@ def process_command(request: CommandRequest):
     
     with _state_lock:
         current_time = time.time()
-        if current_time - LAST_COMMAND_TIME < RATE_LIMIT_COOLDOWN:
+        # Allow immediate follow-up for confirmations.
+        if not request.confirm and current_time - LAST_COMMAND_TIME < RATE_LIMIT_COOLDOWN:
             return CommandResponse(
                 response="Rate limit exceeded. Please wait.",
                 action_status="ignored",
@@ -131,7 +136,7 @@ def process_command(request: CommandRequest):
             )
         LAST_COMMAND_TIME = current_time
 
-    query = request.command.lower()
+    query = (request.pending_command or request.command).lower()
     logger.info("Processing command: %s", query)
     
     # Setup Mock Engine for this request to capture output
@@ -147,8 +152,22 @@ def process_command(request: CommandRequest):
         mock_engine.speak("Disconnecting...")
 
     try:
+        # Two-step confirmation path for sensitive commands in API mode.
+        needs_confirmation = bool(
+            hasattr(actions, "_requires_confirmation") and actions._requires_confirmation(query)
+        )
+        if needs_confirmation and not request.confirm:
+            return CommandResponse(
+                response="This action may delete data or change system settings. Say yes to continue or no to cancel.",
+                action_status="confirmation_required",
+                sentiment="neutral",
+                pending_command=query,
+            )
+
+        confirmation_input = (lambda: "yes") if request.confirm else dummy_input
+
         # 1. Try Actions
-        result = actions.process_command(query, input_func=dummy_input, exit_func=dummy_exit)
+        result = actions.process_command(query, input_func=confirmation_input, exit_func=dummy_exit)
         
         # 2. If Actions didn't handle it, use Neural Net + LLM Hybrid
         if result == "neural_net_fallback":
@@ -221,7 +240,8 @@ def process_command(request: CommandRequest):
         return CommandResponse(
             response=final_response,
             action_status="success",
-            sentiment=sentiment
+            sentiment=sentiment,
+            pending_command=None,
         )
         
     except Exception as e:

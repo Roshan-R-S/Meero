@@ -1,25 +1,38 @@
+import React from 'react'
 import '@testing-library/jest-dom'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { vi } from 'vitest'
 import Typewriter from '../Typewriter'
 
-test('Typewriter renders progressively and calls onComplete', () => {
-  vi.useFakeTimers()
-  const onComplete = vi.fn()
+describe('Typewriter', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
 
-  render(<Typewriter text="Hi" speed={10} onComplete={onComplete} />)
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
-  // Advance to first character
-  vi.advanceTimersByTime(10)
-  expect(screen.getByText(/H/)).toBeInTheDocument()
+  test('renders characters over time and calls onComplete', async () => {
+    const onComplete = vi.fn()
+    render(<Typewriter text={'Hi'} speed={10} onComplete={onComplete} />)
 
-  // Advance to full text
-  vi.advanceTimersByTime(10)
-  expect(screen.getByText(/Hi/)).toBeInTheDocument()
+    // First character
+    act(() => {
+      vi.advanceTimersByTime(10)
+    })
+    expect(screen.getByText(/H/)).toBeInTheDocument()
 
-  // Complete callback should be invoked after finishing
-  vi.advanceTimersByTime(10)
-  expect(onComplete).toHaveBeenCalled()
+    // Second character
+    act(() => {
+      vi.advanceTimersByTime(10)
+    })
+    expect(screen.getByText(/Hi/)).toBeInTheDocument()
 
-  vi.useRealTimers()
+    // Let completion callback effect fire
+    act(() => {
+      vi.advanceTimersByTime(10)
+    })
+    expect(onComplete).toHaveBeenCalled()
+  })
 })

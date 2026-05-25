@@ -71,3 +71,9 @@ ENERGY_THRESHOLD = 4000
 NEURAL_NET_MAXLEN = 20
 NEURAL_NET_VOCAB_SIZE = 1000
 NEURAL_NET_EMBEDDING_DIM = 16
+
+# Speech recognition backend choices: 'google' (online), 'vosk' (offline)
+SPEECH_RECOGNITION_BACKEND = os.environ.get('SPEECH_BACKEND', 'vosk')
+
+# Vosk model path (if using Vosk). Leave empty to auto-download or set in env.
+VOSK_MODEL_PATH = os.environ.get('VOSK_MODEL_PATH', os.path.join(BASE_DIR, 'models', 'vosk-model-small'))

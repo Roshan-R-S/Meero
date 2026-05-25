@@ -1,0 +1,70 @@
+name: Release Publish -> HF
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish-on-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}-py3.10
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install huggingface-hub
+
+      - name: Run training and upload (with retries)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_REPO: ${{ secrets.HF_REPO }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          MAX_RETRIES=3
+          COUNT=0
+          until [ $COUNT -ge $MAX_RETRIES ]
+          do
+            COUNT=$((COUNT+1))
+            echo "Attempt $COUNT of $MAX_RETRIES"
+            if python scripts/train_and_package.py --upload-hf; then
+              echo "Upload succeeded"
+              exit 0
+            else
+              echo "Upload attempt $COUNT failed."
+              if [ $COUNT -lt $MAX_RETRIES ]; then
+                sleep_time=$((COUNT * 10))
+                echo "Sleeping $sleep_time seconds before retrying..."
+                sleep $sleep_time
+              fi
+            fi
+          done
+          echo "All retries failed. Creating GitHub issue to notify maintainers."
+
+      - name: Create issue on failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const tag = context.payload.release.tag_name || 'unknown';
+            const title = `HF upload failed for release ${tag}`;
+            const body = `The automated HF upload for release **${tag}** failed after several retries.\n\nRun: ${{ github.run_id }}\nRepo: ${{ github.repository }}\nPlease check the Actions run logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+            await github.rest.issues.create({ owner, repo, title, body, labels: ['ci-failure'] });

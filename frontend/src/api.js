@@ -2,9 +2,14 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:8000';
 
-export const sendCommand = async (command) => {
+export const sendCommand = async (command, options = {}) => {
   try {
-    const response = await axios.post(`${API_URL}/command`, { command, mode: 'voice' });
+    const response = await axios.post(`${API_URL}/command`, {
+      command,
+      mode: 'voice',
+      confirm: Boolean(options.confirm),
+      pending_command: options.pendingCommand || null,
+    });
     return response.data;
   } catch (error) {
     console.error("API Error:", error);

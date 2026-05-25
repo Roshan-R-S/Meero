@@ -103,6 +103,7 @@ class TestProcessCommand:
         act.process_command("close notepad")
         response = engine.get_response()
         assert "notepad" in response.lower()
+        assert "should i continue" not in response.lower()
         mock_run.assert_called_once()
 
     @patch("actions.webbrowser")
@@ -137,10 +138,35 @@ class TestVolumeControl:
     def test_volume_up(self, mock_gui, actions):
         act, engine = actions
         act.process_command("volume up")
+        response = engine.get_response().lower()
+        assert "should i continue" not in response
         mock_gui.press.assert_called_with("volumeup")
 
     @patch("actions.pyautogui")
     def test_volume_mute(self, mock_gui, actions):
         act, engine = actions
         act.process_command("mute")
+        response = engine.get_response().lower()
+        assert "should i continue" not in response
         mock_gui.press.assert_called_with("volumemute")
+
+
+class TestSensitiveCommandConfirmation:
+    @patch("actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
+    def test_settings_open_cancelled_without_yes(self, _mock_open, actions):
+        act, engine = actions
+        result = act.process_command("open settings", input_func=lambda: "no")
+        response = engine.get_response().lower()
+
+        assert result == "action_cancelled"
+        assert "action cancelled" in response
+
+    @patch("actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
+    def test_settings_open_runs_when_confirmed(self, mock_open, actions):
+        act, engine = actions
+        result = act.process_command("open settings", input_func=lambda: "yes")
+        response = engine.get_response().lower()
+
+        assert result is None
+        assert "opening settings" in response
+        mock_open.assert_called_once()

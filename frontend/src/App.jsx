@@ -12,6 +12,7 @@ import { playProcessing, playStartup } from "./utils/sound";
 function App() {
   const [state, setState] = useState("idle"); // idle, listening, processing, speaking
   const [sentiment, setSentiment] = useState("neutral"); // neutral, positive, negative
+  const [pendingConfirmationCommand, setPendingConfirmationCommand] = useState(null);
 
   // -- BOOT SEQUENCE STATE --
   const [booting, setBooting] = useState(true);
@@ -85,13 +86,45 @@ function App() {
 
   const handleCommand = useCallback(async (text) => {
     if (!text.trim()) return;
+
+    const normalized = text.trim().toLowerCase();
+    const yesWords = new Set(["yes", "y", "ok", "okay", "confirm", "proceed", "do it"]);
+    const noWords = new Set(["no", "n", "cancel", "stop", "don't", "do not"]);
+
+    if (pendingConfirmationCommand) {
+      if (yesWords.has(normalized)) {
+        setState("processing");
+        playProcessing();
+        const confirmData = await sendCommand(pendingConfirmationCommand, {
+          confirm: true,
+          pendingCommand: pendingConfirmationCommand,
+        });
+        setPendingConfirmationCommand(null);
+        if (confirmData.sentiment) setSentiment(confirmData.sentiment);
+        speakRef.current(confirmData.response);
+        return;
+      }
+
+      if (noWords.has(normalized)) {
+        setPendingConfirmationCommand(null);
+        speakRef.current("Action cancelled.");
+        return;
+      }
+
+      speakRef.current("Please say yes to continue or no to cancel.");
+      return;
+    }
+
     setState("processing");
     playProcessing();
 
     const data = await sendCommand(text);
+    if (data.action_status === "confirmation_required" && data.pending_command) {
+      setPendingConfirmationCommand(data.pending_command);
+    }
     if (data.sentiment) setSentiment(data.sentiment);
     speakRef.current(data.response);
-  }, []);
+  }, [pendingConfirmationCommand]);
 
   // Keep refs in sync (must be in effect, not during render)
   useEffect(() => {

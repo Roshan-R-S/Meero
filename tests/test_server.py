@@ -77,6 +77,32 @@ class TestCommandEndpoint:
         response = client.post("/command", json={})
         assert response.status_code == 422  # Validation error
 
+    def test_sensitive_command_requires_confirmation(self, client):
+        response = client.post("/command", json={"command": "open settings"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action_status"] == "confirmation_required"
+        assert data.get("pending_command") == "open settings"
+
+    @patch("actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
+    def test_sensitive_command_executes_after_confirm(self, mock_open, client):
+        # Step 1: request confirmation
+        client.post("/command", json={"command": "open settings"})
+
+        # Step 2: explicit confirmation executes the pending command
+        response = client.post(
+            "/command",
+            json={
+                "command": "yes",
+                "confirm": True,
+                "pending_command": "open settings",
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action_status"] == "success"
+        mock_open.assert_called_once()
+
 
 class TestSentiment:
     def test_analyze_sentiment_positive(self):
