@@ -1,6 +1,7 @@
 import logging
 import os
 from gpt4all import GPT4All
+from prompt_templates import build_llama3_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ class LLMEngine:
         self.llm = GPT4All(model_name=model_filename, model_path=model_dir, allow_download=False)
         logger.info("LLM Loaded successfully.")
 
-    def generate_response(self, user_input, history=None):
+    def generate_response(self, user_input, history=None, memory_summary=None):
         """
         Generate a response using GPT4All with conversation context.
         Args:
@@ -33,14 +34,7 @@ class LLMEngine:
         if history is None:
             history = []
         try:
-            # Build context from history (limit to last 5 exchanges)
-            context = ""
-            for q, a in history[-5:]:
-                context += f"<|start_header_id|>user<|end_header_id|>\n\n{q}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n{a}<|eot_id|>"
-
-            # Llama 3 Style Prompt with Context
-            prompt = f"<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are Meero, a helpful AI assistant. Keep your answers concise (1-2 sentences).<|eot_id|>{context}<|start_header_id|>user<|end_header_id|>\n\n{user_input}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n"
-
+            prompt = build_llama3_prompt(user_input, history, memory_summary=memory_summary)
             response = self.llm.generate(prompt, max_tokens=100, temp=0.7)
             return response.strip()
             

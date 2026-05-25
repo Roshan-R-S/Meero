@@ -7,6 +7,7 @@ import logging
 from typing import Optional
 import httpx
 import config
+from prompt_templates import build_external_payload
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,12 @@ class ExternalLLM:
         else:
             self.enabled = True
 
-    def generate_response(self, user_input: str, history=None) -> Optional[str]:
+    def generate_response(
+        self,
+        user_input: str,
+        history=None,
+        memory_summary=None,
+    ) -> Optional[str]:
         """Generate a response using the configured external LLM provider.
 
         Currently supports a simple HTTP POST interface. Returns None if
@@ -32,14 +38,14 @@ class ExternalLLM:
             return None
 
         try:
-            # Example for a generic provider endpoint — operator must provide
+            # Example for a generic provider endpoint; operator must provide
             # a compatible `LLM_API_URL` environment variable when using this.
             api_url = os.environ.get("LLM_API_URL")
             if not api_url:
                 logger.warning("LLM_API_URL not set; cannot call external LLM.")
                 return None
 
-            payload = {"input": user_input, "history": history or []}
+            payload = build_external_payload(user_input, history, memory_summary=memory_summary)
             headers = {"Authorization": f"Bearer {self.api_key}"}
 
             resp = httpx.post(api_url, json=payload, headers=headers, timeout=10)

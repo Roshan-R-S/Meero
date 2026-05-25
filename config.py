@@ -55,6 +55,11 @@ USE_LLM = True
 # neural net's answer or fall back to the LLM. Keep high if you prefer LLMs.
 NEURAL_NET_CONFIDENCE_THRESHOLD = 0.8
 
+# Conversation memory limits. Recent turns stay verbatim; older turns are
+# compressed into a lightweight summary for LLM fallback context.
+MEMORY_MAX_INTERACTIONS = int(os.environ.get("MEMORY_MAX_INTERACTIONS", "20"))
+MEMORY_SUMMARY_MAX_CHARS = int(os.environ.get("MEMORY_SUMMARY_MAX_CHARS", "1200"))
+
 # LLM generation timeout (seconds) — used by async or guarded calls.
 LLM_MAX_GENERATION_TIME = 10
 

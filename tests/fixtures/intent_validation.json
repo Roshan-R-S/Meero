@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "query": "what time is it",
+      "expected_intent": "time"
+    },
+    {
+      "query": "tell me a joke",
+      "expected_intent": "joke"
+    },
+    {
+      "query": "open github",
+      "expected_intent": "open_website"
+    },
+    {
+      "query": "google search python decorators",
+      "expected_intent": "browse"
+    },
+    {
+      "query": "what is quantum entanglement",
+      "expected_intent": "fallback"
+    }
+  ]
+}

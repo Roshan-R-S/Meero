@@ -1,11 +1,13 @@
-import sys
-import time
 import logging
+import os
+import sys
 import threading
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+import time
 from typing import Optional
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 # Some optional heavy modules (ML, sentiment) are imported lazily
 try:
@@ -30,7 +32,6 @@ try:
     from llm_engine import LLMEngine
 except Exception:
     LLMEngine = None
-import os
 import config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
@@ -42,7 +43,7 @@ MODEL_PATH = config.LLM_MODEL_PATH
 _state_lock = threading.Lock()
 CONVERSATION_HISTORY = []
 
-# Sentiment Analyzer (VADER — rule-based, no training needed)
+# Sentiment Analyzer (VADER rule-based, no training needed)
 if _sentiment_available and SentimentIntensityAnalyzer is not None:
     _sentiment_analyzer = SentimentIntensityAnalyzer()
 else:
@@ -62,6 +63,7 @@ app.add_middleware(
 )
 
 # Initialize Components (safe: heavy modules may be None)
+external_llm = None
 if getattr(config, "USE_NEURAL_NET", True) and NeuralNet is not None:
     try:
         brain = NeuralNet()
@@ -82,11 +84,10 @@ if getattr(config, "USE_LLM", True) and LLMEngine is not None:
 else:
     llm = None
     
-    # External LLM (API-based) — optional and lightweight
-    try:
-        external_llm = ExternalLLM()
-    except Exception:
-        external_llm = None
+try:
+    external_llm = ExternalLLM()
+except Exception:
+    external_llm = None
 
 class CommandRequest(BaseModel):
     command: str
@@ -94,11 +95,19 @@ class CommandRequest(BaseModel):
     confirm: bool = False
     pending_command: Optional[str] = None
 
+
+class ResponseMetadata(BaseModel):
+    engine: str = "unknown"
+    confidence: Optional[float] = None
+    fallback_reason: Optional[str] = None
+
+
 class CommandResponse(BaseModel):
     response: str
     action_status: str
     sentiment: str = "neutral"
     pending_command: Optional[str] = None
+    metadata: ResponseMetadata = Field(default_factory=ResponseMetadata)
 
 def analyze_sentiment(text: str) -> str:
     """Use VADER to classify sentiment as positive/negative/neutral."""
@@ -117,6 +126,42 @@ def analyze_sentiment(text: str) -> str:
 LAST_COMMAND_TIME = 0
 RATE_LIMIT_COOLDOWN = 1.0  # Seconds between commands
 
+NEURAL_FAILURE_PHRASES = {
+    "I'm afraid I didn't catch that, sir.",
+    "Could you rephrase that directive?",
+    "My processing units require clarification, sir.",
+    "I'm not sure how to respond to that.",
+}
+
+
+def summarize_conversation(turns, existing_summary=""):
+    return memory_store.summarize_turns(
+        turns,
+        existing_summary=existing_summary,
+        max_chars=getattr(config, "MEMORY_SUMMARY_MAX_CHARS", 1200),
+    )
+
+
+def _append_conversation(query: str, response: str) -> None:
+    max_interactions = getattr(config, "MEMORY_MAX_INTERACTIONS", 20)
+    CONVERSATION_HISTORY.append((query, response))
+    while len(CONVERSATION_HISTORY) > max_interactions:
+        CONVERSATION_HISTORY.pop(0)
+    memory_store.append(
+        query,
+        response,
+        max_interactions=max_interactions,
+        summarizer=summarize_conversation,
+    )
+
+
+def _memory_summary() -> str:
+    try:
+        return memory_store.get_summary()
+    except Exception:
+        logger.exception("Failed to read conversation summary")
+        return ""
+
 @app.get("/")
 def read_root():
     return {"status": "Meero is online"}
@@ -132,7 +177,8 @@ def process_command(request: CommandRequest):
             return CommandResponse(
                 response="Rate limit exceeded. Please wait.",
                 action_status="ignored",
-                sentiment="negative"
+                sentiment="negative",
+                metadata=ResponseMetadata(engine="rate_limiter", fallback_reason="cooldown_active"),
             )
         LAST_COMMAND_TIME = current_time
 
@@ -142,6 +188,7 @@ def process_command(request: CommandRequest):
     # Setup Mock Engine for this request to capture output
     mock_engine = MockSpeechEngine()
     actions = Actions(mock_engine)
+    metadata = ResponseMetadata(engine="actions")
     
     # Dummy input function for now (skips interactive questions)
     def dummy_input():
@@ -158,10 +205,17 @@ def process_command(request: CommandRequest):
         )
         if needs_confirmation and not request.confirm:
             return CommandResponse(
-                response="This action may delete data or change system settings. Say yes to continue or no to cancel.",
+                response=(
+                    "This action may delete data or change system settings. "
+                    "Say yes to continue or no to cancel."
+                ),
                 action_status="confirmation_required",
                 sentiment="neutral",
                 pending_command=query,
+                metadata=ResponseMetadata(
+                    engine="actions",
+                    fallback_reason="confirmation_required",
+                ),
             )
 
         confirmation_input = (lambda: "yes") if request.confirm else dummy_input
@@ -172,6 +226,7 @@ def process_command(request: CommandRequest):
         # 2. If Actions didn't handle it, use Neural Net + LLM Hybrid
         if result == "neural_net_fallback":
             response_text = None
+            metadata = ResponseMetadata(engine="fallback", fallback_reason="actions_unhandled")
             
             # Step A: Try Neural Net (Fast, generic intents) if enabled
             if getattr(config, "USE_NEURAL_NET", True) and brain:
@@ -186,34 +241,61 @@ def process_command(request: CommandRequest):
                     logger.exception("Error during neural net prediction")
                     resp, conf = None, 0.0
 
-                # Check if brain gave a "failure" response (from noanswer tag)
-                failure_phrases = [
-                    "I'm afraid I didn't catch that, sir.",
-                    "Could you rephrase that directive?",
-                    "My processing units require clarification, sir.",
-                    "I'm not sure how to respond to that."
-                ]
-
-                if resp and resp not in failure_phrases and conf >= getattr(config, 'NEURAL_NET_CONFIDENCE_THRESHOLD', 0.8):
+                metadata.confidence = round(conf, 4)
+                threshold = getattr(config, 'NEURAL_NET_CONFIDENCE_THRESHOLD', 0.8)
+                if resp and resp not in NEURAL_FAILURE_PHRASES and conf >= threshold:
                     response_text = resp
+                    metadata.engine = "neural_net"
+                    metadata.fallback_reason = None
+                elif resp in NEURAL_FAILURE_PHRASES:
+                    metadata.fallback_reason = "neural_net_noanswer"
+                else:
+                    metadata.fallback_reason = "neural_net_low_confidence"
+            elif not getattr(config, "USE_NEURAL_NET", True):
+                metadata.fallback_reason = "neural_net_disabled"
+            else:
+                metadata.fallback_reason = "neural_net_unavailable"
 
             # Step B: If Brain failed, prefer local LLM then external LLM if enabled
             if not response_text and getattr(config, "USE_LLM", True):
+                summary = _memory_summary()
                 if llm:
                     try:
-                        response_text = llm.generate_response(query, history=CONVERSATION_HISTORY)
+                        response_text = llm.generate_response(
+                            query,
+                            history=CONVERSATION_HISTORY,
+                            memory_summary=summary,
+                        )
+                        if response_text:
+                            metadata.engine = "local_llm"
                     except Exception:
                         logger.exception("Local LLM generation failed")
+                        metadata.fallback_reason = "local_llm_error"
+                else:
+                    metadata.fallback_reason = "local_llm_unavailable"
 
                 # Try external API-based LLM if local LLM didn't produce an answer
                 if not response_text and external_llm:
                     try:
-                        response_text = external_llm.generate_response(query, history=CONVERSATION_HISTORY)
+                        response_text = external_llm.generate_response(
+                            query,
+                            history=CONVERSATION_HISTORY,
+                            memory_summary=summary,
+                        )
+                        if response_text:
+                            metadata.engine = "external_llm"
                     except Exception:
                         logger.exception("External LLM generation failed")
+                        metadata.fallback_reason = "external_llm_error"
+                elif not response_text and external_llm is None:
+                    metadata.fallback_reason = "external_llm_unavailable"
+            elif not response_text:
+                metadata.fallback_reason = "llm_disabled"
 
             if not response_text:
                 response_text = "I am unable to process that request."
+                metadata.engine = "none"
+                metadata.fallback_reason = metadata.fallback_reason or "all_engines_failed"
 
             mock_engine.speak(response_text)
         
@@ -225,12 +307,8 @@ def process_command(request: CommandRequest):
 
         # Update History (in-memory and persistent)
         with _state_lock:
-            CONVERSATION_HISTORY.append((query, final_response))
-            # Keep only last 20 interactions
-            if len(CONVERSATION_HISTORY) > 20:
-                CONVERSATION_HISTORY.pop(0)
             try:
-                memory_store.append(query, final_response)
+                _append_conversation(query, final_response)
             except Exception:
                 logger.exception("Failed to write conversation to memory store")
 
@@ -242,6 +320,7 @@ def process_command(request: CommandRequest):
             action_status="success",
             sentiment=sentiment,
             pending_command=None,
+            metadata=metadata,
         )
         
     except Exception as e:
@@ -249,7 +328,8 @@ def process_command(request: CommandRequest):
         return CommandResponse(
             response="I encountered an internal error. Please try again.",
             action_status="error",
-            sentiment="negative"
+            sentiment="negative",
+            metadata=ResponseMetadata(engine="error", fallback_reason=type(e).__name__),
         )
 
 
@@ -262,13 +342,19 @@ def health():
         "neural_net_loaded": brain is not None,
         "use_llm": getattr(config, "USE_LLM", True),
         "llm_loaded": llm is not None,
-        "conversation_history_len": len(CONVERSATION_HISTORY)
+        "external_llm_configured": bool(getattr(external_llm, "enabled", False)),
+        "conversation_history_len": len(CONVERSATION_HISTORY),
+        "memory_summary_chars": len(_memory_summary()),
     }
 
 
 @app.get("/settings")
 def get_settings():
-    settings_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "settings.json")
+    settings_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "data",
+        "settings.json",
+    )
     try:
         if not os.path.exists(settings_path):
             return {}
@@ -282,7 +368,11 @@ def get_settings():
 
 @app.post("/settings")
 def update_settings(payload: dict):
-    settings_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "settings.json")
+    settings_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "data",
+        "settings.json",
+    )
     try:
         import json
         with open(settings_path, "w", encoding="utf-8") as f:
