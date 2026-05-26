@@ -14,6 +14,19 @@ import argparse
 import time
 import logging
 import subprocess
+import hashlib
+import random
+import pathlib
+
+# Allow enabling TensorFlow deterministic ops and seeding via environment for CI/repro
+# Set these before attempting to import TensorFlow so they take effect.
+if os.environ.get("TF_DETERMINISTIC", "").lower() in ("1", "true", "yes"):
+    os.environ.setdefault("TF_DETERMINISTIC_OPS", "1")
+    os.environ.setdefault("TF_CUDNN_DETERMINISM", "1")
+
+train_seed_env = os.environ.get("TRAIN_SEED")
+if train_seed_env:
+    os.environ.setdefault("PYTHONHASHSEED", str(train_seed_env))
 
 TF_AVAILABLE = True
 try:
@@ -27,6 +40,15 @@ try:
     import tensorflow  # noqa: F401
 except Exception:
     TF_AVAILABLE = False
+
+
+# Helper: compute a stable dataset hash for provenance/versioning
+def compute_dataset_hash(path):
+    p = pathlib.Path(path)
+    if not p.exists():
+        return None
+    with p.open("rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
 
 import pickle
 import pathlib
@@ -52,8 +74,11 @@ def build_and_train(intents_path, epochs=100, batch_size=8):
     if not TF_AVAILABLE:
         raise RuntimeError("TensorFlow and Keras are required to run training")
 
+    # Read dataset and compute dataset hash for provenance/versioning
     with open(intents_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+        raw = f.read()
+        data = json.loads(raw)
+    dataset_hash = hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     texts = []
     labels = []
@@ -99,7 +124,8 @@ def build_and_train(intents_path, epochs=100, batch_size=8):
 
     logger.info("Training model: epochs=%s batch_size=%s", epochs, batch_size)
     model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=2)
-    return model, tokenizer, le
+    # return dataset hash for manifest provenance
+    return model, tokenizer, le, dataset_hash
 
 
 def save_artifacts(model, tokenizer, label_encoder, version_tag, out_dir="models"):
@@ -121,7 +147,7 @@ def save_artifacts(model, tokenizer, label_encoder, version_tag, out_dir="models
     return model_path, tokenizer_path, label_path
 
 
-def write_manifest_and_update_latest(model_path, tokenizer_path, label_path, version_tag, out_dir="models"):
+def write_manifest_and_update_latest(model_path, tokenizer_path, label_path, version_tag, out_dir="models", dataset_hash=None):
     import shutil
     manifest = {
         "version": version_tag,
@@ -129,7 +155,8 @@ def write_manifest_and_update_latest(model_path, tokenizer_path, label_path, ver
         "tokenizer": os.path.basename(tokenizer_path),
         "label_encoder": os.path.basename(label_path),
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "git": git_short_hash()
+        "git": git_short_hash(),
+        "dataset_hash": dataset_hash,
     }
 
     manifest_path = os.path.join(out_dir, "manifest.json")
@@ -176,6 +203,7 @@ def main():
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch", type=int, default=8)
     parser.add_argument("--version", type=str, default=None)
+    parser.add_argument("--seed", type=int, default=None, help="Optional random seed to make training deterministic when possible")
     parser.add_argument("--upload-s3", action='store_true')
     parser.add_argument("--upload-hf", action='store_true', help="Upload artifacts to Hugging Face Hub (requires HF_TOKEN and HF_REPO env vars)")
     parser.add_argument("--dry-run", action='store_true', help="Validate credentials and repo access without training or uploading")
@@ -210,14 +238,33 @@ def main():
             return 2
 
     # Normal run: train and save artifacts
-    model, tokenizer, le = build_and_train(config.INTENTS_FILE, epochs=args.epochs, batch_size=args.batch)
+    # Seed random sources where requested to improve reproducibility
+    if args.seed is not None:
+        os.environ['PYTHONHASHSEED'] = str(args.seed)
+        try:
+            import numpy as _np
+            _np.random.seed(args.seed)
+        except Exception:
+            pass
+        try:
+            random.seed(args.seed)
+        except Exception:
+            pass
+        # Try to set TF seed if available
+        try:
+            import tensorflow as _tf
+            _tf.random.set_seed(args.seed)
+        except Exception:
+            pass
+
+    model, tokenizer, le, dataset_hash = build_and_train(config.INTENTS_FILE, epochs=args.epochs, batch_size=args.batch)
     model_path, tokenizer_path, label_path = save_artifacts(model, tokenizer, le, version, out_dir=args.out_dir)
 
     logger.info("Artifacts saved: %s, %s, %s", model_path, tokenizer_path, label_path)
 
     # Write manifest and update canonical latest filenames
     manifest_path, canonical_model, canonical_tokenizer, canonical_label = write_manifest_and_update_latest(
-        model_path, tokenizer_path, label_path, version, out_dir=args.out_dir
+        model_path, tokenizer_path, label_path, version, out_dir=args.out_dir, dataset_hash=dataset_hash
     )
     logger.info("Manifest written to %s", manifest_path)
 
