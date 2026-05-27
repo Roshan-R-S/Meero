@@ -151,9 +151,14 @@ def write_manifest_and_update_latest(model_path, tokenizer_path, label_path, ver
     import shutil
     manifest = {
         "version": version_tag,
-        "model": os.path.basename(model_path),
-        "tokenizer": os.path.basename(tokenizer_path),
-        "label_encoder": os.path.basename(label_path),
+        "model": "chat_model.h5",
+        "tokenizer": "tokenizer.pkl",
+        "label_encoder": "label_encoder.pkl",
+        "versioned_artifacts": [
+            os.path.basename(model_path),
+            os.path.basename(tokenizer_path),
+            os.path.basename(label_path),
+        ],
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "git": git_short_hash(),
         "dataset_hash": dataset_hash,

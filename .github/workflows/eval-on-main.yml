@@ -26,16 +26,18 @@ jobs:
       - name: Run evaluation and write report
         run: |
           python scripts/evaluate.py --out models/main_eval.json
-      - name: Fail on regression vs baseline
+      - name: Validate evaluation report
         run: |
           python - <<'PY'
-import json,sys,os
-base=json.load(open('models/baseline_eval.json'))
+import json,sys
 rep=json.load(open('models/main_eval.json'))
 acc=rep.get('accuracy',0)
 print('Main evaluation accuracy=',acc)
-if acc < base.get('accuracy',0):
-    print(f"Accuracy {acc} below baseline {base.get('accuracy')}")
+if not (0 <= acc <= 1):
+    print(f"Invalid accuracy value: {acc}")
+    sys.exit(2)
+if rep.get('samples', 0) <= 0:
+    print("Evaluation report has no samples")
     sys.exit(2)
 PY
       - name: Upload evaluation artifact

@@ -1,4 +1,4 @@
-name: Speech Smoke Tests
+name: Runtime Smoke Tests
 
 on:
   push:
@@ -19,9 +19,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install --no-cache-dir -r requirements-test.txt
-      - name: Run microphone-free speech smoke tests
+      - name: Verify imports and runtime wiring
         run: |
-          python -m pytest tests/test_speech_smoke.py tests/test_speech_engine.py -q
+          python verify_changes.py
+      - name: Run API smoke tests
+        run: |
+          python -m pytest tests/test_server.py tests/test_actions.py -q
 
       - name: HF dry-run publish (if configured)
         env:

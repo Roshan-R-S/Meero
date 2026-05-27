@@ -81,8 +81,8 @@ _WEBSITES = {
 
 
 class Actions:
-    def __init__(self, speech_engine):
-        self.speak = speech_engine.speak
+    def __init__(self, response_engine):
+        self.speak = response_engine.speak
         self._command_routes = self._build_command_routes()
 
     def _build_command_routes(self):

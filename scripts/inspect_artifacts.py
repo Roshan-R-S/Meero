@@ -7,17 +7,17 @@ def main():
         le = pickle.load(f)
     with open('models/tokenizer.pkl','rb') as f:
         tk = pickle.load(f)
-    meta = None
+    manifest = None
     try:
-        with open('models/chat_model.h5.metadata.json','r',encoding='utf-8') as f:
-            meta = json.load(f)
+        with open('models/manifest.json','r',encoding='utf-8') as f:
+            manifest = json.load(f)
     except FileNotFoundError:
         pass
 
     print('label_classes=', getattr(le, 'classes_', None))
     print('tokenizer_num_words=', getattr(tk, 'num_words', None))
     print('tokenizer_word_index_len=', len(getattr(tk, 'word_index', {})))
-    print('metadata=', meta)
+    print('manifest=', manifest)
 
 if __name__=='__main__':
     main()

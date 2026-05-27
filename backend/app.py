@@ -127,6 +127,15 @@ async def startup_rate_limiter():
     except Exception:
         logger.exception("Failed to initialize rate limiter; continuing without distributed limits")
 
+
+async def distributed_rate_limit(request: Request):
+    if RateLimiter is None or FastAPILimiter is None:
+        return
+    if not getattr(FastAPILimiter, "redis", None):
+        return
+    limiter = RateLimiter(times=10, seconds=60)
+    await limiter(request)
+
 external_llm = None
 if getattr(config, "USE_NEURAL_NET", True) and NeuralNet is not None:
     try:
@@ -240,7 +249,7 @@ def metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-@app.post("/command", response_model=CommandResponse, dependencies=[Depends(RateLimiter(times=10, seconds=60))] if RateLimiter is not None else [])
+@app.post("/command", response_model=CommandResponse, dependencies=[Depends(distributed_rate_limit)])
 def process_command(request: CommandRequest):
     global LAST_COMMAND_TIME
     

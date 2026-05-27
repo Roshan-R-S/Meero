@@ -1,20 +1,39 @@
-Reproducible training
---------------------
+# Reproducible Training
 
-Use the provided scripts to run deterministic training of the neural network.
+Use `scripts/train_and_package.py` as the canonical training path. It trains the
+intent classifier from `intents.json`, writes versioned artifacts, refreshes the
+canonical runtime artifacts, and updates `models/manifest.json`.
 
-PowerShell (Windows):
+## Direct Run
 
+```powershell
+python scripts/train_and_package.py --epochs 100 --batch 8 --out-dir models
 ```
+
+## Deterministic Runners
+
+PowerShell:
+
+```powershell
 .\scripts\run_train.ps1 -InstallRequirements
 ```
 
-Bash (Unix / WSL):
+Bash / WSL:
 
-```
+```bash
 ./scripts/run_train.sh --install
 ```
 
-The runner sets `PYTHONHASHSEED=42`, `TF_DETERMINISTIC_OPS=1`, and `TF_ENABLE_ONEDNN_OPTS=0` to reduce nondeterminism. The training script writes a metadata JSON next to the saved model containing the dataset hash and seed.
+The runners set deterministic environment variables before invoking the
+canonical training script:
 
-If you have a GPU, ensure the virtualenv has the appropriate `tensorflow` build installed.
+- `PYTHONHASHSEED=42`
+- `TF_DETERMINISTIC_OPS=1`
+- `TF_ENABLE_ONEDNN_OPTS=0`
+- `OMP_NUM_THREADS=1`
+
+The runtime app loads only these canonical files:
+
+- `models/chat_model.h5`
+- `models/tokenizer.pkl`
+- `models/label_encoder.pkl`

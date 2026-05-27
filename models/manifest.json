@@ -1,8 +1,8 @@
 {
   "version": "20260525150853-2a444bf",
-  "model": "chat_model_20260525150853-2a444bf.h5",
-  "tokenizer": "tokenizer_20260525150853-2a444bf.pkl",
-  "label_encoder": "label_encoder_20260525150853-2a444bf.pkl",
+  "model": "chat_model.h5",
+  "tokenizer": "tokenizer.pkl",
+  "label_encoder": "label_encoder.pkl",
   "timestamp": "2026-05-25T15:08:54Z",
   "git": "2a444bf"
 }

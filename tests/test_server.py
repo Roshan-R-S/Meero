@@ -1,4 +1,4 @@
-"""API tests for server.py endpoints using FastAPI's TestClient."""
+"""API tests for the FastAPI backend using TestClient."""
 
 import pytest
 from unittest.mock import patch, MagicMock

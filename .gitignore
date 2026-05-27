@@ -13,7 +13,17 @@ build/
 *.pkl
 *.h5
 models/*.gguf
+models/*_eval.json
+models/*diagnostics*.json
+models/*sweep*.json
+models/*.metadata.json
+archive/
 *.db-journal
+
+# Runtime state
+*.db
+data/*.db
+data/settings.json
 
 # IDE / Editor
 .vscode/
@@ -36,6 +46,9 @@ frontend/dist/
 
 # Additional generated artifacts
 frontend/_tmp_*
+frontend/test-results/
+frontend/playwright-report/
 build/
+training.log
 *.pyc
 __pycache__/
