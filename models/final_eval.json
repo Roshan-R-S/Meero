@@ -1,0 +1,14 @@
+{
+  "model": "chat_model.h5",
+  "tokenizer": "tokenizer.pkl",
+  "label_encoder": "label_encoder.pkl",
+  "dataset": "intents.hq_augmented.json",
+  "dataset_hash": "9db7010f1254fba367ff0f911fa857281e06402e18affff08292746a95442d98",
+  "samples": 318,
+  "accuracy": 0.9339622641509434,
+  "hallucination_rate": 0.03459119496855346,
+  "confidence_mean": 0.809551477432251,
+  "confidence_median": 0.9033126831054688,
+  "latency_mean_s": 0.06151752100000522,
+  "latency_median_s": 0.05954030000066268
+}

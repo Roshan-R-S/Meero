@@ -71,6 +71,20 @@ pnpm run dev
 
 Open `http://localhost:5173` in your browser.
 
+## Docker
+
+Bring up the backend, frontend, and Redis in one shot:
+
+```bash
+docker compose up --build
+```
+
+If you only want the backend stack (and Redis for the rate limiter), you can run:
+
+```bash
+docker compose up --build backend redis
+```
+
 ## Windows PowerShell Quick Start
 
 ```powershell

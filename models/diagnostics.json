@@ -1,0 +1,240 @@
+{
+  "model": "chat_model.h5",
+  "samples": 51,
+  "class_counts": {
+    "greeting": 5,
+    "goodbye": 5,
+    "thanks": 4,
+    "jokes": 3,
+    "Identity": 3,
+    "datetime": 4,
+    "whatsup": 3,
+    "haha": 3,
+    "programmer": 2,
+    "insult": 3,
+    "activity": 1,
+    "exclaim": 3,
+    "appreciate": 2,
+    "nicetty": 1,
+    "no": 3,
+    "greetreply": 2,
+    "age": 1,
+    "capabilities": 3
+  },
+  "per_class": {
+    "greeting": {
+      "count": 5,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "goodbye": {
+      "count": 5,
+      "correct": 5,
+      "accuracy": 1.0
+    },
+    "thanks": {
+      "count": 4,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "jokes": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "Identity": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "datetime": {
+      "count": 4,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "whatsup": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "haha": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "programmer": {
+      "count": 2,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "insult": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "activity": {
+      "count": 1,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "exclaim": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "appreciate": {
+      "count": 2,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "nicetty": {
+      "count": 1,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "no": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "greetreply": {
+      "count": 2,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "age": {
+      "count": 1,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "capabilities": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    }
+  },
+  "token_coverage": 1.0,
+  "unique_tokens": 67,
+  "top_mispredictions": [
+    {
+      "text": "Time",
+      "true": "datetime",
+      "pred": "goodbye",
+      "pred_conf": 0.11515547335147858
+    },
+    {
+      "text": "stupid",
+      "true": "insult",
+      "pred": "goodbye",
+      "pred_conf": 0.1149459183216095
+    },
+    {
+      "text": "Date",
+      "true": "datetime",
+      "pred": "goodbye",
+      "pred_conf": 0.11491189897060394
+    },
+    {
+      "text": "Day",
+      "true": "datetime",
+      "pred": "goodbye",
+      "pred_conf": 0.1148652583360672
+    },
+    {
+      "text": "idiot",
+      "true": "insult",
+      "pred": "goodbye",
+      "pred_conf": 0.11485055088996887
+    },
+    {
+      "text": "useless",
+      "true": "insult",
+      "pred": "goodbye",
+      "pred_conf": 0.11479832977056503
+    },
+    {
+      "text": "Nice",
+      "true": "exclaim",
+      "pred": "goodbye",
+      "pred_conf": 0.11454921960830688
+    },
+    {
+      "text": "Great",
+      "true": "exclaim",
+      "pred": "goodbye",
+      "pred_conf": 0.11454901099205017
+    },
+    {
+      "text": "Hello",
+      "true": "greeting",
+      "pred": "goodbye",
+      "pred_conf": 0.11453953385353088
+    },
+    {
+      "text": "Hi",
+      "true": "greeting",
+      "pred": "goodbye",
+      "pred_conf": 0.11448053270578384
+    },
+    {
+      "text": "Online?",
+      "true": "greeting",
+      "pred": "goodbye",
+      "pred_conf": 0.11446469277143478
+    },
+    {
+      "text": "negative",
+      "true": "no",
+      "pred": "goodbye",
+      "pred_conf": 0.11437632888555527
+    },
+    {
+      "text": "Greetings",
+      "true": "greeting",
+      "pred": "goodbye",
+      "pred_conf": 0.11436592787504196
+    },
+    {
+      "text": "Thanks",
+      "true": "thanks",
+      "pred": "goodbye",
+      "pred_conf": 0.1143345981836319
+    },
+    {
+      "text": "commands",
+      "true": "capabilities",
+      "pred": "goodbye",
+      "pred_conf": 0.11431875824928284
+    },
+    {
+      "text": "help",
+      "true": "capabilities",
+      "pred": "goodbye",
+      "pred_conf": 0.11426088213920593
+    },
+    {
+      "text": "nope",
+      "true": "no",
+      "pred": "goodbye",
+      "pred_conf": 0.11425754427909851
+    },
+    {
+      "text": "no",
+      "true": "no",
+      "pred": "goodbye",
+      "pred_conf": 0.11411992460489273
+    },
+    {
+      "text": "Awesome",
+      "true": "exclaim",
+      "pred": "goodbye",
+      "pred_conf": 0.11411440372467041
+    },
+    {
+      "text": "funny",
+      "true": "haha",
+      "pred": "goodbye",
+      "pred_conf": 0.11404599249362946
+    }
+  ]
+}

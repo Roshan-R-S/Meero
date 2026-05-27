@@ -1,0 +1,14 @@
+{
+  "model": "aug_test.h5",
+  "tokenizer": "aug_test_tokenizer.pkl",
+  "label_encoder": "aug_test_label.pkl",
+  "dataset": "intents.json",
+  "dataset_hash": "8110134d9f6bde008fb94a2f3b59860242c085a6017ea7794f0a628712bec2b8",
+  "samples": 228,
+  "accuracy": 0.14912280701754385,
+  "hallucination_rate": 1.0,
+  "confidence_mean": 0.09849722683429718,
+  "confidence_median": 0.09878450632095337,
+  "latency_mean_s": 0.45246282100004465,
+  "latency_median_s": 0.20002930000009655
+}

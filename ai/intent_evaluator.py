@@ -5,8 +5,9 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from actions import Actions
-from mock_engine import MockSpeechEngine
+from core.actions import Actions
+from core.actions_routing import COMMAND_ROUTE_SPECS
+from core.mock_engine import MockSpeechEngine
 
 
 @dataclass(frozen=True)
@@ -21,15 +22,13 @@ def load_cases(path: str | Path) -> list[IntentCase]:
 
 
 def classify_action_intent(query: str) -> str:
-    """Classify command-router intent without executing the action handler."""
     actions = Actions(MockSpeechEngine())
     normalized = query.strip().lower()
-    for matcher, handler in actions._commands:
+    for idx, (matcher, _handler) in enumerate(actions._command_routes):
         if matcher(normalized):
-            if hasattr(handler, "__name__") and handler.__name__ != "<lambda>":
-                return handler.__name__.replace("_handle_", "").replace("open_", "")
-            name = getattr(matcher, "__name__", "")
-            return name.replace("_match_", "")
+            if idx < len(COMMAND_ROUTE_SPECS):
+                return COMMAND_ROUTE_SPECS[idx].name
+            return "matcher"
     return "fallback"
 
 

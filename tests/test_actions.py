@@ -2,8 +2,8 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
-from actions import Actions
-from mock_engine import MockSpeechEngine
+from core.actions import Actions
+from core.mock_engine import MockSpeechEngine
 
 
 @pytest.fixture
@@ -24,8 +24,8 @@ class TestCalDay:
 
 
 class TestWishMe:
-    @patch("actions.datetime")
-    @patch("actions.time")
+    @patch("core.actions.datetime")
+    @patch("core.actions.time")
     def test_morning_greeting(self, mock_time, mock_dt, actions):
         act, engine = actions
         mock_dt.datetime.now.return_value.hour = 9
@@ -35,8 +35,8 @@ class TestWishMe:
         response = engine.get_response()
         assert "Good morning" in response
 
-    @patch("actions.datetime")
-    @patch("actions.time")
+    @patch("core.actions.datetime")
+    @patch("core.actions.time")
     def test_evening_greeting(self, mock_time, mock_dt, actions):
         act, engine = actions
         mock_dt.datetime.now.return_value.hour = 20
@@ -63,7 +63,7 @@ class TestProcessCommand:
         result = act.process_command("what is quantum physics")
         assert result == "neural_net_fallback"
 
-    @patch("actions.webbrowser")
+    @patch("core.actions.webbrowser")
     def test_open_youtube(self, mock_browser, actions):
         act, engine = actions
         act.process_command("open youtube")
@@ -89,7 +89,7 @@ class TestProcessCommand:
         response = engine.get_response()
         assert "date is" in response.lower()
 
-    @patch("actions.start_file")
+    @patch("core.actions.start_file")
     def test_open_calculator(self, mock_startfile, actions):
         act, engine = actions
         act.process_command("open calculator")
@@ -97,7 +97,7 @@ class TestProcessCommand:
         assert "calculator" in response.lower()
         mock_startfile.assert_called_once()
 
-    @patch("actions.subprocess.run")
+    @patch("core.actions.subprocess.run")
     def test_close_notepad(self, mock_run, actions):
         act, engine = actions
         act.process_command("close notepad")
@@ -106,7 +106,7 @@ class TestProcessCommand:
         assert "should i continue" not in response.lower()
         mock_run.assert_called_once()
 
-    @patch("actions.webbrowser")
+    @patch("core.actions.webbrowser")
     def test_google_search(self, mock_browser, actions):
         act, engine = actions
         act.process_command("google search python tutorials", input_func=lambda: "None")
@@ -123,7 +123,7 @@ class TestProcessCommand:
         act.process_command("exit", exit_func=lambda: exit_called.append(True))
         assert exit_called == [True]
 
-    @patch("actions.webbrowser")
+    @patch("core.actions.webbrowser")
     def test_play_youtube(self, mock_browser, actions):
         act, engine = actions
         act.process_command("play despacito on youtube")
@@ -134,7 +134,7 @@ class TestProcessCommand:
 
 
 class TestVolumeControl:
-    @patch("actions.pyautogui")
+    @patch("core.actions.pyautogui")
     def test_volume_up(self, mock_gui, actions):
         act, engine = actions
         act.process_command("volume up")
@@ -142,7 +142,7 @@ class TestVolumeControl:
         assert "should i continue" not in response
         mock_gui.press.assert_called_with("volumeup")
 
-    @patch("actions.pyautogui")
+    @patch("core.actions.pyautogui")
     def test_volume_mute(self, mock_gui, actions):
         act, engine = actions
         act.process_command("mute")
@@ -152,7 +152,7 @@ class TestVolumeControl:
 
 
 class TestSensitiveCommandConfirmation:
-    @patch("actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
+    @patch("core.actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
     def test_settings_open_cancelled_without_yes(self, _mock_open, actions):
         act, engine = actions
         result = act.process_command("open settings", input_func=lambda: "no")
@@ -161,7 +161,7 @@ class TestSensitiveCommandConfirmation:
         assert result == "action_cancelled"
         assert "action cancelled" in response
 
-    @patch("actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
+    @patch("core.actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
     def test_settings_open_runs_when_confirmed(self, mock_open, actions):
         act, engine = actions
         result = act.process_command("open settings", input_func=lambda: "yes")

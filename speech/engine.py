@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 class SpeechEngine:
     def __init__(self):
-        """Initialize the TTS engine once and reuse it."""
         if pyttsx3 is None:
             logger.warning("pyttsx3 unavailable, TTS disabled")
             self._engine = None
@@ -57,7 +56,6 @@ class SpeechEngine:
             self._engine.say(text)
             self._engine.runAndWait()
         except RuntimeError:
-            # Engine loop already running; re-init and retry once.
             logger.warning("TTS engine busy, reinitializing")
             try:
                 self._engine = pyttsx3.init("sapi5")
@@ -102,8 +100,6 @@ class SpeechEngine:
         raise RuntimeError(f"Vosk model files not found under {model_path}")
 
     def listen(self):
-        """Listen using configured backend (Vosk offline preferred, Google fallback)."""
-        # If Vosk is configured and available, use it (offline)
         if config.SPEECH_RECOGNITION_BACKEND == 'vosk' and _has_vosk:
             try:
                 if Model is None or KaldiRecognizer is None:
@@ -125,7 +121,6 @@ class SpeechEngine:
             except Exception:
                 logger.exception("Vosk recognition failed, falling back to Google")
 
-        # Fallback: speech_recognition with Google (online)
         try:
             r, audio = self._capture_audio()
         except Exception:
@@ -150,7 +145,6 @@ class SpeechEngine:
             return "None"
 
     def get_input(self, input_mode="voice"):
-        """Wrapper to get input either from voice or text"""
         if input_mode == "text":
             return input("You: ").lower()
         else:

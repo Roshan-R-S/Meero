@@ -1,4 +1,3 @@
-
 class MockSpeechEngine:
     def __init__(self):
         self.response_buffer = []

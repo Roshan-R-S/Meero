@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from intent_evaluator import evaluate_cases, load_cases
+from ai.intent_evaluator import evaluate_cases, load_cases
 
 
 def test_intent_validation_set_routes_expected_commands():

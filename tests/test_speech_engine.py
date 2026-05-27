@@ -43,7 +43,7 @@ def test_listen_vosk_success(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "SPEECH_RECOGNITION_BACKEND", "vosk")
 
     # Import inside test to pick up monkeypatched config
-    import speech_engine as se
+    from speech import engine as se
     install_fake_tts(monkeypatch, se)
 
     # Simulate vosk being available
@@ -83,7 +83,7 @@ def test_listen_vosk_success(monkeypatch, tmp_path):
 def test_listen_vosk_fallback_to_google(monkeypatch):
     monkeypatch.setattr(config, "SPEECH_RECOGNITION_BACKEND", "vosk")
 
-    import speech_engine as se
+    from speech import engine as se
     install_fake_tts(monkeypatch, se)
 
     # Simulate vosk available but recognizer failing
@@ -119,7 +119,7 @@ def test_listen_vosk_fallback_to_google(monkeypatch):
 def test_listen_google_only(monkeypatch):
     monkeypatch.setattr(config, "SPEECH_RECOGNITION_BACKEND", "google")
 
-    import speech_engine as se
+    from speech import engine as se
     install_fake_tts(monkeypatch, se)
 
     class FakeRecognizer:

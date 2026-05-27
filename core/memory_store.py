@@ -2,7 +2,8 @@ import os
 import sqlite3
 from typing import List, Tuple
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "conversation.db")
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "conversation.db")
+DB_PATH = os.path.abspath(DB_PATH)
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 
@@ -39,7 +40,6 @@ def last(n: int = 10) -> List[Tuple[str, str]]:
     cur.execute("SELECT query, response FROM history ORDER BY id DESC LIMIT ?", (n,))
     rows = cur.fetchall()
     conn.close()
-    # Return in chronological order
     return list(reversed(rows))
 
 

@@ -1,0 +1,9 @@
+{
+  "dataset_hash": "9db7010f1254fba367ff0f911fa857281e06402e18affff08292746a95442d98",
+  "seed": 42,
+  "training_date": "2026-05-26T17:46:27.542899Z",
+  "num_classes": 18,
+  "num_samples": 318,
+  "numpy_version": "2.2.6",
+  "tensorflow_version": "2.20.0"
+}

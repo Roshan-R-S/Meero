@@ -30,7 +30,7 @@ class FakeMicrophone:
 
 
 def test_google_speech_smoke_without_microphone(monkeypatch):
-    import speech_engine
+    from speech import engine as speech_engine
 
     fake_sr = types.SimpleNamespace(
         Recognizer=lambda: FakeRecognizer(),

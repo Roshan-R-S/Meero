@@ -8,9 +8,9 @@ try:
     print("Testing imports...")
     import config
     print("Config imported.")
-    from actions import Actions
+    from core.actions import Actions
     print("Actions imported.")
-    from server import analyze_sentiment
+    from backend.app import analyze_sentiment
     print("Server functions imported.")
     
     print("\nTesting Config Values:")

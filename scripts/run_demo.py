@@ -24,7 +24,7 @@ def main():
 
     # Run a simple inference benchmark (single iteration)
     print("Running a single inference to demonstrate model loading — see scripts/benchmark_inference.py for full benchmark")
-    subprocess.run([sys.executable, "-c", "from neural_net import NeuralNet; nn=NeuralNet(); print(nn.predict_with_confidence('hello'))"]) 
+    subprocess.run([sys.executable, "-c", "from ai.neural_net import NeuralNet; nn=NeuralNet(); print(nn.predict_with_confidence('hello'))"])
 
     print("Demo run complete.")
     return 0

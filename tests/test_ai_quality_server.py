@@ -27,7 +27,7 @@ class FakeLLM:
 
 
 def client_with_server_state(monkeypatch, brain=None, llm=None, external_llm=None, summary=""):
-    import server
+    import backend.app as server
 
     server.LAST_COMMAND_TIME = 0
     server.CONVERSATION_HISTORY.clear()

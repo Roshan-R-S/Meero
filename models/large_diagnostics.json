@@ -1,0 +1,240 @@
+{
+  "model": "large_v2000_e64_m30_d64_lr0.001.h5",
+  "samples": 51,
+  "class_counts": {
+    "greeting": 5,
+    "goodbye": 5,
+    "thanks": 4,
+    "jokes": 3,
+    "Identity": 3,
+    "datetime": 4,
+    "whatsup": 3,
+    "haha": 3,
+    "programmer": 2,
+    "insult": 3,
+    "activity": 1,
+    "exclaim": 3,
+    "appreciate": 2,
+    "nicetty": 1,
+    "no": 3,
+    "greetreply": 2,
+    "age": 1,
+    "capabilities": 3
+  },
+  "per_class": {
+    "greeting": {
+      "count": 5,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "goodbye": {
+      "count": 5,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "thanks": {
+      "count": 4,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "jokes": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "Identity": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "datetime": {
+      "count": 4,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "whatsup": {
+      "count": 3,
+      "correct": 3,
+      "accuracy": 1.0
+    },
+    "haha": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "programmer": {
+      "count": 2,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "insult": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "activity": {
+      "count": 1,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "exclaim": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "appreciate": {
+      "count": 2,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "nicetty": {
+      "count": 1,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "no": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "greetreply": {
+      "count": 2,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "age": {
+      "count": 1,
+      "correct": 0,
+      "accuracy": 0.0
+    },
+    "capabilities": {
+      "count": 3,
+      "correct": 0,
+      "accuracy": 0.0
+    }
+  },
+  "token_coverage": 1.0,
+  "unique_tokens": 67,
+  "top_mispredictions": [
+    {
+      "text": "Thanks",
+      "true": "thanks",
+      "pred": "whatsup",
+      "pred_conf": 0.11408273875713348
+    },
+    {
+      "text": "Hi",
+      "true": "greeting",
+      "pred": "whatsup",
+      "pred_conf": 0.11400861293077469
+    },
+    {
+      "text": "Date",
+      "true": "datetime",
+      "pred": "whatsup",
+      "pred_conf": 0.1140003502368927
+    },
+    {
+      "text": "Online?",
+      "true": "greeting",
+      "pred": "whatsup",
+      "pred_conf": 0.11394315212965012
+    },
+    {
+      "text": "idiot",
+      "true": "insult",
+      "pred": "whatsup",
+      "pred_conf": 0.11392584443092346
+    },
+    {
+      "text": "stupid",
+      "true": "insult",
+      "pred": "whatsup",
+      "pred_conf": 0.11391550302505493
+    },
+    {
+      "text": "lol",
+      "true": "haha",
+      "pred": "whatsup",
+      "pred_conf": 0.11390578746795654
+    },
+    {
+      "text": "Exit",
+      "true": "goodbye",
+      "pred": "whatsup",
+      "pred_conf": 0.1139039695262909
+    },
+    {
+      "text": "Great",
+      "true": "exclaim",
+      "pred": "whatsup",
+      "pred_conf": 0.1138802170753479
+    },
+    {
+      "text": "Shutdown",
+      "true": "goodbye",
+      "pred": "whatsup",
+      "pred_conf": 0.11386404186487198
+    },
+    {
+      "text": "Hello",
+      "true": "greeting",
+      "pred": "whatsup",
+      "pred_conf": 0.11385690420866013
+    },
+    {
+      "text": "negative",
+      "true": "no",
+      "pred": "whatsup",
+      "pred_conf": 0.11384977400302887
+    },
+    {
+      "text": "nope",
+      "true": "no",
+      "pred": "whatsup",
+      "pred_conf": 0.1138453260064125
+    },
+    {
+      "text": "Bye",
+      "true": "goodbye",
+      "pred": "whatsup",
+      "pred_conf": 0.1138167679309845
+    },
+    {
+      "text": "Awesome",
+      "true": "exclaim",
+      "pred": "whatsup",
+      "pred_conf": 0.11381224542856216
+    },
+    {
+      "text": "Day",
+      "true": "datetime",
+      "pred": "whatsup",
+      "pred_conf": 0.11380590498447418
+    },
+    {
+      "text": "Offline",
+      "true": "goodbye",
+      "pred": "whatsup",
+      "pred_conf": 0.11379758268594742
+    },
+    {
+      "text": "Time",
+      "true": "datetime",
+      "pred": "whatsup",
+      "pred_conf": 0.11378758400678635
+    },
+    {
+      "text": "haha",
+      "true": "haha",
+      "pred": "whatsup",
+      "pred_conf": 0.11376076936721802
+    },
+    {
+      "text": "Greetings",
+      "true": "greeting",
+      "pred": "whatsup",
+      "pred_conf": 0.11375697702169418
+    }
+  ]
+}

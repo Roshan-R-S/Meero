@@ -1,4 +1,4 @@
-from prompt_templates import build_external_payload, build_llama3_prompt, clean_llm_response
+from core.prompt_templates import build_external_payload, build_llama3_prompt, clean_llm_response
 
 
 def test_llama3_prompt_includes_summary_and_recent_history_only():

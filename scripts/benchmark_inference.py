@@ -14,7 +14,7 @@ import config
 
 
 def load_model():
-    from neural_net import NeuralNet
+    from ai.neural_net import NeuralNet
 
     nn = NeuralNet()
     return nn

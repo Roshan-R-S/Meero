@@ -2,9 +2,9 @@
 import sys
 import logging
 import argparse
-from speech_engine import SpeechEngine
-from actions import Actions
-from neural_net import NeuralNet
+from speech.engine import SpeechEngine
+from core.actions import Actions
+from ai.neural_net import NeuralNet
 
 logger = logging.getLogger(__name__)
 

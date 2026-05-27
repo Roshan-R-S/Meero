@@ -8,8 +8,8 @@ from fastapi.testclient import TestClient
 @pytest.fixture
 def client():
     """Create a TestClient, mocking heavy dependencies."""
-    with patch("server.NeuralNet") as mock_nn, \
-         patch("server.LLMEngine") as mock_llm:
+    with patch("backend.app.NeuralNet") as mock_nn, \
+         patch("backend.app.LLMEngine") as mock_llm:
         # Mock NeuralNet
         mock_brain = MagicMock()
         mock_brain.predict.return_value = None  # Default: fallback to LLM
@@ -21,9 +21,9 @@ def client():
         mock_llm.return_value = mock_llm_instance
 
         # Import AFTER mocks are in place
-        from server import app
+        from backend.app import app
         # Reset rate limiter for each test
-        import server
+        import backend.app as server
         server.LAST_COMMAND_TIME = 0
         yield TestClient(app)
 
@@ -84,7 +84,7 @@ class TestCommandEndpoint:
         assert data["action_status"] == "confirmation_required"
         assert data.get("pending_command") == "open settings"
 
-    @patch("actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
+    @patch("core.actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
     def test_sensitive_command_executes_after_confirm(self, mock_open, client):
         # Step 1: request confirmation
         client.post("/command", json={"command": "open settings"})
@@ -106,17 +106,17 @@ class TestCommandEndpoint:
 
 class TestSentiment:
     def test_analyze_sentiment_positive(self):
-        from server import analyze_sentiment
+        from backend.app import analyze_sentiment
         result = analyze_sentiment("Great job, everything is working perfectly!")
         assert result == "positive"
 
     def test_analyze_sentiment_negative(self):
-        from server import analyze_sentiment
+        from backend.app import analyze_sentiment
         result = analyze_sentiment("This is terrible, nothing works at all.")
         assert result == "negative"
 
     def test_analyze_sentiment_neutral(self):
-        from server import analyze_sentiment
+        from backend.app import analyze_sentiment
         result = analyze_sentiment("The time is 3:00 PM")
         assert result == "neutral"
 
@@ -124,7 +124,7 @@ class TestSentiment:
 class TestRateLimiting:
     def test_rate_limit_blocks_rapid_requests(self, client):
         """Two commands within 1 second should trigger rate limiting."""
-        import server
+        import backend.app as server
         server.LAST_COMMAND_TIME = 0
 
         r1 = client.post("/command", json={"command": "time"})

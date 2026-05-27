@@ -1,0 +1,11 @@
+{
+  "seed": 42,
+  "training_date": "2026-05-26T17:13:34.026844Z",
+  "num_classes": 18,
+  "num_samples": 51,
+  "vocab_size": 2000,
+  "embedding_dim": 64,
+  "maxlen": 30,
+  "dense_units": 64,
+  "epochs": 20
+}

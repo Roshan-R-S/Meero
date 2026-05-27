@@ -1,4 +1,4 @@
-import memory_store
+from core import memory_store
 
 
 def test_append_prunes_old_turns_into_summary(monkeypatch, tmp_path):

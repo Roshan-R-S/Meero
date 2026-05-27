@@ -22,3 +22,7 @@ huggingface-hub==1.0.1
 # Testing
 pytest==8.*
 httpx==0.28.*
+# Distributed rate limiting
+fastapi-limiter==0.1.0
+redis==5.0.8
+prometheus-client==0.16.0
