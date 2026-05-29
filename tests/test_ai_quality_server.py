@@ -30,6 +30,7 @@ def client_with_server_state(monkeypatch, brain=None, llm=None, external_llm=Non
     import backend.app as server
 
     server.LAST_COMMAND_TIME = 0
+    server.CLIENT_COMMAND_TIMES.clear()
     server.CONVERSATION_HISTORY.clear()
     server.CONVERSATION_HISTORY.extend([("previous question", "previous answer")])
     monkeypatch.setattr(server, "brain", brain)

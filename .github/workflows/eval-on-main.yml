@@ -7,6 +7,8 @@ on:
 jobs:
   train-and-evaluate:
     runs-on: ubuntu-latest
+    env:
+      MODEL_MIN_ACCURACY: ${{ vars.MODEL_MIN_ACCURACY || '0.85' }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -25,21 +27,28 @@ jobs:
           python scripts/train_and_package.py --epochs 5 --batch 8 --seed 42 --out-dir models --version main-${{ github.run_number }}
       - name: Run evaluation and write report
         run: |
-          python scripts/evaluate.py --out models/main_eval.json
+          python scripts/evaluate.py --out models/main_eval.json --min-accuracy "$MODEL_MIN_ACCURACY"
       - name: Validate evaluation report
         run: |
           python - <<'PY'
-import json,sys
-rep=json.load(open('models/main_eval.json'))
-acc=rep.get('accuracy',0)
-print('Main evaluation accuracy=',acc)
-if not (0 <= acc <= 1):
-    print(f"Invalid accuracy value: {acc}")
-    sys.exit(2)
-if rep.get('samples', 0) <= 0:
-    print("Evaluation report has no samples")
-    sys.exit(2)
-PY
+          import json
+          import os
+          import sys
+
+          rep=json.load(open('models/main_eval.json'))
+          acc=rep.get('accuracy',0)
+          min_acc=float(os.environ.get("MODEL_MIN_ACCURACY", "0.85"))
+          print('Main evaluation accuracy=',acc)
+          if not (0 <= acc <= 1):
+              print(f"Invalid accuracy value: {acc}")
+              sys.exit(2)
+          if acc < min_acc:
+              print(f"Accuracy too low: {acc} < {min_acc}")
+              sys.exit(2)
+          if rep.get('samples', 0) <= 0:
+              print("Evaluation report has no samples")
+              sys.exit(2)
+          PY
       - name: Upload evaluation artifact
         uses: actions/upload-artifact@v4
         with:

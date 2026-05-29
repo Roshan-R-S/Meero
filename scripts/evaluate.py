@@ -13,7 +13,6 @@ import hashlib
 
 import numpy as np
 
-from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 # Ensure project root is on sys.path so we can import config when executed from scripts/
@@ -21,6 +20,7 @@ import pathlib
 import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import config
+from ai.keras_compat import load_model_compat
 
 
 def compute_dataset_hash(path):
@@ -42,7 +42,7 @@ def load_dataset(intents_path):
 
 
 def evaluate(model_path, tokenizer_path, label_encoder_path, intents_path, maxlen=None, threshold=0.4, sample_latency_n=100):
-    model = load_model(model_path)
+    model = load_model_compat(model_path)
 
     with open(tokenizer_path, "rb") as f:
         tokenizer = pickle.load(f)
@@ -107,6 +107,12 @@ def main():
     parser.add_argument("--intents", type=str, default="intents.json")
     parser.add_argument("--maxlen", type=int, default=None)
     parser.add_argument("--threshold", type=float, default=0.4)
+    parser.add_argument(
+        "--min-accuracy",
+        type=float,
+        default=float(os.environ.get("MODEL_MIN_ACCURACY", "0.85")),
+        help="Fail with exit code 2 when accuracy is below this value",
+    )
     parser.add_argument("--latency-samples", type=int, default=100)
     parser.add_argument("--out", type=str, default=None, help="Write JSON report to file")
     args = parser.parse_args()
@@ -120,6 +126,10 @@ def main():
         with open(args.out, "w", encoding="utf-8") as f:
             json.dump(report, f, indent=2)
         print(f"Wrote report to {args.out}")
+
+    if report["accuracy"] < args.min_accuracy:
+        print(f"Accuracy too low: {report['accuracy']:.4f} < {args.min_accuracy:.4f}")
+        sys.exit(2)
 
 
 if __name__ == '__main__':

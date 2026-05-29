@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 try:
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -15,11 +15,9 @@ except Exception:
     SentimentIntensityAnalyzer = None
     _sentiment_available = False
 
-from core.actions import Actions
-from core.mock_engine import MockSpeechEngine
-from ai.external_llm import ExternalLLM
-from core.prompt_templates import clean_llm_response
 import core.memory_store as memory_store
+from ai.external_llm import ExternalLLM
+from .command_service import execute_command
 
 try:
     from ai.neural_net import NeuralNet
@@ -69,7 +67,7 @@ app = FastAPI(title="Meero Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=getattr(config, "CORS_ORIGINS", ["http://localhost:5173"]),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -184,6 +182,33 @@ class CommandResponse(BaseModel):
     metadata: ResponseMetadata = Field(default_factory=ResponseMetadata)
 
 
+class SettingsPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    wake_word_enabled: Optional[bool] = None
+    voice_rate: Optional[float] = Field(default=None, ge=0.5, le=2.0)
+    voice_pitch: Optional[float] = Field(default=None, ge=0.5, le=2.0)
+
+
+LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
+
+
+def _client_host(request: Request) -> str:
+    if request.client is None:
+        return "unknown"
+    return request.client.host
+
+
+def _is_local_request(request: Request) -> bool:
+    host = _client_host(request)
+    return host in LOCAL_HOSTS or host.startswith("127.")
+
+
+def require_local_request(request: Request) -> None:
+    if not _is_local_request(request):
+        raise HTTPException(status_code=403, detail="This endpoint is available only locally")
+
+
 def analyze_sentiment(text: str) -> str:
     if _sentiment_analyzer is None:
         return "neutral"
@@ -198,14 +223,8 @@ def analyze_sentiment(text: str) -> str:
 
 
 LAST_COMMAND_TIME = 0
-RATE_LIMIT_COOLDOWN = 1.0
-
-NEURAL_FAILURE_PHRASES = {
-    "I'm afraid I didn't catch that, sir.",
-    "Could you rephrase that directive?",
-    "My processing units require clarification, sir.",
-    "I'm not sure how to respond to that.",
-}
+CLIENT_COMMAND_TIMES = {}
+RATE_LIMIT_COOLDOWN = getattr(config, "RATE_LIMIT_COOLDOWN", 1.0)
 
 
 def summarize_conversation(turns, existing_summary=""):
@@ -250,147 +269,47 @@ def metrics():
 
 
 @app.post("/command", response_model=CommandResponse, dependencies=[Depends(distributed_rate_limit)])
-def process_command(request: CommandRequest):
+def process_command(payload: CommandRequest, http_request: Request):
     global LAST_COMMAND_TIME
     
     with _state_lock:
         current_time = time.time()
-        if not request.confirm and current_time - LAST_COMMAND_TIME < RATE_LIMIT_COOLDOWN:
+        client_key = _client_host(http_request)
+        last_command_time = CLIENT_COMMAND_TIMES.get(client_key, 0)
+        if not payload.confirm and current_time - last_command_time < RATE_LIMIT_COOLDOWN:
             return CommandResponse(
                 response="Rate limit exceeded. Please wait.",
-                action_status="ignored",
+                action_status="rate_limited",
                 sentiment="negative",
                 metadata=ResponseMetadata(engine="rate_limiter", fallback_reason="cooldown_active"),
             )
+        CLIENT_COMMAND_TIMES[client_key] = current_time
         LAST_COMMAND_TIME = current_time
 
-    query = (request.pending_command or request.command).lower()
-    logger.info("Processing command: %s", query)
-    
-    mock_engine = MockSpeechEngine()
-    actions = Actions(mock_engine)
-    metadata = ResponseMetadata(engine="actions")
-    
-    def dummy_input():
-        return "None"
-    
-    def dummy_exit():
-        mock_engine.speak("Disconnecting...")
-
     try:
-        needs_confirmation = bool(
-            hasattr(actions, "_requires_confirmation") and actions._requires_confirmation(query)
+        raw_query = (payload.pending_command or payload.command).strip()
+        logger.info("Processing command: %s", raw_query)
+
+        outcome = execute_command(
+            payload.command,
+            confirm=payload.confirm,
+            pending_command=payload.pending_command,
+            brain=brain,
+            llm=llm,
+            external_llm=external_llm,
+            conversation_history=CONVERSATION_HISTORY,
+            memory_summary_fn=_memory_summary,
+            append_conversation_fn=_append_conversation,
+            analyze_sentiment_fn=analyze_sentiment,
+            client_is_local=_is_local_request(http_request),
         )
-        if needs_confirmation and not request.confirm:
-            return CommandResponse(
-                response=(
-                    "This action may delete data or change system settings. "
-                    "Say yes to continue or no to cancel."
-                ),
-                action_status="confirmation_required",
-                sentiment="neutral",
-                pending_command=query,
-                metadata=ResponseMetadata(
-                    engine="actions",
-                    fallback_reason="confirmation_required",
-                ),
-            )
-
-        confirmation_input = (lambda: "yes") if request.confirm else dummy_input
-        result = actions.process_command(query, input_func=confirmation_input, exit_func=dummy_exit)
-        
-        if result == "neural_net_fallback":
-            response_text = None
-            metadata = ResponseMetadata(engine="fallback", fallback_reason="actions_unhandled")
-            
-            if getattr(config, "USE_NEURAL_NET", True) and brain:
-                try:
-                    if hasattr(brain, 'predict_with_confidence'):
-                        resp, conf = brain.predict_with_confidence(query)
-                    else:
-                        resp = brain.predict(query)
-                        conf = 1.0 if resp else 0.0
-                except Exception:
-                    logger.exception("Error during neural net prediction")
-                    resp, conf = None, 0.0
-
-                metadata.confidence = round(conf, 4)
-                threshold = getattr(config, 'NEURAL_NET_CONFIDENCE_THRESHOLD', 0.8)
-                if resp and resp not in NEURAL_FAILURE_PHRASES and conf >= threshold:
-                    response_text = resp
-                    metadata.engine = "neural_net"
-                    metadata.fallback_reason = None
-                elif resp in NEURAL_FAILURE_PHRASES:
-                    metadata.fallback_reason = "neural_net_noanswer"
-                else:
-                    metadata.fallback_reason = "neural_net_low_confidence"
-            elif not getattr(config, "USE_NEURAL_NET", True):
-                metadata.fallback_reason = "neural_net_disabled"
-            else:
-                metadata.fallback_reason = "neural_net_unavailable"
-
-            if not response_text and getattr(config, "USE_LLM", True):
-                summary = _memory_summary()
-                if llm:
-                    try:
-                        response_text = llm.generate_response(
-                            query,
-                            history=CONVERSATION_HISTORY,
-                            memory_summary=summary,
-                        )
-                        response_text = clean_llm_response(response_text)
-                        if response_text:
-                            metadata.engine = "local_llm"
-                    except Exception:
-                        logger.exception("Local LLM generation failed")
-                        metadata.fallback_reason = "local_llm_error"
-                else:
-                    metadata.fallback_reason = "local_llm_unavailable"
-
-                if not response_text and external_llm:
-                    try:
-                        response_text = external_llm.generate_response(
-                            query,
-                            history=CONVERSATION_HISTORY,
-                            memory_summary=summary,
-                        )
-                        response_text = clean_llm_response(response_text)
-                        if response_text:
-                            metadata.engine = "external_llm"
-                    except Exception:
-                        logger.exception("External LLM generation failed")
-                        metadata.fallback_reason = "external_llm_error"
-                elif not response_text and external_llm is None:
-                    metadata.fallback_reason = "external_llm_unavailable"
-            elif not response_text:
-                metadata.fallback_reason = "llm_disabled"
-
-            if not response_text:
-                response_text = "I am unable to process that request."
-                metadata.engine = "none"
-                metadata.fallback_reason = metadata.fallback_reason or "all_engines_failed"
-
-            mock_engine.speak(response_text)
-        
-        final_response = mock_engine.get_response()
-        
-        if not final_response:
-             final_response = "Done."
-
-        with _state_lock:
-            try:
-                _append_conversation(query, final_response)
-            except Exception:
-                logger.exception("Failed to write conversation to memory store")
-
-        sentiment = analyze_sentiment(final_response)
 
         return CommandResponse(
-            response=final_response,
-            action_status="success",
-            sentiment=sentiment,
-            pending_command=None,
-            metadata=metadata,
+            response=outcome.response,
+            action_status=outcome.action_status,
+            sentiment=outcome.sentiment,
+            pending_command=outcome.pending_command,
+            metadata=ResponseMetadata(**outcome.metadata),
         )
         
     except Exception as e:
@@ -417,7 +336,7 @@ def health():
     }
 
 
-@app.get("/settings")
+@app.get("/settings", dependencies=[Depends(require_local_request)])
 def get_settings():
     settings_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
@@ -437,8 +356,8 @@ def get_settings():
         raise HTTPException(status_code=500, detail="Failed to read settings")
 
 
-@app.post("/settings")
-def update_settings(payload: dict):
+@app.post("/settings", dependencies=[Depends(require_local_request)])
+def update_settings(payload: SettingsPayload):
     settings_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "..",
@@ -448,8 +367,9 @@ def update_settings(payload: dict):
     settings_path = os.path.abspath(settings_path)
     try:
         import json
+        data = payload.model_dump(exclude_none=True)
         with open(settings_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2)
+            json.dump(data, f, indent=2)
         return {"status": "ok"}
     except Exception:
         logger.exception("Failed to write settings")

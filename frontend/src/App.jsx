@@ -1,4 +1,4 @@
-import { Mic, Radio, StopCircle } from "lucide-react";
+import { Mic, Radio, Send, StopCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { sendCommand } from "./api";
 import Background from "./components/Background";
@@ -13,16 +13,19 @@ function App() {
   const [state, setState] = useState("idle"); // idle, listening, processing, speaking
   const [sentiment, setSentiment] = useState("neutral"); // neutral, positive, negative
   const [pendingConfirmationCommand, setPendingConfirmationCommand] = useState(null);
+  const [typedCommand, setTypedCommand] = useState("");
+  const [statusNotice, setStatusNotice] = useState("");
 
   // -- BOOT SEQUENCE STATE --
   const [booting, setBooting] = useState(true);
 
   // Startup Sound
   useEffect(() => {
-    const hasInteracted = localStorage.getItem("hasInteracted");
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
+    const hasInteracted = storage?.getItem?.("hasInteracted");
     const handleFirstClick = () => {
       playStartup();
-      localStorage.setItem("hasInteracted", "true");
+      storage?.setItem?.("hasInteracted", "true");
       window.removeEventListener("click", handleFirstClick);
     };
 
@@ -53,6 +56,7 @@ function App() {
     wakeWordEnabled,
     setWakeWordEnabled,
     startActiveListening,
+    recognitionError,
   } = useSpeechRecognition(
     (text) => handleCommandRef.current(text),
     state,
@@ -89,6 +93,7 @@ function App() {
 
   const handleCommand = useCallback(async (text) => {
     if (!text.trim()) return;
+    setStatusNotice("");
 
     const normalized = text.trim().toLowerCase();
     const yesWords = new Set(["yes", "y", "ok", "okay", "confirm", "proceed", "do it"]);
@@ -104,17 +109,21 @@ function App() {
         });
         setPendingConfirmationCommand(null);
         if (confirmData.sentiment) setSentiment(confirmData.sentiment);
-        console.log("[Response]", confirmData.response, confirmData);
+        if (["blocked", "error", "rate_limited"].includes(confirmData.action_status)) {
+          setStatusNotice(confirmData.response);
+        }
         speakRef.current(confirmData.response);
         return;
       }
 
       if (noWords.has(normalized)) {
         setPendingConfirmationCommand(null);
+        setStatusNotice("Action cancelled.");
         speakRef.current("Action cancelled.");
         return;
       }
 
+      setStatusNotice("Please answer yes or no.");
       speakRef.current("Please say yes to continue or no to cancel.");
       return;
     }
@@ -127,9 +136,19 @@ function App() {
       setPendingConfirmationCommand(data.pending_command);
     }
     if (data.sentiment) setSentiment(data.sentiment);
-    console.log("[Response]", data.response, data);
+    if (["blocked", "error", "rate_limited"].includes(data.action_status)) {
+      setStatusNotice(data.response);
+    }
     speakRef.current(data.response);
   }, [pendingConfirmationCommand]);
+
+  const handleTypedSubmit = useCallback((event) => {
+    event.preventDefault();
+    const command = typedCommand.trim();
+    if (!command) return;
+    setTypedCommand("");
+    handleCommand(command);
+  }, [typedCommand, handleCommand]);
 
   // Keep refs in sync (must be in effect, not during render)
   const [ariaResponse, setAriaResponse] = useState("");
@@ -224,6 +243,32 @@ function App() {
           {!speechSupported && (
             <div className="text-xs text-yellow-300 mt-2 text-center max-w-xs z-50">
               Speech recognition is not available in this browser. Try Chrome or Edge and enable microphone permissions.
+            </div>
+          )}
+          <form
+            onSubmit={handleTypedSubmit}
+            className="flex items-center gap-2 w-[min(20rem,80vw)] rounded-full bg-black/45 border border-cyan-400/25 px-3 py-2 shadow-[0_0_24px_rgba(8,145,178,0.16)] backdrop-blur"
+          >
+            <input
+              value={typedCommand}
+              onChange={(event) => setTypedCommand(event.target.value)}
+              aria-label="Type command"
+              placeholder="Type a command"
+              disabled={state === "processing"}
+              className="min-w-0 flex-1 bg-transparent text-sm text-cyan-50 placeholder:text-cyan-200/40 outline-none"
+            />
+            <button
+              type="submit"
+              aria-label="Send command"
+              disabled={!typedCommand.trim() || state === "processing"}
+              className="grid h-8 w-8 place-items-center rounded-full bg-cyan-600/90 text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Send size={16} />
+            </button>
+          </form>
+          {(statusNotice || recognitionError) && (
+            <div className="text-xs text-yellow-200 text-center max-w-xs z-50">
+              {statusNotice || recognitionError}
             </div>
           )}
         </div>

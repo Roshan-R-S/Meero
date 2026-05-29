@@ -37,3 +37,20 @@ The runtime app loads only these canonical files:
 - `models/chat_model.h5`
 - `models/tokenizer.pkl`
 - `models/label_encoder.pkl`
+
+## Evaluation Gate
+
+Evaluate the current canonical artifacts with:
+
+```powershell
+python scripts/evaluate.py --out models/local_eval.json
+```
+
+The evaluator fails when accuracy is below `0.85` by default. Override the
+threshold explicitly for experiments:
+
+```powershell
+python scripts/evaluate.py --out models/local_eval.json --min-accuracy 0.80
+```
+
+CI uses the same gate for the main-branch evaluation workflow.

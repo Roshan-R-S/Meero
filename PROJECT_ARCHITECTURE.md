@@ -3,7 +3,8 @@
 ## 1. Frontend
 
 The frontend is a React + Vite browser app. It owns browser microphone input,
-speech synthesis, assistant state, and the visual assistant experience.
+typed command fallback, speech synthesis, assistant state, and the visual
+assistant experience.
 
 Key modules:
 
@@ -11,6 +12,8 @@ Key modules:
   `/command` calls.
 - `frontend/src/hooks/useSpeechRecognition.js` handles Web Speech API input.
 - `frontend/src/hooks/useSpeechSynthesis.js` handles browser text-to-speech.
+- `frontend/src/api.js` reads `VITE_API_URL` and sends command requests.
+- `frontend/src/utils/logger.js` keeps debug logs development-only.
 - `frontend/src/components/ThreeOrb.jsx`, `Background.jsx`, and
   `HologramOverlay.jsx` render the assistant UI.
 
@@ -21,7 +24,11 @@ The backend is a FastAPI app exposed from `backend.app:app`.
 Key modules:
 
 - `backend/app.py` exposes `/`, `/health`, `/command`, `/settings`, and
-  `/metrics`.
+  `/metrics`. It also applies CORS, local-only settings protection, and
+  per-client cooldown.
+- `backend/command_service.py` preserves raw user text for LLM/memory fallback,
+  normalizes text for action routing, and blocks desktop commands when local
+  desktop mode is disabled or the request is not local.
 - `core/actions.py` handles deterministic commands such as opening websites,
   controlling tabs, reporting time/date, screenshots, jokes, and system status.
 - `core/actions_routing.py` defines command route specs used by the action
@@ -37,14 +44,28 @@ Key modules:
 
 1. The browser captures speech or user interaction and produces text.
 2. The frontend sends text to `POST /command`.
-3. The backend runs rule-based actions first.
+3. The backend checks local desktop safety rules, then runs rule-based actions
+   first.
 4. If no action route matches, the backend tries the neural intent model.
 5. If the neural model cannot answer confidently, the backend tries local or
    external LLM fallback.
 6. The backend returns text, action status, sentiment, and metadata.
 7. The frontend displays and speaks the response in the browser.
 
-## 4. Model Artifacts
+## 4. Safety And Configuration
+
+Meero is local-first. Desktop automation is controlled by these environment
+variables:
+
+- `LOCAL_DESKTOP_MODE=true` allows local desktop-control commands.
+- `WEB_SAFE_MODE=true` blocks desktop-control commands.
+- `CORS_ORIGINS=http://localhost:5173` controls allowed frontend origins.
+- `RATE_LIMIT_COOLDOWN=1.0` controls the per-client local cooldown.
+
+The `/settings` endpoint is local-only and accepts a strict schema for supported
+assistant settings.
+
+## 5. Model Artifacts
 
 Runtime model loading uses canonical artifact paths:
 

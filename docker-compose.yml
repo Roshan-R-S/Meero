@@ -8,6 +8,10 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_URL=redis://redis:6379/0
+      - CORS_ORIGINS=http://localhost:5173
+      - LOCAL_DESKTOP_MODE=true
+      - WEB_SAFE_MODE=false
+      - RATE_LIMIT_COOLDOWN=1.0
     depends_on:
       - redis
 
@@ -19,6 +23,7 @@ services:
       - ./frontend:/app
     environment:
       - CHOKIDAR_USEPOLLING=true
+      - VITE_API_URL=http://localhost:8000
 
   redis:
     image: redis:7-alpine

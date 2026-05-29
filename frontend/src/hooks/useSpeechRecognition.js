@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { playListeningStart, playListeningStop } from "../utils/sound";
+import { logger } from "../utils/logger";
 
 const WAKE_VARIANTS = [
   "hey meero", "hey miro", "a meero", "hey mirror", "hey nero",
@@ -9,13 +10,17 @@ const WAKE_VARIANTS = [
 const clean = (text) =>
   text.toLowerCase().replace(/[.,!?;:'"]/g, "").replace(/\s+/g, " ").trim();
 
-const SpeechAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+const getSpeechAPI = () => {
+  if (typeof window === "undefined") return null;
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+};
 
 const useSpeechRecognition = (onResult, currentState, setState) => {
   const recRef = useRef(null);
   const stateRef = useRef(currentState);
   const [isConversing, setIsConversing] = useState(false);
   const isConversingRef = useRef(false);
+  const [recognitionError, setRecognitionError] = useState("");
 
   // WAKE WORD & CONTINUED CONVERSATION
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
@@ -37,7 +42,7 @@ const useSpeechRecognition = (onResult, currentState, setState) => {
       if (!wakeRef.current || manualRef.current) return;
       if (stateRef.current === "processing" || stateRef.current === "speaking") return;
 
-      console.log(`[Wake] Restarting... active=${wakeActiveRef.current}`);
+      logger.log(`[Wake] Restarting... active=${wakeActiveRef.current}`);
       try { recRef.current?.start(); } catch { /* running */ }
     }, ms);
   }, []);
@@ -45,13 +50,14 @@ const useSpeechRecognition = (onResult, currentState, setState) => {
   // ── Start Active Listening (Continued Conversation) ────────────
   const startActiveListening = useCallback(() => {
     if (!recRef.current) return;
-    console.log("[Wake] Starting ACTIVE listening (Continued Conversation)");
+    logger.log("[Wake] Starting ACTIVE listening (Continued Conversation)");
     wakeActiveRef.current = true;
     try { recRef.current.start(); } catch { /* running */ }
   }, []);
 
   // ── Init Recognition ───────────────────────────────────────────
   useEffect(() => {
+    const SpeechAPI = getSpeechAPI();
     if (!SpeechAPI) return;
     if (!recRef.current) recRef.current = new SpeechAPI();
     const rec = recRef.current;
@@ -61,7 +67,8 @@ const useSpeechRecognition = (onResult, currentState, setState) => {
 
     rec.onstart = () => {
       const mode = manualRef.current ? "MANUAL" : wakeActiveRef.current ? "ACTIVE" : "PASSIVE";
-      console.log(`[Speech] Started (${mode})`);
+      logger.log(`[Speech] Started (${mode})`);
+      setRecognitionError("");
       
       // Visual feedback only for Manual or Active mode
       if (manualRef.current || wakeActiveRef.current) {
@@ -72,7 +79,7 @@ const useSpeechRecognition = (onResult, currentState, setState) => {
 
     rec.onresult = (e) => {
       const text = clean(e.results[0][0].transcript);
-      console.log("[Heard]", text);
+      logger.log("[Heard]", text);
 
       // MANUAL
       if (manualRef.current) {
@@ -85,7 +92,7 @@ const useSpeechRecognition = (onResult, currentState, setState) => {
       // WAKE PASSIVE (scanning for wake word)
       if (wakeRef.current && !wakeActiveRef.current) {
         if (WAKE_VARIANTS.some((w) => text.includes(w))) {
-          console.log("[Wake] Detected!");
+          logger.log("[Wake] Detected!");
           // Check for inline command: "Hey Meero open YouTube"
           let cmd = text;
           for (const v of WAKE_VARIANTS) cmd = cmd.replace(v, "").trim();
@@ -121,7 +128,13 @@ const useSpeechRecognition = (onResult, currentState, setState) => {
     };
 
     rec.onerror = (e) => {
-      if (e.error === "not-allowed") { manualRef.current = false; setState("idle"); }
+      if (e.error === "not-allowed") {
+        manualRef.current = false;
+        setRecognitionError("Microphone permission denied.");
+        setState("idle");
+      } else {
+        setRecognitionError("Speech recognition stopped.");
+      }
     };
 
     rec.onend = () => {
@@ -135,7 +148,7 @@ const useSpeechRecognition = (onResult, currentState, setState) => {
         // If we were in ACTIVE mode and it ended without result (silence/timeout),
         // revert to PASSIVE mode for the next loop.
         if (wakeActiveRef.current) {
-          console.log("[Wake] Active window timed out -> Reverting to Passive");
+          logger.log("[Wake] Active window timed out -> Reverting to Passive");
           wakeActiveRef.current = false;
         }
 
@@ -203,6 +216,7 @@ const useSpeechRecognition = (onResult, currentState, setState) => {
     isConversing, isConversingRef, toggleListen,
     recognitionRef: recRef, wakeWordEnabled, setWakeWordEnabled,
     startActiveListening, // Expose for Continued Conversation
+    recognitionError,
   };
 };
 

@@ -1,38 +1,49 @@
 import json
+import logging
 import pickle
 import random
 
 import numpy as np
-from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 import config
+from ai.keras_compat import load_model_compat
+
+logger = logging.getLogger(__name__)
 
 
 class NeuralNet:
     def __init__(self):
-        try:
-            self.model = load_model(config.MODEL_FILE)
-        except Exception:
-            self.model = None
+        self.model = self._load_model(config.MODEL_FILE)
+        self.tokenizer = self._load_pickle(config.TOKENIZER_FILE, "tokenizer")
+        self.label_encoder = self._load_pickle(config.LABEL_ENCODER_FILE, "label encoder")
+        self.intents_data = self._load_intents(config.INTENTS_FILE)
 
+    @staticmethod
+    def _load_model(model_path):
         try:
-            with open(config.TOKENIZER_FILE, "rb") as f:
-                self.tokenizer = pickle.load(f)
+            return load_model_compat(model_path)
         except Exception:
-            self.tokenizer = None
+            logger.exception("Failed to load neural model from %s", model_path)
+            return None
 
+    @staticmethod
+    def _load_pickle(path, label):
         try:
-            with open(config.LABEL_ENCODER_FILE, "rb") as encoder_file:
-                self.label_encoder = pickle.load(encoder_file)
+            with open(path, "rb") as file_handle:
+                return pickle.load(file_handle)
         except Exception:
-            self.label_encoder = None
+            logger.exception("Failed to load %s from %s", label, path)
+            return None
 
+    @staticmethod
+    def _load_intents(path):
         try:
-            with open(config.INTENTS_FILE) as file:
-                self.intents_data = json.load(file)
+            with open(path) as file_handle:
+                return json.load(file_handle)
         except Exception:
-            self.intents_data = {"intents": []}
+            logger.exception("Failed to load intents from %s", path)
+            return {"intents": []}
 
     def predict(self, query):
         resp, conf = self.predict_with_confidence(query)

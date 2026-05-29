@@ -25,6 +25,7 @@ def client():
         # Reset rate limiter for each test
         import backend.app as server
         server.LAST_COMMAND_TIME = 0
+        server.CLIENT_COMMAND_TIMES.clear()
         yield TestClient(app)
 
 
@@ -122,10 +123,12 @@ class TestSentiment:
 
 
 class TestRateLimiting:
-    def test_rate_limit_blocks_rapid_requests(self, client):
+    def test_rate_limit_blocks_rapid_requests(self, client, monkeypatch):
         """Two commands within 1 second should trigger rate limiting."""
         import backend.app as server
         server.LAST_COMMAND_TIME = 0
+        server.CLIENT_COMMAND_TIMES.clear()
+        monkeypatch.setattr(server, "RATE_LIMIT_COOLDOWN", 60.0)
 
         r1 = client.post("/command", json={"command": "time"})
         r2 = client.post("/command", json={"command": "time"})
@@ -133,4 +136,57 @@ class TestRateLimiting:
         # At least one should succeed, the other may be rate-limited
         responses = [r1.json(), r2.json()]
         statuses = [r["action_status"] for r in responses]
-        assert "success" in statuses or "ignored" in statuses
+        assert "success" in statuses
+        assert "rate_limited" in statuses
+
+    def test_rate_limit_is_per_client(self, monkeypatch):
+        from backend.app import app
+        import backend.app as server
+
+        server.LAST_COMMAND_TIME = 0
+        server.CLIENT_COMMAND_TIMES.clear()
+        monkeypatch.setattr(server, "RATE_LIMIT_COOLDOWN", 60.0)
+
+        first_client = TestClient(app, client=("127.0.0.1", 5000))
+        second_client = TestClient(app, client=("127.0.0.2", 5000))
+
+        first = first_client.post("/command", json={"command": "time"})
+        second = second_client.post("/command", json={"command": "time"})
+
+        assert first.json()["action_status"] == "success"
+        assert second.json()["action_status"] == "success"
+
+
+class TestSettingsEndpoint:
+    def test_settings_rejects_unknown_keys(self, client):
+        response = client.post("/settings", json={"unknown": True})
+
+        assert response.status_code == 422
+
+    @patch("builtins.open")
+    @patch("json.dump")
+    def test_settings_accepts_valid_schema(self, mock_dump, _mock_open, client):
+        response = client.post(
+            "/settings",
+            json={
+                "wake_word_enabled": True,
+                "voice_rate": 1.1,
+                "voice_pitch": 0.9,
+            },
+        )
+
+        assert response.status_code == 200
+        mock_dump.assert_called_once()
+        assert mock_dump.call_args.args[0] == {
+            "wake_word_enabled": True,
+            "voice_rate": 1.1,
+            "voice_pitch": 0.9,
+        }
+
+    def test_settings_is_local_only(self):
+        from backend.app import app
+
+        remote_client = TestClient(app, client=("203.0.113.10", 5000))
+        response = remote_client.get("/settings")
+
+        assert response.status_code == 403

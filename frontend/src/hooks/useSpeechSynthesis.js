@@ -1,4 +1,5 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { logger } from "../utils/logger";
 
 /**
  * Hook for TTS with Jarvis-like voice config.
@@ -6,10 +7,21 @@ import { useCallback, useRef } from "react";
  * @param {Function} onComplete - Callback when speaking finishes (for restarting recognition)
  */
 const useSpeechSynthesis = (setState, onComplete) => {
-  const synth = useRef(window.speechSynthesis);
+  const synth = useRef(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      synth.current = window.speechSynthesis;
+    }
+  }, []);
 
   const speak = useCallback(
     (text) => {
+      if (!synth.current && typeof window !== "undefined") {
+        synth.current = window.speechSynthesis;
+      }
+      if (!synth.current) return;
+
       if (synth.current.speaking) synth.current.cancel();
 
       setState("speaking");
@@ -30,7 +42,7 @@ const useSpeechSynthesis = (setState, onComplete) => {
       utterance.rate = 1.0;
 
       utterance.onend = () => {
-        console.log("[TTS] Finished speaking -> triggering onComplete");
+        logger.log("[TTS] Finished speaking -> triggering onComplete");
         setState("idle");
         if (onComplete) onComplete();
       };

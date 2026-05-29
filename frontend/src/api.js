@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { logger } from './utils/logger';
 
-const API_URL = 'http://localhost:8000';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export const sendCommand = async (command, options = {}) => {
   try {
@@ -10,10 +11,10 @@ export const sendCommand = async (command, options = {}) => {
       confirm: Boolean(options.confirm),
       pending_command: options.pendingCommand || null,
     });
-    console.log("[API] /command response:", response.data);
+    logger.log("[API] /command response:", response.data);
     return response.data;
   } catch (error) {
-    console.error("API Error:", error);
+    logger.error("API Error:", error);
     return { response: "I cannot reach the server.", action_status: "error" };
   }
 };

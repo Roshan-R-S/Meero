@@ -1,12 +1,14 @@
-FROM node:18-alpine
+FROM node:20.19-alpine
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm ci --silent || npm install --silent
+RUN corepack enable
 
-COPY ./frontend /app
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY . .
 
 EXPOSE 5173
 
-CMD ["npm", "run", "dev", "--", "--host"]
+CMD ["pnpm", "run", "dev", "--", "--host", "0.0.0.0"]

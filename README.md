@@ -1,114 +1,165 @@
 # Meero Python 2.0
 
-Meero Python 2.0 is a browser-based AI assistant with a FastAPI backend and a
-React frontend. The backend handles command routing, memory, local model
-fallbacks, and optional LLM responses. The frontend owns microphone input,
-speech synthesis, and the interactive assistant UI.
+Meero is a local-first AI desktop assistant with a FastAPI backend and a
+React + Vite frontend. The browser UI handles speech recognition, typed
+commands, and speech synthesis. The backend routes commands through deterministic
+actions, neural intent fallback, optional local/external LLM fallback, memory,
+metrics, and safety checks.
+
+## Local-First Safety
+
+Meero can control local desktop features such as apps, tabs, scrolling, volume,
+and screenshots. Treat it as a local assistant unless you add stronger
+authentication and deployment controls.
+
+Desktop automation is guarded by environment flags:
+
+- `LOCAL_DESKTOP_MODE=true` enables desktop-control commands.
+- `WEB_SAFE_MODE=true` blocks desktop-control commands even when local mode is
+  configured.
+- `/settings` is local-only and accepts only validated settings keys.
 
 ## Features
 
-- React + Vite voice assistant interface
-- FastAPI command API with action routing and confirmation for sensitive actions
-- Neural intent model fallback for trained conversational intents
-- Optional local GPT4All model fallback
-- Conversation memory backed by SQLite runtime state
-- Prometheus metrics and optional Redis-backed distributed rate limiting
-
-## Project Structure
-
-- `backend/app.py` - FastAPI application entry point
-- `core/actions.py` - Rule-based command engine
-- `core/actions_routing.py` - Command route specifications
-- `ai/neural_net.py` - Neural intent model runtime
-- `ai/llm_engine.py` - Optional local GPT4All fallback
-- `core/memory_store.py` - SQLite-backed conversation memory
-- `frontend/` - React + Vite web UI
-- `scripts/train_and_package.py` - Canonical model training and packaging script
-
-See [PROJECT_ARCHITECTURE.md](./PROJECT_ARCHITECTURE.md) for a fuller breakdown.
+- React + Vite assistant interface with voice and typed command input
+- Browser Speech Recognition and SpeechSynthesis support
+- FastAPI command API with confirmation for sensitive actions
+- Local desktop action routing guarded by desktop mode
+- Neural intent fallback for trained conversational intents
+- Optional local GPT4All and external LLM fallback
+- SQLite conversation memory
+- Prometheus metrics
+- Optional Redis-backed distributed rate limiting plus per-client local cooldown
 
 ## Requirements
 
 - Python 3.10+
 - Node.js 20.19+
-- `pnpm` for frontend dependency management
-- Redis is optional; without it, distributed rate limiting is skipped and the
-  backend still uses its local cooldown guard.
+- `pnpm`
+- Docker Desktop, optional
+- Redis, optional outside Docker
 
-## Setup
+## Environment
 
-### Backend
+Copy the examples if you need to customize local defaults:
+
+```powershell
+copy .env.example .env
+copy frontend\.env.example frontend\.env
+```
+
+Backend variables:
+
+```env
+CORS_ORIGINS=http://localhost:5173
+LOCAL_DESKTOP_MODE=true
+WEB_SAFE_MODE=false
+RATE_LIMIT_COOLDOWN=1.0
+MEMORY_MAX_INTERACTIONS=20
+MEMORY_SUMMARY_MAX_CHARS=1200
+```
+
+Frontend variables:
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+## Quick Start
+
+Backend:
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+python -m uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### Frontend
+Frontend:
 
 ```powershell
 cd frontend
 pnpm install
-```
-
-## Run Locally
-
-Run backend and frontend in separate terminals.
-
-### Terminal 1: Backend
-
-```powershell
-cd "E:\Meero Python 2.0"
-.\.venv\Scripts\Activate.ps1
-python -m uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
-```
-
-### Terminal 2: Frontend
-
-```powershell
-cd "E:\Meero Python 2.0\frontend"
 pnpm run dev
 ```
 
-Open `http://localhost:5173` in your browser.
+Open `http://localhost:5173`.
+
+Speech recognition works best in Chrome or Edge. If browser speech recognition
+is unavailable, use the typed command input.
 
 ## Docker
 
-Bring up the backend, frontend, and Redis:
+Bring up backend, frontend, and Redis:
 
 ```powershell
 docker compose up --build
 ```
 
-## Training
+The compose setup is intended for development. It mounts the source tree and
+runs the Vite dev server.
 
-When `intents.json` changes, train and package the canonical model artifacts:
+## Project Structure
+
+- `backend/app.py` - FastAPI application entry point
+- `backend/command_service.py` - command orchestration and fallback flow
+- `core/actions.py` - deterministic action engine
+- `core/actions_routing.py` - command route specifications
+- `core/memory_store.py` - SQLite-backed memory
+- `ai/neural_net.py` - neural intent runtime
+- `ai/llm_engine.py` - optional local GPT4All fallback
+- `frontend/` - React + Vite UI
+- `scripts/train_and_package.py` - canonical model training/packaging
+- `scripts/evaluate.py` - model evaluation with accuracy gating
+
+See [PROJECT_ARCHITECTURE.md](./PROJECT_ARCHITECTURE.md) for the runtime flow.
+
+## Checks
+
+Backend:
+
+```powershell
+python -m pytest -q
+python scripts/secret_scan.py
+```
+
+Frontend:
+
+```powershell
+cd frontend
+pnpm install --frozen-lockfile
+pnpm lint
+pnpm exec vitest run
+pnpm run build
+pnpm exec playwright test
+```
+
+## Training And Evaluation
+
+Train canonical model artifacts after changing `intents.json`:
 
 ```powershell
 python scripts/train_and_package.py --epochs 100 --batch 8 --out-dir models
 ```
 
-The script writes versioned artifacts, updates `models/manifest.json`, and
-refreshes the canonical runtime files:
+Evaluate with the default minimum accuracy gate of `0.85`:
 
-- `models/chat_model.h5`
-- `models/tokenizer.pkl`
-- `models/label_encoder.pkl`
+```powershell
+python scripts/evaluate.py --out models/local_eval.json
+```
+
+Override the gate when needed:
+
+```powershell
+python scripts/evaluate.py --out models/local_eval.json --min-accuracy 0.80
+```
 
 See [TRAINING.md](./TRAINING.md) for deterministic runner options.
 
-## Checks
+## Known Limitations
 
-```powershell
-python -m pytest -q
-cd frontend
-pnpm exec vitest run
-pnpm lint
-```
-
-Run the secret scanner manually:
-
-```powershell
-python scripts/secret_scan.py
-```
+- Desktop automation should not be exposed publicly.
+- Speech recognition depends on browser support and microphone permission.
+- Local GPT4All fallback requires the configured model file to exist.
+- Docker is development-oriented, not a production deployment recipe.
