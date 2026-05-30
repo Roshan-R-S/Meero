@@ -97,6 +97,17 @@ class TestProcessCommand:
         assert "calculator" in response.lower()
         mock_startfile.assert_called_once()
 
+    @patch("core.actions.start_file")
+    def test_open_calculator_blocked_by_allowlist(self, mock_startfile, actions, monkeypatch):
+        monkeypatch.setattr("config.APP_LAUNCH_ALLOWLIST", ("notepad",))
+        act, engine = actions
+
+        act.process_command("open calculator")
+
+        response = engine.get_response().lower()
+        assert "not allowed" in response
+        mock_startfile.assert_not_called()
+
     @patch("core.actions.subprocess.run")
     def test_close_notepad(self, mock_run, actions):
         act, engine = actions
@@ -105,6 +116,17 @@ class TestProcessCommand:
         assert "notepad" in response.lower()
         assert "should i continue" not in response.lower()
         mock_run.assert_called_once()
+
+    @patch("core.actions.subprocess.run")
+    def test_close_app_blocked_by_allowlist(self, mock_run, actions, monkeypatch):
+        monkeypatch.setattr("config.APP_LAUNCH_ALLOWLIST", ("notepad",))
+        act, engine = actions
+
+        act.process_command("close spotify", input_func=lambda: "yes")
+
+        response = engine.get_response().lower()
+        assert "not allowed" in response
+        mock_run.assert_not_called()
 
     @patch("core.actions.webbrowser")
     def test_google_search(self, mock_browser, actions):

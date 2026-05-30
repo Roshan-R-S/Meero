@@ -12,10 +12,35 @@ import shutil
 import subprocess
 import logging
 
+import config
+
 logger = logging.getLogger(__name__)
 
 # Cache Start Menu shortcuts on first use
 _start_menu_cache = None
+
+
+def _normalized_allowlist():
+    return {
+        item.strip().lower()
+        for item in getattr(config, "APP_LAUNCH_ALLOWLIST", ())
+        if item and item.strip()
+    }
+
+
+def is_app_allowed(app_name):
+    """Return whether app launch/close is allowed by the optional allowlist."""
+    allowed = _normalized_allowlist()
+    if not allowed:
+        return True
+    return app_name.lower().strip() in allowed
+
+
+def _blocked_message(app_name, action):
+    return (
+        False,
+        f"{action.capitalize()} {app_name} is not allowed by APP_LAUNCH_ALLOWLIST.",
+    )
 
 
 def _build_start_menu_cache():
@@ -76,6 +101,9 @@ def find_and_open_app(app_name):
 
     if not app_lower:
         return False, "I didn't catch the application name."
+
+    if not is_app_allowed(app_lower):
+        return _blocked_message(app_name, "opening")
 
     # Strategy 1: Check PATH (works for CLI tools, browsers, etc.)
     exe_path = shutil.which(app_lower)
@@ -143,6 +171,9 @@ def close_app_by_name(app_name):
     Returns (success, message).
     """
     app_lower = app_name.lower().strip()
+
+    if not is_app_allowed(app_lower):
+        return _blocked_message(app_name, "closing")
 
     # Map common names to process names
     process_map = {

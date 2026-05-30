@@ -1,37 +1,18 @@
-import { Copy, Mic, Radio, RefreshCw, Send, Settings, StopCircle, Trash2, X } from "lucide-react";
+import { Mic, Radio, Settings, StopCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getHealth, getSettings, saveSettings, sendCommand } from "./api";
+import { sendCommand } from "./api";
 import Background from "./components/Background";
+import CommandInput from "./components/CommandInput";
+import HistoryPanel from "./components/HistoryPanel";
 import HologramOverlay from "./components/HologramOverlay";
+import SettingsPanel from "./components/SettingsPanel";
 import ThreeOrb from "./components/ThreeOrb";
+import useHealthSettings from "./hooks/useHealthSettings";
+import useMessages from "./hooks/useMessages";
 import useSpeechRecognition from "./hooks/useSpeechRecognition";
 import useSpeechSynthesis from "./hooks/useSpeechSynthesis";
 import "./index.css";
 import { playProcessing, playStartup } from "./utils/sound";
-
-const MAX_STORED_MESSAGES = 25;
-
-const loadStoredMessages = () => {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage?.getItem?.("meero.messages");
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((message) => message?.role && typeof message.text === "string")
-      .slice(-MAX_STORED_MESSAGES);
-  } catch {
-    return [];
-  }
-};
-
-const formatMessageTime = (createdAt) => {
-  if (!createdAt) return "";
-  const date = new Date(createdAt);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-};
 
 function App() {
   const [state, setState] = useState("idle"); // idle, listening, processing, speaking
@@ -39,12 +20,8 @@ function App() {
   const [pendingConfirmationCommand, setPendingConfirmationCommand] = useState(null);
   const [typedCommand, setTypedCommand] = useState("");
   const [statusNotice, setStatusNotice] = useState("");
-  const [messages, setMessages] = useState(loadStoredMessages);
+  const { messages, addMessages, clearMessages } = useMessages();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [voiceRate, setVoiceRate] = useState(1);
-  const [voicePitch, setVoicePitch] = useState(1);
-  const [apiHealth, setApiHealth] = useState(null);
-  const [lastHealthCheckedAt, setLastHealthCheckedAt] = useState(null);
 
   // -- BOOT SEQUENCE STATE --
   const [booting, setBooting] = useState(true);
@@ -96,20 +73,16 @@ function App() {
   // Feature-detect Web Speech API availability so we can give feedback
   const speechSupported = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
-  const addMessages = useCallback((nextMessages) => {
-    const createdAt = new Date().toISOString();
-    setMessages((prev) => [
-      ...prev,
-      ...nextMessages.map((message) => ({
-        ...message,
-        createdAt: message.createdAt || createdAt,
-      })),
-    ].slice(-MAX_STORED_MESSAGES));
-  }, []);
-
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-  }, []);
+  const {
+    apiHealth,
+    lastHealthCheckedAt,
+    refreshHealth,
+    saveAssistantSettings,
+    voicePitch,
+    setVoicePitch,
+    voiceRate,
+    setVoiceRate,
+  } = useHealthSettings({ wakeWordEnabled, setWakeWordEnabled });
 
   const copyMessage = useCallback(async (text) => {
     try {
@@ -122,19 +95,6 @@ function App() {
       setStatusNotice("Could not copy response.");
     }
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      if (messages.length > 0) {
-        window.localStorage?.setItem?.("meero.messages", JSON.stringify(messages));
-      } else {
-        window.localStorage?.removeItem?.("meero.messages");
-      }
-    } catch {
-      /* Ignore storage errors. */
-    }
-  }, [messages]);
 
   const { speak } = useSpeechSynthesis(
     setState,
@@ -246,40 +206,10 @@ function App() {
     handleCommandRef.current = handleCommand;
   }, [speak, handleCommand]);
 
-  const refreshHealth = useCallback(async () => {
-    const health = await getHealth();
-    setApiHealth(health);
-    setLastHealthCheckedAt(new Date().toISOString());
-    return health;
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const loadStatus = async () => {
-      const [health, settings] = await Promise.all([getHealth(), getSettings()]);
-      if (cancelled) return;
-      setApiHealth(health);
-      setLastHealthCheckedAt(new Date().toISOString());
-      if (typeof settings.wake_word_enabled === "boolean") {
-        setWakeWordEnabled(settings.wake_word_enabled);
-      }
-      if (typeof settings.voice_rate === "number") setVoiceRate(settings.voice_rate);
-      if (typeof settings.voice_pitch === "number") setVoicePitch(settings.voice_pitch);
-    };
-    loadStatus();
-    return () => {
-      cancelled = true;
-    };
-  }, [setWakeWordEnabled]);
-
   const handleSettingsSave = useCallback(async () => {
-    const result = await saveSettings({
-      wake_word_enabled: wakeWordEnabled,
-      voice_rate: voiceRate,
-      voice_pitch: voicePitch,
-    });
+    const result = await saveAssistantSettings();
     setStatusNotice(result.status === "ok" ? "Settings saved." : "Could not save settings.");
-  }, [wakeWordEnabled, voiceRate, voicePitch]);
+  }, [saveAssistantSettings]);
 
   if (booting) {
     return (
@@ -301,46 +231,7 @@ function App() {
       <Background />
       <HologramOverlay />
 
-      {messages.length > 0 && (
-        <div className="absolute left-4 top-4 z-40 w-[min(20rem,calc(100vw-2rem))] max-h-64 overflow-y-auto rounded border border-cyan-400/20 bg-black/40 p-3 text-xs text-cyan-50/85 backdrop-blur">
-          <div className="mb-3 flex items-center justify-between border-b border-cyan-400/10 pb-2">
-            <span className="font-orbitron text-[0.65rem] uppercase tracking-widest text-cyan-300">History</span>
-            <button
-              type="button"
-              onClick={clearMessages}
-              aria-label="Clear conversation history"
-              title="Clear conversation history"
-              className="grid h-7 w-7 place-items-center rounded-full text-cyan-100 transition hover:bg-cyan-900/40"
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
-          {messages.map((msg, index) => (
-            <div key={`${msg.role}-${index}`} className="mb-2 flex items-start gap-2 last:mb-0">
-              <div className="min-w-0 flex-1">
-                <div className="mb-0.5 flex items-center gap-2">
-                  <span className="text-cyan-300">{msg.role}:</span>
-                  {formatMessageTime(msg.createdAt) && (
-                    <time className="text-[0.65rem] text-cyan-100/45">{formatMessageTime(msg.createdAt)}</time>
-                  )}
-                </div>
-                <span className="break-words">{msg.text}</span>
-              </div>
-              {msg.role === "assistant" && (
-                <button
-                  type="button"
-                  onClick={() => copyMessage(msg.text)}
-                  aria-label={`Copy assistant response ${index + 1}`}
-                  title="Copy response"
-                  className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-cyan-100 transition hover:bg-cyan-900/40"
-                >
-                  <Copy size={12} />
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <HistoryPanel messages={messages} onClear={clearMessages} onCopy={copyMessage} />
 
       <button
         onClick={() => setSettingsOpen(true)}
@@ -352,88 +243,19 @@ function App() {
       </button>
 
       {settingsOpen && (
-        <div className="absolute right-4 top-16 z-50 w-[min(21rem,calc(100vw-2rem))] rounded border border-cyan-400/25 bg-black/75 p-4 text-sm text-cyan-50 shadow-[0_0_32px_rgba(8,145,178,0.22)] backdrop-blur">
-          <div className="mb-4 flex items-center justify-between">
-            <span className="font-orbitron text-xs uppercase tracking-widest text-cyan-300">Settings</span>
-            <button
-              onClick={() => setSettingsOpen(false)}
-              aria-label="Close settings"
-              className="grid h-8 w-8 place-items-center rounded-full text-cyan-100 transition hover:bg-cyan-900/50"
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          <label className="mb-4 flex items-center justify-between gap-4">
-            <span>Wake word</span>
-            <input
-              type="checkbox"
-              checked={wakeWordEnabled}
-              onChange={(event) => setWakeWordEnabled(event.target.checked)}
-              className="h-4 w-4 accent-cyan-400"
-            />
-          </label>
-
-          <label className="mb-4 block">
-            <span className="mb-2 flex justify-between">
-              <span>Voice rate</span>
-              <span>{voiceRate.toFixed(1)}</span>
-            </span>
-            <input
-              type="range"
-              min="0.5"
-              max="2"
-              step="0.1"
-              value={voiceRate}
-              onChange={(event) => setVoiceRate(Number(event.target.value))}
-              className="w-full accent-cyan-400"
-            />
-          </label>
-
-          <label className="mb-4 block">
-            <span className="mb-2 flex justify-between">
-              <span>Voice pitch</span>
-              <span>{voicePitch.toFixed(1)}</span>
-            </span>
-            <input
-              type="range"
-              min="0.5"
-              max="2"
-              step="0.1"
-              value={voicePitch}
-              onChange={(event) => setVoicePitch(Number(event.target.value))}
-              className="w-full accent-cyan-400"
-            />
-          </label>
-
-          <div className="mb-4 grid grid-cols-2 gap-2 text-xs">
-            <span className="rounded border border-cyan-400/20 px-2 py-1">
-              API: {apiHealth?.status === "ok" ? "online" : "offline"}
-            </span>
-            <span className="rounded border border-cyan-400/20 px-2 py-1">
-              Desktop: {apiHealth?.detailed ? (apiHealth?.web_safe_mode ? "safe" : "local") : "unknown"}
-            </span>
-            <span className="rounded border border-cyan-400/20 px-2 py-1">
-              Checked: {lastHealthCheckedAt ? formatMessageTime(lastHealthCheckedAt) : "never"}
-            </span>
-            <button
-              type="button"
-              onClick={refreshHealth}
-              aria-label="Refresh API status"
-              title="Refresh API status"
-              className="grid h-7 place-items-center rounded border border-cyan-400/20 text-cyan-100 transition hover:bg-cyan-900/40"
-            >
-              <RefreshCw size={13} />
-            </button>
-          </div>
-
-          <button
-            onClick={handleSettingsSave}
-            className="w-full rounded bg-cyan-600/90 px-3 py-2 text-sm text-white transition hover:bg-cyan-500"
-          >
-            Save
-          </button>
-        </div>
+        <SettingsPanel
+          apiHealth={apiHealth}
+          lastHealthCheckedAt={lastHealthCheckedAt}
+          onClose={() => setSettingsOpen(false)}
+          onRefreshHealth={refreshHealth}
+          onSave={handleSettingsSave}
+          setVoicePitch={setVoicePitch}
+          setVoiceRate={setVoiceRate}
+          setWakeWordEnabled={setWakeWordEnabled}
+          voicePitch={voicePitch}
+          voiceRate={voiceRate}
+          wakeWordEnabled={wakeWordEnabled}
+        />
       )}
 
       {/* Tactical Center */}
@@ -495,27 +317,12 @@ function App() {
               Speech recognition is not available in this browser. Try Chrome or Edge and enable microphone permissions.
             </div>
           )}
-          <form
+          <CommandInput
+            disabled={state === "processing"}
             onSubmit={handleTypedSubmit}
-            className="flex items-center gap-2 w-[min(20rem,80vw)] rounded-full bg-black/45 border border-cyan-400/25 px-3 py-2 shadow-[0_0_24px_rgba(8,145,178,0.16)] backdrop-blur"
-          >
-            <input
-              value={typedCommand}
-              onChange={(event) => setTypedCommand(event.target.value)}
-              aria-label="Type command"
-              placeholder="Type a command"
-              disabled={state === "processing"}
-              className="min-w-0 flex-1 bg-transparent text-sm text-cyan-50 placeholder:text-cyan-200/40 outline-none"
-            />
-            <button
-              type="submit"
-              aria-label="Send command"
-              disabled={!typedCommand.trim() || state === "processing"}
-              className="grid h-8 w-8 place-items-center rounded-full bg-cyan-600/90 text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Send size={16} />
-            </button>
-          </form>
+            setTypedCommand={setTypedCommand}
+            typedCommand={typedCommand}
+          />
           {(statusNotice || recognitionError) && (
             <div className="text-xs text-yellow-200 text-center max-w-xs z-50">
               {statusNotice || recognitionError}

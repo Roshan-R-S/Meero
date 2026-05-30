@@ -16,7 +16,9 @@ services:
       - WEB_SAFE_MODE=false
       - RATE_LIMIT_COOLDOWN=1.0
       - REQUIRE_API_KEY=${REQUIRE_API_KEY:-false}
+      - PROTECT_METRICS=${PROTECT_METRICS:-false}
       - MEERO_API_KEY=${MEERO_API_KEY:-}
+      - APP_LAUNCH_ALLOWLIST=${APP_LAUNCH_ALLOWLIST:-}
     depends_on:
       - redis
 
@@ -35,6 +37,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
+      # Exposed for local debugging only; production compose keeps Redis internal.
       - "6379:6379"
     command: ["redis-server", "--appendonly", "yes"]
     volumes:

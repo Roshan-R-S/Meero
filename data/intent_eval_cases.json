@@ -1,0 +1,48 @@
+{
+  "cases": [
+    {
+      "query": "hello meero",
+      "expected_intent": "greeting"
+    },
+    {
+      "query": "could you tell me the date",
+      "expected_intent": "time"
+    },
+    {
+      "query": "show my university time table",
+      "expected_intent": "schedule"
+    },
+    {
+      "query": "can you tell me a joke",
+      "expected_intent": "joke"
+    },
+    {
+      "query": "visit github",
+      "expected_intent": "open_website"
+    },
+    {
+      "query": "google search python decorators",
+      "expected_intent": "browse"
+    },
+    {
+      "query": "condition of the system please",
+      "expected_intent": "system"
+    },
+    {
+      "query": "take a screenshot now",
+      "expected_intent": "screenshot"
+    },
+    {
+      "query": "increase volume please",
+      "expected_intent": "volume"
+    },
+    {
+      "query": "open a new tab",
+      "expected_intent": "tab"
+    },
+    {
+      "query": "scroll to bottom of page",
+      "expected_intent": "scroll"
+    }
+  ]
+}

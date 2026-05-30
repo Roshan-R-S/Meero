@@ -10,11 +10,19 @@ commands, and speech synthesis. The backend routes commands through deterministi
 actions, neural intent fallback, optional local/external LLM fallback, memory,
 metrics, and safety checks.
 
+## Preview
+
+![Meero home screen](docs/screenshots/home.png)
+
+![Meero settings panel](docs/screenshots/settings.png)
+
 ## Local-First Safety
 
 Meero can control local desktop features such as apps, tabs, scrolling, volume,
 and screenshots. Treat it as a local assistant unless you add stronger
 authentication and deployment controls.
+
+For a concise deployment safety checklist, see [docs/SECURITY.md](./docs/SECURITY.md).
 
 Desktop automation is guarded by environment flags:
 
@@ -60,6 +68,8 @@ LOCAL_DESKTOP_MODE=true
 - Prometheus metrics
 - Optional Redis-backed distributed rate limiting plus per-client local cooldown
 
+![Meero demo](docs/demo.gif)
+
 ## Requirements
 
 - Python 3.10+
@@ -86,6 +96,8 @@ CORS_ORIGINS=http://localhost:5173
 RATE_LIMIT_COOLDOWN=1.0
 LOCAL_DESKTOP_MODE=false
 WEB_SAFE_MODE=true
+PROTECT_METRICS=false
+APP_LAUNCH_ALLOWLIST=
 MEERO_API_KEY=change-this-local-key
 REQUIRE_API_KEY=false
 LLM_API_PROVIDER=
@@ -273,6 +285,6 @@ See [TRAINING.md](./TRAINING.md) for deterministic runner options.
 - [x] Production Docker Compose
 - [x] Conversation history UI
 - [x] Better model evaluation reports
-- [ ] Demo GIF and screenshots
+- [x] Demo GIF and screenshots
 - [x] Architecture diagram
 - [ ] Public deployment hardening

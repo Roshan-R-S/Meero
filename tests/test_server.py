@@ -28,6 +28,7 @@ def client():
         server.CLIENT_COMMAND_TIMES.clear()
         server.config.MEERO_API_KEY = ""
         server.config.REQUIRE_API_KEY = False
+        server.config.PROTECT_METRICS = False
         yield TestClient(app)
 
 
@@ -44,6 +45,43 @@ class TestCommandEndpoint:
 
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
+
+    def test_metrics_public_by_default(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "PROTECT_METRICS", False)
+        response = client.get("/metrics")
+
+        assert response.status_code == 200
+
+    def test_metrics_requires_api_key_when_protected(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "PROTECT_METRICS", True)
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "secret-key")
+        response = client.get("/metrics")
+
+        assert response.status_code == 401
+
+    def test_metrics_accepts_valid_api_key_when_protected(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "PROTECT_METRICS", True)
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "secret-key")
+        response = client.get("/metrics", headers={"x-meero-api-key": "secret-key"})
+
+        assert response.status_code == 200
+
+    def test_metrics_fails_closed_when_key_required_but_missing(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "PROTECT_METRICS", True)
+        monkeypatch.setattr(server.config, "REQUIRE_API_KEY", True)
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "")
+        response = client.get("/metrics")
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == "API key is required but not configured"
 
     def test_debug_health_requires_api_key_when_configured(self, client, monkeypatch):
         import backend.app as server
@@ -248,9 +286,10 @@ class TestSettingsEndpoint:
 
         assert response.status_code == 422
 
-    @patch("builtins.open")
+    @patch("backend.app.os.replace")
     @patch("json.dump")
-    def test_settings_accepts_valid_schema(self, mock_dump, _mock_open, client):
+    @patch("builtins.open")
+    def test_settings_accepts_valid_schema(self, mock_open, mock_dump, mock_replace, client):
         response = client.post(
             "/settings",
             json={
@@ -261,12 +300,41 @@ class TestSettingsEndpoint:
         )
 
         assert response.status_code == 200
+        assert mock_open.call_args.args[0].endswith("settings.json.tmp")
         mock_dump.assert_called_once()
         assert mock_dump.call_args.args[0] == {
             "wake_word_enabled": True,
             "voice_rate": 1.1,
             "voice_pitch": 0.9,
         }
+        assert mock_replace.call_args.args[0].endswith("settings.json.tmp")
+        assert mock_replace.call_args.args[1].endswith("settings.json")
+
+    def test_settings_post_requires_api_key_when_configured(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "secret-key")
+        response = client.post("/settings", json={"wake_word_enabled": True})
+
+        assert response.status_code == 401
+
+    def test_settings_write_failure_cleans_temp_file(self, client, monkeypatch, tmp_path):
+        import backend.app as server
+
+        settings_path = tmp_path / "settings.json"
+        tmp_settings_path = tmp_path / "settings.json.tmp"
+        monkeypatch.setattr(server, "_settings_path", lambda: str(settings_path))
+
+        def fail_replace(_src, _dst):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(server.os, "replace", fail_replace)
+
+        response = client.post("/settings", json={"wake_word_enabled": True})
+
+        assert response.status_code == 500
+        assert not settings_path.exists()
+        assert not tmp_settings_path.exists()
 
     def test_settings_is_local_only(self):
         from backend.app import app

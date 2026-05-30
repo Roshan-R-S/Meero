@@ -220,6 +220,12 @@ def require_api_key(x_meero_api_key: Optional[str] = Header(default=None)) -> No
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
+def require_metrics_access(x_meero_api_key: Optional[str] = Header(default=None)) -> None:
+    if not getattr(config, "PROTECT_METRICS", False):
+        return
+    require_api_key(x_meero_api_key)
+
+
 def analyze_sentiment(text: str) -> str:
     if _sentiment_analyzer is None:
         return "neutral"
@@ -272,7 +278,7 @@ def read_root():
     return {"status": "Meero is online"}
 
 
-@app.get("/metrics")
+@app.get("/metrics", dependencies=[Depends(require_metrics_access)])
 def metrics():
     if not _PROMETHEUS_AVAILABLE or generate_latest is None:
         return Response(content="Prometheus client unavailable\n", media_type="text/plain")
@@ -362,15 +368,18 @@ def debug_health():
     return _debug_health()
 
 
-@app.get("/settings", dependencies=[Depends(require_local_request), Depends(require_api_key)])
-def get_settings():
-    settings_path = os.path.join(
+def _settings_path() -> str:
+    return os.path.abspath(os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "..",
         "data",
         "settings.json",
-    )
-    settings_path = os.path.abspath(settings_path)
+    ))
+
+
+@app.get("/settings", dependencies=[Depends(require_local_request), Depends(require_api_key)])
+def get_settings():
+    settings_path = _settings_path()
     try:
         if not os.path.exists(settings_path):
             return {}
@@ -384,20 +393,22 @@ def get_settings():
 
 @app.post("/settings", dependencies=[Depends(require_local_request), Depends(require_api_key)])
 def update_settings(payload: SettingsPayload):
-    settings_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "..",
-        "data",
-        "settings.json",
-    )
-    settings_path = os.path.abspath(settings_path)
+    settings_path = _settings_path()
+    tmp_path = f"{settings_path}.tmp"
     try:
         import json
         data = payload.model_dump(exclude_none=True)
-        with open(settings_path, "w", encoding="utf-8") as f:
+        os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+        with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+        os.replace(tmp_path, settings_path)
         return {"status": "ok"}
     except Exception:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            logger.exception("Failed to clean up temporary settings file")
         logger.exception("Failed to write settings")
         raise HTTPException(status_code=500, detail="Failed to write settings")
 

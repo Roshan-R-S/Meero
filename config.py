@@ -70,6 +70,8 @@ CORS_ORIGINS = _env_list("CORS_ORIGINS", ["http://localhost:5173"])
 RATE_LIMIT_COOLDOWN = float(os.environ.get("RATE_LIMIT_COOLDOWN", "1.0"))
 MEERO_API_KEY = os.environ.get("MEERO_API_KEY", "")
 REQUIRE_API_KEY = _env_bool("REQUIRE_API_KEY", False)
+PROTECT_METRICS = _env_bool("PROTECT_METRICS", False)
+APP_LAUNCH_ALLOWLIST = tuple(_env_list("APP_LAUNCH_ALLOWLIST", []))
 
 # Neural net confidence threshold (0.0 - 1.0) used to decide whether to use the
 # neural net's answer or fall back to the LLM. Keep high if you prefer LLMs.

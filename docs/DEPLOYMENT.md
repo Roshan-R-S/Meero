@@ -11,6 +11,8 @@ Use this only on your own machine or trusted LAN.
 WEB_SAFE_MODE=false
 LOCAL_DESKTOP_MODE=true
 REQUIRE_API_KEY=false
+PROTECT_METRICS=false
+APP_LAUNCH_ALLOWLIST=
 MEERO_API_KEY=
 ```
 
@@ -26,6 +28,7 @@ WireGuard, or a reverse proxy with basic auth.
 WEB_SAFE_MODE=true
 LOCAL_DESKTOP_MODE=false
 REQUIRE_API_KEY=true
+PROTECT_METRICS=true
 MEERO_API_KEY=<strong-random-value>
 ```
 
@@ -40,6 +43,7 @@ Use this for portfolio demos where visitors may open the frontend.
 WEB_SAFE_MODE=true
 LOCAL_DESKTOP_MODE=false
 REQUIRE_API_KEY=true
+PROTECT_METRICS=true
 MEERO_API_KEY=<strong-random-value>
 ```
 
@@ -67,3 +71,6 @@ Before publishing, verify the resolved configuration:
 docker compose config
 docker compose -f docker-compose.prod.yml config
 ```
+
+For local desktop mode, set `APP_LAUNCH_ALLOWLIST` if you want to restrict app
+launch/close commands to approved names such as `notepad,calculator,paint`.

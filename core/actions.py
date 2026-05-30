@@ -310,11 +310,17 @@ class Actions:
         }
         for name, path in hardcoded.items():
             if name in app_name:
+                if not app_launcher.is_app_allowed(name):
+                    self.speak(f"Opening {name} is not allowed by APP_LAUNCH_ALLOWLIST.")
+                    return
                 self.speak(f"Opening {name}")
                 start_file(path)
                 return
 
         if "vscode" in app_name or "visual studio code" in app_name:
+            if not app_launcher.is_app_allowed("vscode"):
+                self.speak("Opening vscode is not allowed by APP_LAUNCH_ALLOWLIST.")
+                return
             self.speak("Opening Visual Studio Code")
             subprocess.Popen([config.VSCODE_PATH], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return

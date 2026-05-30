@@ -29,6 +29,19 @@ silently accepting unauthenticated requests.
 local/private deployments. For public exposure, add real user authentication,
 reverse-proxy auth, or private network access.
 
+## Metrics
+
+`/metrics` is public by default for local development. Set
+`PROTECT_METRICS=true` in production-style environments to require the same
+`x-meero-api-key` protection used by `/command`, `/settings`, and
+`/debug/health`.
+
+## Rate Limiting
+
+Redis-backed rate limiting is the distributed control. The in-memory
+`CLIENT_COMMAND_TIMES` cooldown is process-local and should be treated as a
+local usability guard, not a multi-replica production rate limiter.
+
 ## Local Desktop Controls
 
 Desktop actions such as app launch/close, screenshots, volume control, tab
@@ -41,6 +54,10 @@ control, and scrolling are blocked unless:
 Use `WEB_SAFE_MODE=true` for demos or environments where host control should be
 disabled.
 
+Set `APP_LAUNCH_ALLOWLIST=notepad,calculator,paint,vscode` to restrict local
+app launch and close commands to explicitly approved application names. Leave it
+empty to preserve the default local-desktop behavior.
+
 ## Production Deployment
 
 Production-style Docker configuration keeps desktop automation disabled. Do not
@@ -51,6 +68,7 @@ deployments should use:
 WEB_SAFE_MODE=true
 LOCAL_DESKTOP_MODE=false
 REQUIRE_API_KEY=true
+PROTECT_METRICS=true
 MEERO_API_KEY=<strong-random-value>
 ```
 
