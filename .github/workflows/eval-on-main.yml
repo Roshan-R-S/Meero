@@ -26,7 +26,7 @@ jobs:
           TRAIN_SEED: '42'
         run: |
           python scripts/train_and_package.py \
-            --epochs 20 \
+            --epochs "$MODEL_EPOCHS" \
             --batch 4 \
             --seed 42 \
             --out-dir models \
