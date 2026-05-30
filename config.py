@@ -92,3 +92,14 @@ LLM_API_PROVIDER = os.environ.get("LLM_API_PROVIDER") or None
 NEURAL_NET_MAXLEN = 20
 NEURAL_NET_VOCAB_SIZE = 1000
 NEURAL_NET_EMBEDDING_DIM = 16
+
+# External provider configuration (optional)
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") or ""
+OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1"
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY") or ""
+OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL") or "https://api.openrouter.ai/v1"
+NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY") or ""
+NVIDIA_BASE_URL = os.environ.get("NVIDIA_BASE_URL") or "https://api.nvidia.com"
+PROVIDER_REQUEST_TIMEOUT = int(os.environ.get("PROVIDER_REQUEST_TIMEOUT", "15"))
+HUGGINGFACE_API_KEY = os.environ.get("HUGGINGFACE_API_KEY") or ""
+HUGGINGFACE_BASE_URL = os.environ.get("HUGGINGFACE_BASE_URL") or "https://api-inference.huggingface.co/models"
