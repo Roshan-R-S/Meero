@@ -48,6 +48,24 @@ vi.mock("./hooks/useSpeechSynthesis", () => ({
   })),
 }));
 
+const renderApp = async () => {
+  let rendered;
+  await act(async () => {
+    rendered = render(<App />);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  return rendered;
+};
+
+const finishBoot = async () => {
+  await act(async () => {
+    vi.advanceTimersByTime(3500);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+};
+
 describe("App typed fallback", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -58,10 +76,18 @@ describe("App typed fallback", () => {
     });
     getHealth.mockResolvedValue({
       status: "ok",
+      detailed: true,
       web_safe_mode: true,
     });
     getSettings.mockResolvedValue({});
     saveSettings.mockResolvedValue({ status: "ok" });
+    window.localStorage?.removeItem?.("meero.messages");
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
+    });
   });
 
   afterEach(() => {
@@ -70,27 +96,21 @@ describe("App typed fallback", () => {
   });
 
   test("shows typed command fallback when speech recognition is unavailable", async () => {
-    render(<App />);
-
-    await act(async () => {
-      vi.advanceTimersByTime(3500);
-      await Promise.resolve();
-    });
+    await renderApp();
+    await finishBoot();
 
     expect(screen.getByLabelText("Type command")).toBeInTheDocument();
     expect(screen.getByText(/Speech recognition is not available/i)).toBeInTheDocument();
   });
 
   test("submits typed commands through the existing command API", async () => {
-    render(<App />);
+    await renderApp();
+    await finishBoot();
 
     await act(async () => {
-      vi.advanceTimersByTime(3500);
-      await Promise.resolve();
-    });
-
-    fireEvent.change(screen.getByLabelText("Type command"), {
-      target: { value: "what time is it" },
+      fireEvent.change(screen.getByLabelText("Type command"), {
+        target: { value: "what time is it" },
+      });
     });
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Send command"));
@@ -104,14 +124,12 @@ describe("App typed fallback", () => {
   });
 
   test("opens settings panel and saves supported settings", async () => {
-    render(<App />);
+    await renderApp();
+    await finishBoot();
 
     await act(async () => {
-      vi.advanceTimersByTime(3500);
-      await Promise.resolve();
+      fireEvent.click(screen.getByLabelText("Open settings"));
     });
-
-    fireEvent.click(screen.getByLabelText("Open settings"));
     expect(screen.getByText("Settings")).toBeInTheDocument();
 
     await act(async () => {
@@ -124,5 +142,67 @@ describe("App typed fallback", () => {
       voice_rate: 1,
       voice_pitch: 1,
     });
+  });
+
+  test("shows limited status when only public health is available", async () => {
+    getHealth.mockResolvedValue({
+      status: "ok",
+      detailed: false,
+    });
+
+    await renderApp();
+    await finishBoot();
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open settings"));
+    });
+
+    expect(screen.getByText(/API: online/i)).toBeInTheDocument();
+    expect(screen.getByText(/Desktop: unknown/i)).toBeInTheDocument();
+  });
+
+  test("refreshes API status from settings", async () => {
+    await renderApp();
+    await finishBoot();
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open settings"));
+    });
+    getHealth.mockClear();
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Refresh API status"));
+      await Promise.resolve();
+    });
+
+    expect(getHealth).toHaveBeenCalledTimes(1);
+  });
+
+  test("copies and clears conversation history", async () => {
+    await renderApp();
+    await finishBoot();
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Type command"), {
+        target: { value: "what time is it" },
+      });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Send command"));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(/Copy assistant response/i));
+      await Promise.resolve();
+    });
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("Done.");
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Clear conversation history"));
+    });
+
+    expect(screen.queryByText("what time is it")).not.toBeInTheDocument();
   });
 });

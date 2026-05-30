@@ -42,14 +42,9 @@ jobs:
           cd frontend
           pnpm exec playwright install --with-deps
 
-      - name: Start frontend dev server
-        run: |
-          cd frontend
-          pnpm run dev & pnpm exec wait-on http://localhost:5173
-        env:
-          CI: true
-
       - name: Run Playwright tests
         run: |
           cd frontend
           pnpm exec playwright test --reporter=list
+        env:
+          CI: true

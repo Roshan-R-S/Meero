@@ -27,6 +27,7 @@ def client():
         server.LAST_COMMAND_TIME = 0
         server.CLIENT_COMMAND_TIMES.clear()
         server.config.MEERO_API_KEY = ""
+        server.config.REQUIRE_API_KEY = False
         yield TestClient(app)
 
 
@@ -40,6 +41,23 @@ class TestRootEndpoint:
 class TestCommandEndpoint:
     def test_health_returns_status(self, client):
         response = client.get("/health")
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+
+    def test_debug_health_requires_api_key_when_configured(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "secret-key")
+        response = client.get("/debug/health")
+
+        assert response.status_code == 401
+
+    def test_debug_health_returns_detailed_status_with_valid_api_key(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "secret-key")
+        response = client.get("/debug/health", headers={"x-meero-api-key": "secret-key"})
 
         assert response.status_code == 200
         data = response.json()
@@ -125,6 +143,18 @@ class TestCommandEndpoint:
 
         assert response.status_code == 401
 
+    def test_command_rejects_wrong_api_key_when_configured(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "secret-key")
+        response = client.post(
+            "/command",
+            json={"command": "time"},
+            headers={"x-meero-api-key": "wrong-key"},
+        )
+
+        assert response.status_code == 401
+
     def test_command_accepts_valid_api_key_when_configured(self, client, monkeypatch):
         import backend.app as server
 
@@ -137,6 +167,16 @@ class TestCommandEndpoint:
 
         assert response.status_code == 200
         assert response.json()["action_status"] == "success"
+
+    def test_command_requires_configured_key_when_required(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "")
+        monkeypatch.setattr(server.config, "REQUIRE_API_KEY", True)
+        response = client.post("/command", json={"command": "time"})
+
+        assert response.status_code == 500
+        assert response.json()["detail"] == "API key is required but not configured"
 
     def test_desktop_command_blocked_in_web_safe_mode(self, client, monkeypatch):
         monkeypatch.setattr("config.LOCAL_DESKTOP_MODE", True)

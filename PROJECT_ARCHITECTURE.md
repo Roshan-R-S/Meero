@@ -23,9 +23,9 @@ The backend is a FastAPI app exposed from `backend.app:app`.
 
 Key modules:
 
-- `backend/app.py` exposes `/`, `/health`, `/command`, `/settings`, and
-  `/metrics`. It also applies CORS, local-only settings protection, and
-  per-client cooldown.
+- `backend/app.py` exposes `/`, minimal `/health`, protected `/debug/health`,
+  `/command`, `/settings`, and `/metrics`. It also applies CORS, API-key
+  protection, local-only settings protection, and per-client cooldown.
 - `backend/command_service.py` preserves raw user text for LLM/memory fallback,
   normalizes text for action routing, and blocks desktop commands when local
   desktop mode is disabled or the request is not local.
@@ -41,6 +41,19 @@ Key modules:
 - `ai/llm_engine.py` and `ai/external_llm.py` provide optional LLM fallbacks.
 
 ## 3. Runtime Data Flow
+
+```mermaid
+flowchart TD
+  A[React + Vite UI] --> B[FastAPI Backend]
+  B --> C[Command Service]
+  C --> D[Rule-based Actions]
+  C --> E[Neural Intent Model]
+  C --> F[Local GPT4All]
+  C --> G[External LLM]
+  C --> H[SQLite Memory]
+  B --> I[Prometheus Metrics]
+  B --> J[Redis Rate Limiting]
+```
 
 1. The browser captures speech or user interaction and produces text.
 2. The frontend sends text to `POST /command`.
@@ -61,9 +74,13 @@ variables:
 - `WEB_SAFE_MODE=true` blocks desktop-control commands.
 - `CORS_ORIGINS=http://localhost:5173` controls allowed frontend origins.
 - `RATE_LIMIT_COOLDOWN=1.0` controls the per-client local cooldown.
+- `MEERO_API_KEY` enables API-key checks for protected endpoints.
+- `REQUIRE_API_KEY=true` makes protected endpoints fail closed when no key is
+  configured.
 
 The `/settings` endpoint is local-only and accepts a strict schema for supported
-assistant settings.
+assistant settings. `/health` is intentionally minimal; `/debug/health` exposes
+detailed runtime diagnostics only after API-key checks pass.
 
 ## 5. Model Artifacts
 

@@ -1,5 +1,9 @@
 # Meero Python 2.0
 
+[![CI](https://github.com/Roshan-R-S/Meero/actions/workflows/ci.yml/badge.svg)](https://github.com/Roshan-R-S/Meero/actions/workflows/ci.yml)
+[![Playwright E2E](https://github.com/Roshan-R-S/Meero/actions/workflows/playwright.yml/badge.svg)](https://github.com/Roshan-R-S/Meero/actions/workflows/playwright.yml)
+[![Model Evaluation](https://github.com/Roshan-R-S/Meero/actions/workflows/eval-on-main.yml/badge.svg)](https://github.com/Roshan-R-S/Meero/actions/workflows/eval-on-main.yml)
+
 Meero is a local-first AI desktop assistant with a FastAPI backend and a
 React + Vite frontend. The browser UI handles speech recognition, typed
 commands, and speech synthesis. The backend routes commands through deterministic
@@ -20,6 +24,8 @@ Desktop automation is guarded by environment flags:
 - `/settings` is local-only and accepts only validated settings keys.
 - Optional API-key auth protects `/command` and `/settings` when
   `MEERO_API_KEY` is configured.
+- Production-style deployments should set `REQUIRE_API_KEY=true` so a missing
+  API key fails closed instead of disabling auth.
 
 ## Safety Modes
 
@@ -81,6 +87,7 @@ RATE_LIMIT_COOLDOWN=1.0
 LOCAL_DESKTOP_MODE=false
 WEB_SAFE_MODE=true
 MEERO_API_KEY=change-this-local-key
+REQUIRE_API_KEY=false
 LLM_API_PROVIDER=
 LLM_API_KEY=
 LLM_API_URL=
@@ -97,6 +104,10 @@ VITE_MEERO_API_KEY=change-this-local-key
 
 If `MEERO_API_KEY` is unset, API-key auth is disabled for local convenience. If
 it is set, the frontend should send the same value through `VITE_MEERO_API_KEY`.
+Do not treat `VITE_MEERO_API_KEY` as a public-web secret: Vite exposes frontend
+environment variables in the browser bundle. Use it only for local/private
+deployments, or put Meero behind real login, reverse-proxy auth, or a private
+network.
 
 ## Quick Start
 
@@ -136,6 +147,31 @@ desktop automation disabled:
 
 ```powershell
 docker compose -f docker-compose.prod.yml up --build
+```
+
+For production-style runs, set a non-empty `MEERO_API_KEY` and keep:
+
+```env
+WEB_SAFE_MODE=true
+LOCAL_DESKTOP_MODE=false
+REQUIRE_API_KEY=true
+```
+
+See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for supported deployment modes.
+
+## Architecture
+
+```mermaid
+flowchart TD
+  A[React + Vite UI] --> B[FastAPI Backend]
+  B --> C[Command Service]
+  C --> D[Rule-based Actions]
+  C --> E[Neural Intent Model]
+  C --> F[Local GPT4All]
+  C --> G[External LLM]
+  C --> H[SQLite Memory]
+  B --> I[Prometheus Metrics]
+  B --> J[Redis Rate Limiting]
 ```
 
 ## Project Structure
@@ -181,7 +217,7 @@ pip install -r requirements-cloud.txt
 
 ## CI
 
-This repo runs:
+This repo's CI workflows run:
 
 - backend pytest
 - secret scan
@@ -237,6 +273,6 @@ See [TRAINING.md](./TRAINING.md) for deterministic runner options.
 - [x] Production Docker Compose
 - [x] Conversation history UI
 - [x] Better model evaluation reports
-- [ ] Demo GIF
-- [ ] Architecture diagram image
+- [ ] Demo GIF and screenshots
+- [x] Architecture diagram
 - [ ] Public deployment hardening

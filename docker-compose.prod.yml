@@ -1,6 +1,9 @@
 services:
   backend:
     build: .
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "8000:8000"
     environment:
@@ -10,6 +13,7 @@ services:
       - LOCAL_DESKTOP_MODE=false
       - WEB_SAFE_MODE=true
       - RATE_LIMIT_COOLDOWN=1.0
+      - REQUIRE_API_KEY=true
       - MEERO_API_KEY=${MEERO_API_KEY}
     depends_on:
       - redis

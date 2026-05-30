@@ -211,6 +211,9 @@ def require_local_request(request: Request) -> None:
 
 def require_api_key(x_meero_api_key: Optional[str] = Header(default=None)) -> None:
     configured_key = getattr(config, "MEERO_API_KEY", "") or os.environ.get("MEERO_API_KEY", "")
+    require_key = getattr(config, "REQUIRE_API_KEY", False)
+    if require_key and not configured_key:
+        raise HTTPException(status_code=500, detail="API key is required but not configured")
     if not configured_key:
         return
     if x_meero_api_key != configured_key:
@@ -336,6 +339,10 @@ def process_command(payload: CommandRequest, http_request: Request):
 
 @app.get("/health")
 def health():
+    return {"status": "ok"}
+
+
+def _debug_health():
     return {
         "status": "ok",
         "use_neural_net": getattr(config, "USE_NEURAL_NET", True),
@@ -348,6 +355,11 @@ def health():
         "conversation_history_len": len(CONVERSATION_HISTORY),
         "memory_summary_chars": len(_memory_summary()),
     }
+
+
+@app.get("/debug/health", dependencies=[Depends(require_api_key)])
+def debug_health():
+    return _debug_health()
 
 
 @app.get("/settings", dependencies=[Depends(require_local_request), Depends(require_api_key)])

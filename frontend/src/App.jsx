@@ -1,4 +1,4 @@
-import { Mic, Radio, Send, Settings, StopCircle, X } from "lucide-react";
+import { Copy, Mic, Radio, RefreshCw, Send, Settings, StopCircle, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getHealth, getSettings, saveSettings, sendCommand } from "./api";
 import Background from "./components/Background";
@@ -9,17 +9,42 @@ import useSpeechSynthesis from "./hooks/useSpeechSynthesis";
 import "./index.css";
 import { playProcessing, playStartup } from "./utils/sound";
 
+const MAX_STORED_MESSAGES = 25;
+
+const loadStoredMessages = () => {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage?.getItem?.("meero.messages");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((message) => message?.role && typeof message.text === "string")
+      .slice(-MAX_STORED_MESSAGES);
+  } catch {
+    return [];
+  }
+};
+
+const formatMessageTime = (createdAt) => {
+  if (!createdAt) return "";
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
 function App() {
   const [state, setState] = useState("idle"); // idle, listening, processing, speaking
   const [sentiment, setSentiment] = useState("neutral"); // neutral, positive, negative
   const [pendingConfirmationCommand, setPendingConfirmationCommand] = useState(null);
   const [typedCommand, setTypedCommand] = useState("");
   const [statusNotice, setStatusNotice] = useState("");
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(loadStoredMessages);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [voiceRate, setVoiceRate] = useState(1);
   const [voicePitch, setVoicePitch] = useState(1);
   const [apiHealth, setApiHealth] = useState(null);
+  const [lastHealthCheckedAt, setLastHealthCheckedAt] = useState(null);
 
   // -- BOOT SEQUENCE STATE --
   const [booting, setBooting] = useState(true);
@@ -71,6 +96,46 @@ function App() {
   // Feature-detect Web Speech API availability so we can give feedback
   const speechSupported = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
+  const addMessages = useCallback((nextMessages) => {
+    const createdAt = new Date().toISOString();
+    setMessages((prev) => [
+      ...prev,
+      ...nextMessages.map((message) => ({
+        ...message,
+        createdAt: message.createdAt || createdAt,
+      })),
+    ].slice(-MAX_STORED_MESSAGES));
+  }, []);
+
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+  }, []);
+
+  const copyMessage = useCallback(async (text) => {
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error("Clipboard unavailable");
+      }
+      await navigator.clipboard?.writeText(text);
+      setStatusNotice("Copied response.");
+    } catch {
+      setStatusNotice("Could not copy response.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (messages.length > 0) {
+        window.localStorage?.setItem?.("meero.messages", JSON.stringify(messages));
+      } else {
+        window.localStorage?.removeItem?.("meero.messages");
+      }
+    } catch {
+      /* Ignore storage errors. */
+    }
+  }, [messages]);
+
   const { speak } = useSpeechSynthesis(
     setState,
     useCallback(() => {
@@ -119,11 +184,10 @@ function App() {
         if (["blocked", "error", "rate_limited"].includes(confirmData.action_status)) {
           setStatusNotice(confirmData.response);
         }
-        setMessages((prev) => [
-          ...prev,
+        addMessages([
           { role: "user", text: normalized },
           { role: "assistant", text: confirmData.response },
-        ].slice(-10));
+        ]);
         speakRef.current(confirmData.response);
         return;
       }
@@ -151,13 +215,12 @@ function App() {
     if (["blocked", "error", "rate_limited"].includes(data.action_status)) {
       setStatusNotice(data.response);
     }
-    setMessages((prev) => [
-      ...prev,
+    addMessages([
       { role: "user", text: userText },
       { role: "assistant", text: data.response },
-    ].slice(-10));
+    ]);
     speakRef.current(data.response);
-  }, [pendingConfirmationCommand]);
+  }, [addMessages, pendingConfirmationCommand]);
 
   const handleTypedSubmit = useCallback((event) => {
     event.preventDefault();
@@ -183,12 +246,20 @@ function App() {
     handleCommandRef.current = handleCommand;
   }, [speak, handleCommand]);
 
+  const refreshHealth = useCallback(async () => {
+    const health = await getHealth();
+    setApiHealth(health);
+    setLastHealthCheckedAt(new Date().toISOString());
+    return health;
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     const loadStatus = async () => {
       const [health, settings] = await Promise.all([getHealth(), getSettings()]);
       if (cancelled) return;
       setApiHealth(health);
+      setLastHealthCheckedAt(new Date().toISOString());
       if (typeof settings.wake_word_enabled === "boolean") {
         setWakeWordEnabled(settings.wake_word_enabled);
       }
@@ -232,10 +303,40 @@ function App() {
 
       {messages.length > 0 && (
         <div className="absolute left-4 top-4 z-40 w-[min(20rem,calc(100vw-2rem))] max-h-64 overflow-y-auto rounded border border-cyan-400/20 bg-black/40 p-3 text-xs text-cyan-50/85 backdrop-blur">
+          <div className="mb-3 flex items-center justify-between border-b border-cyan-400/10 pb-2">
+            <span className="font-orbitron text-[0.65rem] uppercase tracking-widest text-cyan-300">History</span>
+            <button
+              type="button"
+              onClick={clearMessages}
+              aria-label="Clear conversation history"
+              title="Clear conversation history"
+              className="grid h-7 w-7 place-items-center rounded-full text-cyan-100 transition hover:bg-cyan-900/40"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
           {messages.map((msg, index) => (
-            <div key={`${msg.role}-${index}`} className="mb-2 last:mb-0">
-              <span className="text-cyan-300">{msg.role}:</span>{" "}
-              <span>{msg.text}</span>
+            <div key={`${msg.role}-${index}`} className="mb-2 flex items-start gap-2 last:mb-0">
+              <div className="min-w-0 flex-1">
+                <div className="mb-0.5 flex items-center gap-2">
+                  <span className="text-cyan-300">{msg.role}:</span>
+                  {formatMessageTime(msg.createdAt) && (
+                    <time className="text-[0.65rem] text-cyan-100/45">{formatMessageTime(msg.createdAt)}</time>
+                  )}
+                </div>
+                <span className="break-words">{msg.text}</span>
+              </div>
+              {msg.role === "assistant" && (
+                <button
+                  type="button"
+                  onClick={() => copyMessage(msg.text)}
+                  aria-label={`Copy assistant response ${index + 1}`}
+                  title="Copy response"
+                  className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-cyan-100 transition hover:bg-cyan-900/40"
+                >
+                  <Copy size={12} />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -310,8 +411,20 @@ function App() {
               API: {apiHealth?.status === "ok" ? "online" : "offline"}
             </span>
             <span className="rounded border border-cyan-400/20 px-2 py-1">
-              Desktop: {apiHealth?.web_safe_mode ? "safe" : "local"}
+              Desktop: {apiHealth?.detailed ? (apiHealth?.web_safe_mode ? "safe" : "local") : "unknown"}
             </span>
+            <span className="rounded border border-cyan-400/20 px-2 py-1">
+              Checked: {lastHealthCheckedAt ? formatMessageTime(lastHealthCheckedAt) : "never"}
+            </span>
+            <button
+              type="button"
+              onClick={refreshHealth}
+              aria-label="Refresh API status"
+              title="Refresh API status"
+              className="grid h-7 place-items-center rounded border border-cyan-400/20 text-cyan-100 transition hover:bg-cyan-900/40"
+            >
+              <RefreshCw size={13} />
+            </button>
           </div>
 
           <button

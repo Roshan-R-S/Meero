@@ -1,6 +1,9 @@
 services:
   backend:
     build: .
+    env_file:
+      - path: .env
+        required: false
     ports:
       - "8000:8000"
     volumes:
@@ -12,18 +15,22 @@ services:
       - LOCAL_DESKTOP_MODE=true
       - WEB_SAFE_MODE=false
       - RATE_LIMIT_COOLDOWN=1.0
+      - REQUIRE_API_KEY=${REQUIRE_API_KEY:-false}
+      - MEERO_API_KEY=${MEERO_API_KEY:-}
     depends_on:
       - redis
 
   frontend:
     build: ./frontend
+    env_file:
+      - path: ./frontend/.env
+        required: false
     ports:
       - "5173:5173"
     volumes:
       - ./frontend:/app
     environment:
       - CHOKIDAR_USEPOLLING=true
-      - VITE_API_URL=http://localhost:8000
 
   redis:
     image: redis:7-alpine

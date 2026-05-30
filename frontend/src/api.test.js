@@ -68,4 +68,44 @@ describe("api config", () => {
       { headers: {} },
     );
   });
+
+  test("prefers debug health when available", async () => {
+    const get = vi.fn().mockResolvedValue({
+      data: { status: "ok", web_safe_mode: true },
+    });
+    vi.stubEnv("VITE_MEERO_API_KEY", "secret-key");
+    vi.doMock("axios", () => ({
+      default: { get },
+    }));
+
+    const { getHealth } = await import("./api");
+    const result = await getHealth();
+
+    expect(get).toHaveBeenCalledWith(
+      "http://localhost:8000/debug/health",
+      { headers: { "x-meero-api-key": "secret-key" } },
+    );
+    expect(result).toEqual({ status: "ok", web_safe_mode: true, detailed: true });
+  });
+
+  test("falls back to public health when debug health is unavailable", async () => {
+    const get = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("unauthorized"))
+      .mockResolvedValueOnce({ data: { status: "ok" } });
+    vi.doMock("axios", () => ({
+      default: { get },
+    }));
+
+    const { getHealth } = await import("./api");
+    const result = await getHealth();
+
+    expect(get).toHaveBeenNthCalledWith(
+      1,
+      "http://localhost:8000/debug/health",
+      { headers: {} },
+    );
+    expect(get).toHaveBeenNthCalledWith(2, "http://localhost:8000/health");
+    expect(result).toEqual({ status: "ok", detailed: false });
+  });
 });

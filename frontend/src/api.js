@@ -24,11 +24,17 @@ export const sendCommand = async (command, options = {}) => {
 
 export const getHealth = async () => {
   try {
-    const response = await axios.get(`${API_URL}/health`, { headers: authHeaders });
-    return response.data;
-  } catch (error) {
-    logger.error("Health API Error:", error);
-    return null;
+    const response = await axios.get(`${API_URL}/debug/health`, { headers: authHeaders });
+    return { ...response.data, detailed: true };
+  } catch (debugError) {
+    logger.log("Debug health unavailable; falling back to public health.", debugError);
+    try {
+      const response = await axios.get(`${API_URL}/health`);
+      return { ...response.data, detailed: false };
+    } catch (error) {
+      logger.error("Health API Error:", error);
+      return null;
+    }
   }
 };
 
