@@ -17,6 +17,17 @@ def test_model_evaluation_report_is_well_formed():
     label_path = os.path.normpath(label_path)
     intents_path = os.path.normpath(intents_path)
 
+    missing_artifacts = [
+        path
+        for path in (model_path, tokenizer_path, label_path)
+        if not os.path.exists(path)
+    ]
+    if missing_artifacts:
+        pytest.skip(
+            "Generated model artifacts are not available: "
+            + ", ".join(os.path.basename(path) for path in missing_artifacts)
+        )
+
     report = evaluate.evaluate(model_path, tokenizer_path, label_path, intents_path)
     assert report["samples"] > 0
     assert 0.0 <= report["accuracy"] <= 1.0

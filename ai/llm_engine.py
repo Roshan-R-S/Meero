@@ -1,7 +1,10 @@
 import logging
 import os
 
-from gpt4all import GPT4All
+try:
+    from gpt4all import GPT4All
+except ImportError:
+    GPT4All = None
 
 from core.prompt_templates import build_llama3_prompt, clean_llm_response
 
@@ -11,6 +14,9 @@ logger = logging.getLogger(__name__)
 class LLMEngine:
     def __init__(self, model_path):
         logger.info("Loading LLM from: %s...", model_path)
+
+        if GPT4All is None:
+            raise RuntimeError("gpt4all is not installed; local LLM fallback is unavailable")
 
         if not os.path.exists(model_path):
             raise FileNotFoundError(f"Model file not found at: {model_path}")
