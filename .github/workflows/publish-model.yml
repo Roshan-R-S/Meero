@@ -35,7 +35,7 @@ jobs:
           MODEL_BATCH: ${{ vars.MODEL_BATCH }}
         run: |
           python scripts/train_and_package.py \
-            --epochs "${MODEL_EPOCHS:-5}" \
+            --epochs "${MODEL_EPOCHS:-100}" \
             --batch "${MODEL_BATCH:-32}" \
             --version "${GITHUB_REF_NAME}" \
             --out-dir build/model-artifacts

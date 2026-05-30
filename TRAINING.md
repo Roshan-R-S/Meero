@@ -53,4 +53,6 @@ threshold explicitly for experiments:
 python scripts/evaluate.py --out models/local_eval.json --min-accuracy 0.80
 ```
 
-CI uses the same gate for the main-branch evaluation workflow.
+CI uses the same gate for the main-branch evaluation workflow. The workflow
+defaults to `MODEL_EPOCHS=100`; the current small classifier does not reliably
+clear the `0.85` gate with very short smoke-training runs such as 5 epochs.

@@ -9,6 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MODEL_MIN_ACCURACY: ${{ vars.MODEL_MIN_ACCURACY || '0.85' }}
+      MODEL_EPOCHS: ${{ vars.MODEL_EPOCHS || '100' }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -24,7 +25,12 @@ jobs:
           TF_DETERMINISTIC: '1'
           TRAIN_SEED: '42'
         run: |
-          python scripts/train_and_package.py --epochs 5 --batch 8 --seed 42 --out-dir models --version main-${{ github.run_number }}
+          python scripts/train_and_package.py \
+            --epochs "$MODEL_EPOCHS" \
+            --batch 8 \
+            --seed 42 \
+            --out-dir models \
+            --version main-${{ github.run_number }}
       - name: Run evaluation and write report
         run: |
           python scripts/evaluate.py --out models/main_eval.json --min-accuracy "$MODEL_MIN_ACCURACY"
