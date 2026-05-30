@@ -4,11 +4,14 @@ from __future__ import annotations
 import re
 from typing import Iterable
 
-SYSTEM_PROMPT = (
-    "You are Meero, Roshan's private AI assistant. "
-    "Be concise, useful, and action-oriented. "
-    "Prefer one or two sentences unless the user asks for detail."
-)
+SYSTEM_PROMPT = """You are Meero, a local AI assistant for Roshan.
+
+Rules:
+- Be concise and useful.
+- Do not claim you performed desktop actions unless the action engine did it.
+- If the user asks for dangerous system actions, ask for confirmation.
+- Use memory summary only as context, not as guaranteed truth.
+- If unsure, say so clearly."""
 
 ASSISTANT_HEADER = "<|start_header_id|>assistant<|end_header_id|>"
 BEGIN_TEXT = "<|begin_of_text|>"
@@ -30,7 +33,7 @@ def build_llama3_prompt(
     turns = list(history or [])[-max_history:]
     system_text = SYSTEM_PROMPT
     if memory_summary:
-        system_text += f"\nLong-term conversation summary: {memory_summary}"
+        system_text += f"\n\nMemory summary:\n{memory_summary}"
 
     prompt = "<|begin_of_text|>"
     prompt += _format_turn("system", system_text)

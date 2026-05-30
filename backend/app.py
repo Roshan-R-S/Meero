@@ -4,7 +4,7 @@ import threading
 import time
 from typing import Optional
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -209,6 +209,14 @@ def require_local_request(request: Request) -> None:
         raise HTTPException(status_code=403, detail="This endpoint is available only locally")
 
 
+def require_api_key(x_meero_api_key: Optional[str] = Header(default=None)) -> None:
+    configured_key = getattr(config, "MEERO_API_KEY", "") or os.environ.get("MEERO_API_KEY", "")
+    if not configured_key:
+        return
+    if x_meero_api_key != configured_key:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+
 def analyze_sentiment(text: str) -> str:
     if _sentiment_analyzer is None:
         return "neutral"
@@ -268,7 +276,11 @@ def metrics():
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-@app.post("/command", response_model=CommandResponse, dependencies=[Depends(distributed_rate_limit)])
+@app.post(
+    "/command",
+    response_model=CommandResponse,
+    dependencies=[Depends(distributed_rate_limit), Depends(require_api_key)],
+)
 def process_command(payload: CommandRequest, http_request: Request):
     global LAST_COMMAND_TIME
     
@@ -331,12 +343,14 @@ def health():
         "use_llm": getattr(config, "USE_LLM", True),
         "llm_loaded": llm is not None,
         "external_llm_configured": bool(getattr(external_llm, "enabled", False)),
+        "local_desktop_mode": getattr(config, "LOCAL_DESKTOP_MODE", False),
+        "web_safe_mode": getattr(config, "WEB_SAFE_MODE", True),
         "conversation_history_len": len(CONVERSATION_HISTORY),
         "memory_summary_chars": len(_memory_summary()),
     }
 
 
-@app.get("/settings", dependencies=[Depends(require_local_request)])
+@app.get("/settings", dependencies=[Depends(require_local_request), Depends(require_api_key)])
 def get_settings():
     settings_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
@@ -356,7 +370,7 @@ def get_settings():
         raise HTTPException(status_code=500, detail="Failed to read settings")
 
 
-@app.post("/settings", dependencies=[Depends(require_local_request)])
+@app.post("/settings", dependencies=[Depends(require_local_request), Depends(require_api_key)])
 def update_settings(payload: SettingsPayload):
     settings_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),

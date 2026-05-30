@@ -15,9 +15,6 @@ vaderSentiment==3.3.2
 # Hugging Face Hub client for optional uploads
 huggingface-hub==1.0.1
 
-# Testing
-pytest==8.*
-httpx==0.28.*
 # Distributed rate limiting
 fastapi-limiter==0.1.0
 redis==5.0.8

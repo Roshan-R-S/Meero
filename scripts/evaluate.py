@@ -13,6 +13,7 @@ import hashlib
 
 import numpy as np
 
+from sklearn.metrics import classification_report
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 # Ensure project root is on sys.path so we can import config when executed from scripts/
@@ -94,6 +95,12 @@ def evaluate(model_path, tokenizer_path, label_encoder_path, intents_path, maxle
         "confidence_median": float(statistics.median(top_probs)),
         "latency_mean_s": float(statistics.mean(latencies)) if latencies else None,
         "latency_median_s": float(statistics.median(latencies)) if latencies else None,
+        "classification_report": classification_report(
+            labels,
+            preds,
+            output_dict=True,
+            zero_division=0,
+        ),
     }
 
     return report

@@ -2,10 +2,13 @@ import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { sendCommand } from "./api";
+import { getHealth, getSettings, saveSettings, sendCommand } from "./api";
 import App from "./App";
 
 vi.mock("./api", () => ({
+  getHealth: vi.fn(),
+  getSettings: vi.fn(),
+  saveSettings: vi.fn(),
   sendCommand: vi.fn(),
 }));
 
@@ -53,6 +56,12 @@ describe("App typed fallback", () => {
       action_status: "success",
       sentiment: "neutral",
     });
+    getHealth.mockResolvedValue({
+      status: "ok",
+      web_safe_mode: true,
+    });
+    getSettings.mockResolvedValue({});
+    saveSettings.mockResolvedValue({ status: "ok" });
   });
 
   afterEach(() => {
@@ -60,11 +69,12 @@ describe("App typed fallback", () => {
     vi.clearAllMocks();
   });
 
-  test("shows typed command fallback when speech recognition is unavailable", () => {
+  test("shows typed command fallback when speech recognition is unavailable", async () => {
     render(<App />);
 
-    act(() => {
+    await act(async () => {
       vi.advanceTimersByTime(3500);
+      await Promise.resolve();
     });
 
     expect(screen.getByLabelText("Type command")).toBeInTheDocument();
@@ -74,8 +84,9 @@ describe("App typed fallback", () => {
   test("submits typed commands through the existing command API", async () => {
     render(<App />);
 
-    act(() => {
+    await act(async () => {
       vi.advanceTimersByTime(3500);
+      await Promise.resolve();
     });
 
     fireEvent.change(screen.getByLabelText("Type command"), {
@@ -87,5 +98,31 @@ describe("App typed fallback", () => {
     });
 
     expect(sendCommand).toHaveBeenCalledWith("what time is it");
+    expect(screen.getByText("user:")).toBeInTheDocument();
+    expect(screen.getByText("what time is it")).toBeInTheDocument();
+    expect(screen.getAllByText("Done.").length).toBeGreaterThan(0);
+  });
+
+  test("opens settings panel and saves supported settings", async () => {
+    render(<App />);
+
+    await act(async () => {
+      vi.advanceTimersByTime(3500);
+      await Promise.resolve();
+    });
+
+    fireEvent.click(screen.getByLabelText("Open settings"));
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Save"));
+      await Promise.resolve();
+    });
+
+    expect(saveSettings).toHaveBeenCalledWith({
+      wake_word_enabled: false,
+      voice_rate: 1,
+      voice_pitch: 1,
+    });
   });
 });

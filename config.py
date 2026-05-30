@@ -64,10 +64,11 @@ LLM_MODEL_PATH = os.path.join(BASE_DIR, "models", "Llama-3.2-1B-Instruct-Q4_K_M.
 # Set to False to disable loading/using the neural net or local LLM fallback
 USE_NEURAL_NET = True
 USE_LLM = True
-LOCAL_DESKTOP_MODE = _env_bool("LOCAL_DESKTOP_MODE", True)
-WEB_SAFE_MODE = _env_bool("WEB_SAFE_MODE", False)
+LOCAL_DESKTOP_MODE = _env_bool("LOCAL_DESKTOP_MODE", False)
+WEB_SAFE_MODE = _env_bool("WEB_SAFE_MODE", True)
 CORS_ORIGINS = _env_list("CORS_ORIGINS", ["http://localhost:5173"])
 RATE_LIMIT_COOLDOWN = float(os.environ.get("RATE_LIMIT_COOLDOWN", "1.0"))
+MEERO_API_KEY = os.environ.get("MEERO_API_KEY", "")
 
 # Neural net confidence threshold (0.0 - 1.0) used to decide whether to use the
 # neural net's answer or fall back to the LLM. Keep high if you prefer LLMs.
@@ -82,7 +83,7 @@ MEMORY_SUMMARY_MAX_CHARS = int(os.environ.get("MEMORY_SUMMARY_MAX_CHARS", "1200"
 LLM_MAX_GENERATION_TIME = 10
 
 # Remote provider name (optional) — e.g., 'openai', 'google', or None for local
-LLM_API_PROVIDER = None
+LLM_API_PROVIDER = os.environ.get("LLM_API_PROVIDER") or None
 
 # Neural Net Hyperparameters (shared between training and inference)
 NEURAL_NET_MAXLEN = 20

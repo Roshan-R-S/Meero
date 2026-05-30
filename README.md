@@ -18,6 +18,29 @@ Desktop automation is guarded by environment flags:
 - `WEB_SAFE_MODE=true` blocks desktop-control commands even when local mode is
   configured.
 - `/settings` is local-only and accepts only validated settings keys.
+- Optional API-key auth protects `/command` and `/settings` when
+  `MEERO_API_KEY` is configured.
+
+## Safety Modes
+
+| Mode | Description |
+|---|---|
+| `WEB_SAFE_MODE=true` | Blocks desktop/system control |
+| `LOCAL_DESKTOP_MODE=true` | Allows local desktop automation for local requests |
+
+For public or production-style deployment:
+
+```env
+WEB_SAFE_MODE=true
+LOCAL_DESKTOP_MODE=false
+```
+
+For local assistant use:
+
+```env
+WEB_SAFE_MODE=false
+LOCAL_DESKTOP_MODE=true
+```
 
 ## Features
 
@@ -51,10 +74,16 @@ copy frontend\.env.example frontend\.env
 Backend variables:
 
 ```env
+PYTHONUNBUFFERED=1
+REDIS_URL=redis://localhost:6379/0
 CORS_ORIGINS=http://localhost:5173
-LOCAL_DESKTOP_MODE=true
-WEB_SAFE_MODE=false
 RATE_LIMIT_COOLDOWN=1.0
+LOCAL_DESKTOP_MODE=false
+WEB_SAFE_MODE=true
+MEERO_API_KEY=change-this-local-key
+LLM_API_PROVIDER=
+LLM_API_KEY=
+LLM_API_URL=
 MEMORY_MAX_INTERACTIONS=20
 MEMORY_SUMMARY_MAX_CHARS=1200
 ```
@@ -63,7 +92,11 @@ Frontend variables:
 
 ```env
 VITE_API_URL=http://localhost:8000
+VITE_MEERO_API_KEY=change-this-local-key
 ```
+
+If `MEERO_API_KEY` is unset, API-key auth is disabled for local convenience. If
+it is set, the frontend should send the same value through `VITE_MEERO_API_KEY`.
 
 ## Quick Start
 
@@ -91,14 +124,19 @@ is unavailable, use the typed command input.
 
 ## Docker
 
-Bring up backend, frontend, and Redis:
+Development compose runs the backend, Vite dev server, and Redis with bind
+mounts:
 
 ```powershell
 docker compose up --build
 ```
 
-The compose setup is intended for development. It mounts the source tree and
-runs the Vite dev server.
+Production-style compose builds static frontend assets with nginx and keeps
+desktop automation disabled:
+
+```powershell
+docker compose -f docker-compose.prod.yml up --build
+```
 
 ## Project Structure
 
@@ -135,6 +173,24 @@ pnpm run build
 pnpm exec playwright test
 ```
 
+Optional S3 upload dependencies:
+
+```powershell
+pip install -r requirements-cloud.txt
+```
+
+## CI
+
+This repo runs:
+
+- backend pytest
+- secret scan
+- frontend Vitest
+- frontend lint
+- frontend build
+- Playwright E2E
+- model evaluation on main
+
 ## Training And Evaluation
 
 Train canonical model artifacts after changing `intents.json`:
@@ -149,6 +205,9 @@ Evaluate with the default minimum accuracy gate of `0.85`:
 python scripts/evaluate.py --out models/local_eval.json
 ```
 
+The evaluation report includes accuracy, confidence stats, latency stats, and a
+per-intent classification report.
+
 Override the gate when needed:
 
 ```powershell
@@ -162,4 +221,22 @@ See [TRAINING.md](./TRAINING.md) for deterministic runner options.
 - Desktop automation should not be exposed publicly.
 - Speech recognition depends on browser support and microphone permission.
 - Local GPT4All fallback requires the configured model file to exist.
-- Docker is development-oriented, not a production deployment recipe.
+- Production Docker is a starting point, not a complete hosted deployment.
+
+## Roadmap
+
+- [x] Voice assistant UI
+- [x] FastAPI command backend
+- [x] Neural intent fallback
+- [x] Local LLM fallback
+- [x] SQLite memory
+- [x] Redis rate limiting
+- [x] Prometheus metrics
+- [x] CI pipeline
+- [x] API-key authentication
+- [x] Production Docker Compose
+- [x] Conversation history UI
+- [x] Better model evaluation reports
+- [ ] Demo GIF
+- [ ] Architecture diagram image
+- [ ] Public deployment hardening

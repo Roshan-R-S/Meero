@@ -1,0 +1,34 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - REDIS_URL=redis://redis:6379/0
+      - CORS_ORIGINS=https://your-domain.com
+      - LOCAL_DESKTOP_MODE=false
+      - WEB_SAFE_MODE=true
+      - RATE_LIMIT_COOLDOWN=1.0
+      - MEERO_API_KEY=${MEERO_API_KEY}
+    depends_on:
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://your-domain.com}
+        VITE_MEERO_API_KEY: ${VITE_MEERO_API_KEY:-}
+    ports:
+      - "80:80"
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:

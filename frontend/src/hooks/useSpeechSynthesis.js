@@ -6,7 +6,7 @@ import { logger } from "../utils/logger";
  * @param {Function} setState - App state setter
  * @param {Function} onComplete - Callback when speaking finishes (for restarting recognition)
  */
-const useSpeechSynthesis = (setState, onComplete) => {
+const useSpeechSynthesis = (setState, onComplete, voiceConfig = {}) => {
   const synth = useRef(null);
 
   useEffect(() => {
@@ -38,8 +38,8 @@ const useSpeechSynthesis = (setState, onComplete) => {
         voices[0];
       if (preferredVoice) utterance.voice = preferredVoice;
 
-      utterance.pitch = 0.9;
-      utterance.rate = 1.0;
+      utterance.pitch = voiceConfig.pitch ?? 0.9;
+      utterance.rate = voiceConfig.rate ?? 1.0;
 
       utterance.onend = () => {
         logger.log("[TTS] Finished speaking -> triggering onComplete");
@@ -49,7 +49,7 @@ const useSpeechSynthesis = (setState, onComplete) => {
 
       synth.current.speak(utterance);
     },
-    [setState, onComplete],
+    [setState, onComplete, voiceConfig.pitch, voiceConfig.rate],
   );
 
   return { speak };

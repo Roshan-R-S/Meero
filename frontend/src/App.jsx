@@ -1,6 +1,6 @@
-import { Mic, Radio, Send, StopCircle } from "lucide-react";
+import { Mic, Radio, Send, Settings, StopCircle, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { sendCommand } from "./api";
+import { getHealth, getSettings, saveSettings, sendCommand } from "./api";
 import Background from "./components/Background";
 import HologramOverlay from "./components/HologramOverlay";
 import ThreeOrb from "./components/ThreeOrb";
@@ -15,6 +15,11 @@ function App() {
   const [pendingConfirmationCommand, setPendingConfirmationCommand] = useState(null);
   const [typedCommand, setTypedCommand] = useState("");
   const [statusNotice, setStatusNotice] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [voiceRate, setVoiceRate] = useState(1);
+  const [voicePitch, setVoicePitch] = useState(1);
+  const [apiHealth, setApiHealth] = useState(null);
 
   // -- BOOT SEQUENCE STATE --
   const [booting, setBooting] = useState(true);
@@ -89,13 +94,15 @@ function App() {
       isConversingRef,
       recognitionRef,
     ]),
+    { rate: voiceRate, pitch: voicePitch },
   );
 
   const handleCommand = useCallback(async (text) => {
     if (!text.trim()) return;
     setStatusNotice("");
+    const userText = text.trim();
 
-    const normalized = text.trim().toLowerCase();
+    const normalized = userText.toLowerCase();
     const yesWords = new Set(["yes", "y", "ok", "okay", "confirm", "proceed", "do it"]);
     const noWords = new Set(["no", "n", "cancel", "stop", "don't", "do not"]);
 
@@ -112,6 +119,11 @@ function App() {
         if (["blocked", "error", "rate_limited"].includes(confirmData.action_status)) {
           setStatusNotice(confirmData.response);
         }
+        setMessages((prev) => [
+          ...prev,
+          { role: "user", text: normalized },
+          { role: "assistant", text: confirmData.response },
+        ].slice(-10));
         speakRef.current(confirmData.response);
         return;
       }
@@ -131,7 +143,7 @@ function App() {
     setState("processing");
     playProcessing();
 
-    const data = await sendCommand(text);
+    const data = await sendCommand(userText);
     if (data.action_status === "confirmation_required" && data.pending_command) {
       setPendingConfirmationCommand(data.pending_command);
     }
@@ -139,6 +151,11 @@ function App() {
     if (["blocked", "error", "rate_limited"].includes(data.action_status)) {
       setStatusNotice(data.response);
     }
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: userText },
+      { role: "assistant", text: data.response },
+    ].slice(-10));
     speakRef.current(data.response);
   }, [pendingConfirmationCommand]);
 
@@ -166,6 +183,33 @@ function App() {
     handleCommandRef.current = handleCommand;
   }, [speak, handleCommand]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadStatus = async () => {
+      const [health, settings] = await Promise.all([getHealth(), getSettings()]);
+      if (cancelled) return;
+      setApiHealth(health);
+      if (typeof settings.wake_word_enabled === "boolean") {
+        setWakeWordEnabled(settings.wake_word_enabled);
+      }
+      if (typeof settings.voice_rate === "number") setVoiceRate(settings.voice_rate);
+      if (typeof settings.voice_pitch === "number") setVoicePitch(settings.voice_pitch);
+    };
+    loadStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [setWakeWordEnabled]);
+
+  const handleSettingsSave = useCallback(async () => {
+    const result = await saveSettings({
+      wake_word_enabled: wakeWordEnabled,
+      voice_rate: voiceRate,
+      voice_pitch: voicePitch,
+    });
+    setStatusNotice(result.status === "ok" ? "Settings saved." : "Could not save settings.");
+  }, [wakeWordEnabled, voiceRate, voicePitch]);
+
   if (booting) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white font-orbitron overflow-hidden">
@@ -185,6 +229,99 @@ function App() {
       <div aria-live="polite" className="sr-only" data-testid="aria-response">{ariaResponse}</div>
       <Background />
       <HologramOverlay />
+
+      {messages.length > 0 && (
+        <div className="absolute left-4 top-4 z-40 w-[min(20rem,calc(100vw-2rem))] max-h-64 overflow-y-auto rounded border border-cyan-400/20 bg-black/40 p-3 text-xs text-cyan-50/85 backdrop-blur">
+          {messages.map((msg, index) => (
+            <div key={`${msg.role}-${index}`} className="mb-2 last:mb-0">
+              <span className="text-cyan-300">{msg.role}:</span>{" "}
+              <span>{msg.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button
+        onClick={() => setSettingsOpen(true)}
+        aria-label="Open settings"
+        title="Open settings"
+        className="absolute right-4 top-4 z-50 grid h-10 w-10 place-items-center rounded-full border border-cyan-400/25 bg-black/45 text-cyan-100 backdrop-blur transition hover:bg-cyan-900/40"
+      >
+        <Settings size={18} />
+      </button>
+
+      {settingsOpen && (
+        <div className="absolute right-4 top-16 z-50 w-[min(21rem,calc(100vw-2rem))] rounded border border-cyan-400/25 bg-black/75 p-4 text-sm text-cyan-50 shadow-[0_0_32px_rgba(8,145,178,0.22)] backdrop-blur">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="font-orbitron text-xs uppercase tracking-widest text-cyan-300">Settings</span>
+            <button
+              onClick={() => setSettingsOpen(false)}
+              aria-label="Close settings"
+              className="grid h-8 w-8 place-items-center rounded-full text-cyan-100 transition hover:bg-cyan-900/50"
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          <label className="mb-4 flex items-center justify-between gap-4">
+            <span>Wake word</span>
+            <input
+              type="checkbox"
+              checked={wakeWordEnabled}
+              onChange={(event) => setWakeWordEnabled(event.target.checked)}
+              className="h-4 w-4 accent-cyan-400"
+            />
+          </label>
+
+          <label className="mb-4 block">
+            <span className="mb-2 flex justify-between">
+              <span>Voice rate</span>
+              <span>{voiceRate.toFixed(1)}</span>
+            </span>
+            <input
+              type="range"
+              min="0.5"
+              max="2"
+              step="0.1"
+              value={voiceRate}
+              onChange={(event) => setVoiceRate(Number(event.target.value))}
+              className="w-full accent-cyan-400"
+            />
+          </label>
+
+          <label className="mb-4 block">
+            <span className="mb-2 flex justify-between">
+              <span>Voice pitch</span>
+              <span>{voicePitch.toFixed(1)}</span>
+            </span>
+            <input
+              type="range"
+              min="0.5"
+              max="2"
+              step="0.1"
+              value={voicePitch}
+              onChange={(event) => setVoicePitch(Number(event.target.value))}
+              className="w-full accent-cyan-400"
+            />
+          </label>
+
+          <div className="mb-4 grid grid-cols-2 gap-2 text-xs">
+            <span className="rounded border border-cyan-400/20 px-2 py-1">
+              API: {apiHealth?.status === "ok" ? "online" : "offline"}
+            </span>
+            <span className="rounded border border-cyan-400/20 px-2 py-1">
+              Desktop: {apiHealth?.web_safe_mode ? "safe" : "local"}
+            </span>
+          </div>
+
+          <button
+            onClick={handleSettingsSave}
+            className="w-full rounded bg-cyan-600/90 px-3 py-2 text-sm text-white transition hover:bg-cyan-500"
+          >
+            Save
+          </button>
+        </div>
+      )}
 
       {/* Tactical Center */}
       <div className="w-full max-w-sm h-auto aspect-square flex flex-col items-center justify-center p-8 relative z-10">

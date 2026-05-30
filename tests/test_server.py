@@ -26,6 +26,7 @@ def client():
         import backend.app as server
         server.LAST_COMMAND_TIME = 0
         server.CLIENT_COMMAND_TIMES.clear()
+        server.config.MEERO_API_KEY = ""
         yield TestClient(app)
 
 
@@ -37,6 +38,14 @@ class TestRootEndpoint:
 
 
 class TestCommandEndpoint:
+    def test_health_returns_status(self, client):
+        response = client.get("/health")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert "web_safe_mode" in data
+
     def test_valid_command_returns_200(self, client):
         response = client.post("/command", json={"command": "what time is it"})
         assert response.status_code == 200
@@ -78,7 +87,9 @@ class TestCommandEndpoint:
         response = client.post("/command", json={})
         assert response.status_code == 422  # Validation error
 
-    def test_sensitive_command_requires_confirmation(self, client):
+    def test_sensitive_command_requires_confirmation(self, client, monkeypatch):
+        monkeypatch.setattr("config.LOCAL_DESKTOP_MODE", True)
+        monkeypatch.setattr("config.WEB_SAFE_MODE", False)
         response = client.post("/command", json={"command": "open settings"})
         assert response.status_code == 200
         data = response.json()
@@ -86,7 +97,9 @@ class TestCommandEndpoint:
         assert data.get("pending_command") == "open settings"
 
     @patch("core.actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
-    def test_sensitive_command_executes_after_confirm(self, mock_open, client):
+    def test_sensitive_command_executes_after_confirm(self, mock_open, client, monkeypatch):
+        monkeypatch.setattr("config.LOCAL_DESKTOP_MODE", True)
+        monkeypatch.setattr("config.WEB_SAFE_MODE", False)
         # Step 1: request confirmation
         client.post("/command", json={"command": "open settings"})
 
@@ -103,6 +116,38 @@ class TestCommandEndpoint:
         data = response.json()
         assert data["action_status"] == "success"
         mock_open.assert_called_once()
+
+    def test_command_requires_api_key_when_configured(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "secret-key")
+        response = client.post("/command", json={"command": "time"})
+
+        assert response.status_code == 401
+
+    def test_command_accepts_valid_api_key_when_configured(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "secret-key")
+        response = client.post(
+            "/command",
+            json={"command": "time"},
+            headers={"x-meero-api-key": "secret-key"},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["action_status"] == "success"
+
+    def test_desktop_command_blocked_in_web_safe_mode(self, client, monkeypatch):
+        monkeypatch.setattr("config.LOCAL_DESKTOP_MODE", True)
+        monkeypatch.setattr("config.WEB_SAFE_MODE", True)
+
+        response = client.post("/command", json={"command": "volume up"})
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action_status"] == "blocked"
+        assert data["metadata"]["fallback_reason"] == "desktop_mode_disabled"
 
 
 class TestSentiment:
@@ -190,3 +235,19 @@ class TestSettingsEndpoint:
         response = remote_client.get("/settings")
 
         assert response.status_code == 403
+
+    def test_settings_requires_api_key_when_configured(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "secret-key")
+        response = client.get("/settings")
+
+        assert response.status_code == 401
+
+    def test_settings_accepts_valid_api_key_when_configured(self, client, monkeypatch):
+        import backend.app as server
+
+        monkeypatch.setattr(server.config, "MEERO_API_KEY", "secret-key")
+        response = client.get("/settings", headers={"x-meero-api-key": "secret-key"})
+
+        assert response.status_code == 200

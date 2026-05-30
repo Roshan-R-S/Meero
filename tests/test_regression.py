@@ -21,3 +21,5 @@ def test_model_evaluation_report_is_well_formed():
     assert report["samples"] > 0
     assert 0.0 <= report["accuracy"] <= 1.0
     assert report["dataset"] == "intents.json"
+    assert "classification_report" in report
+    assert "accuracy" in report["classification_report"]

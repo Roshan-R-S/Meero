@@ -6,7 +6,8 @@ def test_llama3_prompt_includes_summary_and_recent_history_only():
 
     prompt = build_llama3_prompt("current question", history, memory_summary="older facts")
 
-    assert "Long-term conversation summary: older facts" in prompt
+    assert "Memory summary:\nolder facts" in prompt
+    assert "Do not claim you performed desktop actions" in prompt
     assert "q0" not in prompt
     assert "q1" not in prompt
     assert "q2" in prompt
