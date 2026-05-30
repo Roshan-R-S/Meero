@@ -26,8 +26,8 @@ jobs:
           TRAIN_SEED: '42'
         run: |
           python scripts/train_and_package.py \
-            --epochs "$MODEL_EPOCHS" \
-            --batch 8 \
+            --epochs 20 \
+            --batch 4 \
             --seed 42 \
             --out-dir models \
             --version main-${{ github.run_number }}
