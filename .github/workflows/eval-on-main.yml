@@ -11,9 +11,9 @@ jobs:
       MODEL_MIN_ACCURACY: ${{ vars.MODEL_MIN_ACCURACY || '0.85' }}
       MODEL_EPOCHS: ${{ vars.MODEL_EPOCHS || '100' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
       - name: Install full deps (heavy)
@@ -56,7 +56,7 @@ jobs:
               sys.exit(2)
           PY
       - name: Upload evaluation artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: main-eval-report
           path: models/main_eval.json

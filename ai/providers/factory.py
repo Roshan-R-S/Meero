@@ -9,6 +9,10 @@ from .huggingface import HuggingFaceProvider
 
 
 def get_provider(provider_name: Optional[str] = None) -> Optional[ProviderBase]:
+    # Respect the global enable flag: external providers disabled by default
+    if not getattr(config, "ENABLE_EXTERNAL_PROVIDER", False):
+        return None
+
     name = provider_name or config.LLM_API_PROVIDER
     if not name:
         return None

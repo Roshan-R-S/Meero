@@ -2,10 +2,10 @@
 
 Usage: set environment variables (do NOT commit keys) and run:
 
-LLM_API_PROVIDER=nvidia \
-NVIDIA_API_KEY=<key> \
-NVIDIA_BASE_URL=<base_url> \
-LLM_MODEL_NAME=moonshotai/kimi-k2.6 \
+LLM_API_PROVIDER=openrouter \
+OPENROUTER_API_KEY=<key> \
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1 \
+LLM_MODEL_NAME=openrouter/owl-alpha \
 python scripts/llm_smoke.py
 
 The script calls `ai.external_llm.ExternalLLM.generate_response` with a short prompt.

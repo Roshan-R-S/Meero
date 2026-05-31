@@ -147,6 +147,16 @@ is unavailable, use the typed command input.
 
 ## Docker
 
+### Development note about reload
+
+When running the backend with `--reload` during development, the server watches
+for file changes and restarts the worker process automatically. This is
+convenient, but restarting will re-load heavy resources (the neural model and
+local LLM), which can take several seconds. If you are iterating on UI or
+lightweight backend code and want faster feedback, consider limiting reload
+to specific files or restarting manually when model-loading changes are made.
+
+
 Development compose runs the backend, Vite dev server, and Redis with bind
 mounts:
 

@@ -67,11 +67,23 @@ app = FastAPI(title="Meero Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=getattr(config, "CORS_ORIGINS", ["http://localhost:5173"]),
+    # During local development allow the frontend origin. Use '*' to avoid
+    # CORS issues when developing locally. In production set `CORS_ORIGINS`
+    # appropriately in environment.
+    allow_origins=getattr(config, "CORS_ORIGINS", ["http://localhost:5173"]) or ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    # Log full exception server-side and return a JSON error so the frontend
+    # can surface a helpful message instead of a silent 500.
+    logger.exception("Unhandled exception during request: %s %s", request.method, request.url)
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=500, content={"error": "Internal server error", "detail": str(exc)})
 
 if _PROMETHEUS_AVAILABLE:
     HTTP_REQUESTS_TOTAL = Counter(
@@ -132,7 +144,13 @@ async def distributed_rate_limit(request: Request):
     if not getattr(FastAPILimiter, "redis", None):
         return
     limiter = RateLimiter(times=10, seconds=60)
-    await limiter(request)
+    try:
+        await limiter(request)
+    except Exception:
+        # If the rate limiter (Redis) is unavailable or errors, log and
+        # allow the request to proceed rather than raising a 500.
+        logger.exception("Rate limiter check failed; continuing without applying distributed limits")
+        return
 
 external_llm = None
 if getattr(config, "USE_NEURAL_NET", True) and NeuralNet is not None:
@@ -188,6 +206,10 @@ class SettingsPayload(BaseModel):
     wake_word_enabled: Optional[bool] = None
     voice_rate: Optional[float] = Field(default=None, ge=0.5, le=2.0)
     voice_pitch: Optional[float] = Field(default=None, ge=0.5, le=2.0)
+    mic_enabled: Optional[bool] = None
+    text_output_enabled: Optional[bool] = None
+    show_history: Optional[bool] = None
+    text_input_enabled: Optional[bool] = None
 
 
 LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}

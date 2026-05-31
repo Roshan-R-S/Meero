@@ -248,6 +248,18 @@ class Actions:
 
     def tab_management(self, command):
         if "new tab" in command:
+            # If the command includes a search request, open a search URL
+            m = re.search(r"(?:search for|search|google)\s+(.+)$", command, re.IGNORECASE)
+            if m:
+                search_term = m.group(1).strip()
+                if search_term:
+                    self.speak(f"Searching for {search_term}")
+                    url = f"https://www.google.com/search?q={urllib.parse.quote_plus(search_term)}"
+                    try:
+                        webbrowser.open(url, new=2)
+                    except Exception:
+                        logger.exception("Failed to open browser for search")
+                    return
             pyautogui.hotkey('ctrl', 't')
             self.speak("Opening new tab")
         elif "close tab" in command or "close this tab" in command:

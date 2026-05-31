@@ -13,11 +13,15 @@ Configuration
 Set provider-specific environment variables (recommended via `.env` or your deployment system):
 
 - `LLM_API_PROVIDER` — provider key used by the factory (e.g. `openai`, `openrouter`, `huggingface`, `nvidia`).
+- `LLM_MODEL_NAME` — optional model id to send to the configured provider (for example, `openrouter/owl-alpha`).
 - `OPENAI_API_KEY`, `OPENAI_BASE_URL` — for OpenAI-compatible providers.
-- `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL` — for OpenRouter provider.
+- `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL` — for OpenRouter provider. The default base URL is `https://openrouter.ai/api/v1`.
 - `HUGGINGFACE_API_KEY`, `HUGGINGFACE_BASE_URL` — for Hugging Face Inference API.
 - `NVIDIA_API_KEY`, `NVIDIA_BASE_URL` — if using NVIDIA Moonshot-style endpoints.
 - `PROVIDER_REQUEST_TIMEOUT` — per-request timeout in seconds (default set in `config.py`).
+
+Security / Local-Only mode
+- By default external providers are disabled in Meero. To enable remote providers set `ENABLE_EXTERNAL_PROVIDER=true` and provide the appropriate API keys via environment variables or your secret manager. This prevents accidental leakage of keys or unexpected external network calls when running locally.
 
 Usage
 The rest of the app interacts with `ai/external_llm.ExternalLLM`, which obtains a provider via the factory and calls `provider.generate(...)`. The provider returns a normalized dict with at least a `text` key and optional `raw` and `latency` fields.

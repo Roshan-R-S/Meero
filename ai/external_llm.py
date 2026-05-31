@@ -28,7 +28,20 @@ class ExternalLLM:
         if not self.enabled:
             return None
         try:
-            resp = self.provider.generate(user_input, history=history, memory_summary=memory_summary, model=model)
+            selected_model = model or getattr(config, "LLM_MODEL_NAME", None)
+            if selected_model:
+                resp = self.provider.generate(
+                    user_input,
+                    history=history,
+                    memory_summary=memory_summary,
+                    model=selected_model,
+                )
+            else:
+                resp = self.provider.generate(
+                    user_input,
+                    history=history,
+                    memory_summary=memory_summary,
+                )
             if not resp:
                 return None
             text = resp.get("text") or ""

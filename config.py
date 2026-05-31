@@ -4,6 +4,38 @@ import json
 import shutil
 
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_ORIGINAL_ENV_KEYS = set(os.environ)
+
+
+def _load_env_file(path, override_loaded=False):
+    if not os.path.exists(path):
+        return
+
+    with open(path, "r", encoding="utf-8") as env_file:
+        for raw_line in env_file:
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip("\"'")
+            if not key:
+                continue
+            # If the key existed in the original process environment, only
+            # skip it when not explicitly allowing overrides. When
+            # `override_loaded` is True (used for backend/.env) we should
+            # allow replacing previously loaded values.
+            if key in _ORIGINAL_ENV_KEYS and not override_loaded:
+                continue
+            if override_loaded or key not in os.environ:
+                os.environ[key] = value
+
+
+_load_env_file(os.path.join(BASE_DIR, ".env"))
+_load_env_file(os.path.join(BASE_DIR, "backend", ".env"), override_loaded=True)
+
+
 def _env_bool(name, default=False):
     value = os.environ.get(name)
     if value is None:
@@ -22,7 +54,6 @@ ASSISTANT_NAME = "Meero"
 USER_NAME = "Roshan"
 
 # Paths
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 INTENTS_FILE = os.path.join(BASE_DIR, "intents.json")
 # Default model locations live under the `models/` directory. The training
 # script will write versioned artifacts and also update the canonical
@@ -85,8 +116,13 @@ MEMORY_SUMMARY_MAX_CHARS = int(os.environ.get("MEMORY_SUMMARY_MAX_CHARS", "1200"
 # LLM generation timeout (seconds) — used by async or guarded calls.
 LLM_MAX_GENERATION_TIME = 10
 
-# Remote provider name (optional) — e.g., 'openai', 'google', or None for local
+# Remote provider name (optional) — e.g., 'openai', 'openrouter', or None for local
 LLM_API_PROVIDER = os.environ.get("LLM_API_PROVIDER") or None
+
+# By default external providers are disabled. Set ENABLE_EXTERNAL_PROVIDER=true
+# to allow using remote LLM providers (requires provider keys in env/secret store).
+ENABLE_EXTERNAL_PROVIDER = _env_bool("ENABLE_EXTERNAL_PROVIDER", False)
+LLM_MODEL_NAME = os.environ.get("LLM_MODEL_NAME") or None
 
 # Neural Net Hyperparameters (shared between training and inference)
 NEURAL_NET_MAXLEN = 20
@@ -97,7 +133,7 @@ NEURAL_NET_EMBEDDING_DIM = 16
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") or ""
 OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1"
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY") or ""
-OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL") or "https://api.openrouter.ai/v1"
+OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1"
 NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY") or ""
 NVIDIA_BASE_URL = os.environ.get("NVIDIA_BASE_URL") or "https://api.nvidia.com"
 PROVIDER_REQUEST_TIMEOUT = int(os.environ.get("PROVIDER_REQUEST_TIMEOUT", "15"))

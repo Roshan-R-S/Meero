@@ -5,7 +5,7 @@ export default function HistoryPanel({ messages, onClear, onCopy }) {
   if (messages.length === 0) return null;
 
   return (
-    <div className="absolute left-4 top-4 z-40 w-[min(20rem,calc(100vw-2rem))] max-h-64 overflow-y-auto rounded border border-cyan-400/20 bg-black/40 p-3 text-xs text-cyan-50/85 backdrop-blur">
+    <div aria-hidden="false" className="hidden md:block absolute left-4 top-4 z-40 w-64 max-h-[60vh] overflow-y-auto rounded border border-cyan-400/20 bg-black/40 p-3 text-xs text-cyan-50/85 backdrop-blur">
       <div className="mb-3 flex items-center justify-between border-b border-cyan-400/10 pb-2">
         <span className="font-orbitron text-[0.65rem] uppercase tracking-widest text-cyan-300">History</span>
         <button

@@ -25,21 +25,24 @@ function App() {
 
   // -- BOOT SEQUENCE STATE --
   const [booting, setBooting] = useState(true);
+  const [serverReachable, setServerReachable] = useState(true);
 
-  // Startup Sound
   useEffect(() => {
     const storage = typeof window !== "undefined" ? window.localStorage : null;
     const hasInteracted = storage?.getItem?.("hasInteracted");
     const handleFirstClick = () => {
       playStartup();
       storage?.setItem?.("hasInteracted", "true");
-      window.removeEventListener("click", handleFirstClick);
+      try { window.removeEventListener("click", handleFirstClick); } catch (e) { }
     };
 
     // Web Audio API requires user interaction to start
     if (!hasInteracted) {
       window.addEventListener("click", handleFirstClick);
     }
+    return () => {
+      try { window.removeEventListener("click", handleFirstClick); } catch (e) { }
+    };
   }, []);
 
   useEffect(() => {
@@ -82,7 +85,28 @@ function App() {
     setVoicePitch,
     voiceRate,
     setVoiceRate,
+    micEnabled,
+    setMicEnabled,
+    textOutputEnabled,
+    setTextOutputEnabled,
+    showHistory,
+    setShowHistory,
+    textInputEnabled,
+    setTextInputEnabled,
   } = useHealthSettings({ wakeWordEnabled, setWakeWordEnabled });
+
+  useEffect(() => {
+    const handler = (e) => {
+      try { setServerReachable(Boolean(e.detail?.reachable)); } catch { setServerReachable(false); }
+    };
+    window.addEventListener('meero:server-reachable', handler);
+    return () => window.removeEventListener('meero:server-reachable', handler);
+  }, []);
+
+  const tryReconnect = useCallback(async () => {
+    // Trigger a health refresh which will also emit reachable events
+    try { await refreshHealth(); } catch { /* ignore */ }
+  }, [refreshHealth]);
 
   const copyMessage = useCallback(async (text) => {
     try {
@@ -144,10 +168,14 @@ function App() {
         if (["blocked", "error", "rate_limited"].includes(confirmData.action_status)) {
           setStatusNotice(confirmData.response);
         }
-        addMessages([
-          { role: "user", text: normalized },
-          { role: "assistant", text: confirmData.response },
-        ]);
+        if (textOutputEnabled) {
+          addMessages([
+            { role: "user", text: normalized },
+            { role: "assistant", text: confirmData.response },
+          ]);
+        } else {
+          addMessages([{ role: "user", text: normalized }]);
+        }
         speakRef.current(confirmData.response);
         return;
       }
@@ -175,10 +203,14 @@ function App() {
     if (["blocked", "error", "rate_limited"].includes(data.action_status)) {
       setStatusNotice(data.response);
     }
-    addMessages([
-      { role: "user", text: userText },
-      { role: "assistant", text: data.response },
-    ]);
+    if (textOutputEnabled) {
+      addMessages([
+        { role: "user", text: userText },
+        { role: "assistant", text: data.response },
+      ]);
+    } else {
+      addMessages([{ role: "user", text: userText }]);
+    }
     speakRef.current(data.response);
   }, [addMessages, pendingConfirmationCommand]);
 
@@ -231,7 +263,15 @@ function App() {
       <Background />
       <HologramOverlay />
 
-      <HistoryPanel messages={messages} onClear={clearMessages} onCopy={copyMessage} />
+      {!serverReachable && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-60 rounded bg-red-700/90 px-4 py-2 text-sm text-white shadow">
+          Server unreachable — <button onClick={tryReconnect} className="underline">Retry</button>
+        </div>
+      )}
+
+      {showHistory && (
+        <HistoryPanel messages={messages} onClear={clearMessages} onCopy={copyMessage} />
+      )}
 
       <button
         onClick={() => setSettingsOpen(true)}
@@ -252,14 +292,22 @@ function App() {
           setVoicePitch={setVoicePitch}
           setVoiceRate={setVoiceRate}
           setWakeWordEnabled={setWakeWordEnabled}
+          setMicEnabled={setMicEnabled}
+          setTextOutputEnabled={setTextOutputEnabled}
+          setShowHistory={setShowHistory}
+          setTextInputEnabled={setTextInputEnabled}
           voicePitch={voicePitch}
           voiceRate={voiceRate}
           wakeWordEnabled={wakeWordEnabled}
+          micEnabled={micEnabled}
+          textOutputEnabled={textOutputEnabled}
+          showHistory={showHistory}
+          textInputEnabled={textInputEnabled}
         />
       )}
 
       {/* Tactical Center */}
-      <div className="w-full max-w-sm h-auto aspect-square flex flex-col items-center justify-center p-8 relative z-10">
+      <div className="w-full max-w-lg h-auto aspect-square flex flex-col items-center justify-center p-8 relative z-10">
         {/* Header */}
         <div className="text-center z-30 mb-4 transform translate-y-4">
           <h1 className="text-2xl font-orbitron font-bold tracking-[0.2em] text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
@@ -269,11 +317,13 @@ function App() {
 
         {/* Visualizer - Center Stage */}
         <div className="flex-1 flex items-center justify-center w-full h-full relative z-20">
-          <ThreeOrb state={state} sentiment={sentiment} />
+          <div className="w-full h-full max-h-[280px] sm:max-h-[420px] md:max-h-[560px]">
+            <ThreeOrb state={state} sentiment={sentiment} />
+          </div>
         </div>
 
         {/* Controls - Bottom */}
-        <div className="absolute bottom-0 z-50 flex flex-col items-center gap-3">
+        <div className="absolute bottom-0 z-50 flex flex-col items-center gap-3 sm:gap-4">
           {/* Wake Word Toggle */}
           <button
             onClick={() => setWakeWordEnabled(!wakeWordEnabled)}
@@ -293,14 +343,14 @@ function App() {
 
           {/* Mic Button */}
           <button
-            onClick={speechSupported ? toggleListen : undefined}
+            onClick={speechSupported && micEnabled ? toggleListen : undefined}
             aria-label={
               state === "listening" ? "Stop listening" : "Start listening"
             }
-            aria-disabled={!speechSupported}
-            title={!speechSupported ? "Speech recognition unavailable in this browser. Use Chrome or enable Web Speech API." : undefined}
-            disabled={!speechSupported}
-            className={`p-6 rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 ${
+            aria-disabled={!speechSupported || !micEnabled}
+            title={!speechSupported ? "Speech recognition unavailable in this browser. Use Chrome or enable Web Speech API." : (!micEnabled ? "Microphone disabled in settings" : undefined)}
+            disabled={!speechSupported || !micEnabled}
+            className={`p-6 sm:p-5 rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 ${
               state === "listening"
                 ? "bg-red-500/90 shadow-[0_0_40px_rgba(239,68,68,0.6)] animate-pulse"
                 : "bg-cyan-600/90 hover:bg-cyan-500 shadow-[0_0_30px_rgba(8,145,178,0.4)]"
@@ -317,12 +367,14 @@ function App() {
               Speech recognition is not available in this browser. Try Chrome or Edge and enable microphone permissions.
             </div>
           )}
-          <CommandInput
-            disabled={state === "processing"}
-            onSubmit={handleTypedSubmit}
-            setTypedCommand={setTypedCommand}
-            typedCommand={typedCommand}
-          />
+          {textInputEnabled && (
+            <CommandInput
+              disabled={state === "processing"}
+              onSubmit={handleTypedSubmit}
+              setTypedCommand={setTypedCommand}
+              typedCommand={typedCommand}
+            />
+          )}
           {(statusNotice || recognitionError) && (
             <div className="text-xs text-yellow-200 text-center max-w-xs z-50">
               {statusNotice || recognitionError}
