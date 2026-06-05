@@ -10,6 +10,14 @@ canonical runtime artifacts, and updates `models/manifest.json`.
 python scripts/train_and_package.py --epochs 100 --batch 8 --out-dir models
 ```
 
+To train with the three bundled local GGUF teacher models, run:
+
+```powershell
+python scripts/train_and_package.py --epochs 100 --batch 8 --use-default-teachers --teacher-examples-per-model 2 --out-dir models
+```
+
+The teacher stage writes `models/intents.teacher_augmented.json` and records the teacher manifest in `models/manifest.json`.
+
 ## Deterministic Runners
 
 PowerShell:

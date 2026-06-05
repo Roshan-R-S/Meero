@@ -17,6 +17,7 @@ import subprocess
 import hashlib
 import random
 import pathlib
+import tempfile
 
 # Allow enabling TensorFlow deterministic ops and seeding via environment for CI/repro
 # Set these before attempting to import TensorFlow so they take effect.
@@ -57,6 +58,7 @@ import sys
 # Ensure project root is on sys.path so imports like `config` work when invoked from scripts/
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import config
+from scripts.gguf_teacher_augment import augment_intents_with_teachers, write_augmented_intents
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -147,7 +149,18 @@ def save_artifacts(model, tokenizer, label_encoder, version_tag, out_dir="models
     return model_path, tokenizer_path, label_path
 
 
-def write_manifest_and_update_latest(model_path, tokenizer_path, label_path, version_tag, out_dir="models", dataset_hash=None):
+def write_manifest_and_update_latest(
+    model_path,
+    tokenizer_path,
+    label_path,
+    version_tag,
+    out_dir="models",
+    dataset_hash=None,
+    source_dataset_hash=None,
+    teacher_models=None,
+    training_dataset_path=None,
+    teacher_manifest=None,
+):
     import shutil
     manifest = {
         "version": version_tag,
@@ -162,6 +175,10 @@ def write_manifest_and_update_latest(model_path, tokenizer_path, label_path, ver
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "git": git_short_hash(),
         "dataset_hash": dataset_hash,
+        "source_dataset_hash": source_dataset_hash,
+        "training_dataset": os.path.basename(training_dataset_path) if training_dataset_path else None,
+        "teacher_models": [os.path.basename(path) for path in teacher_models] if teacher_models else [],
+        "teacher_manifest": os.path.basename(teacher_manifest) if teacher_manifest else None,
     }
 
     manifest_path = os.path.join(out_dir, "manifest.json")
@@ -209,6 +226,12 @@ def main():
     parser.add_argument("--batch", type=int, default=8)
     parser.add_argument("--version", type=str, default=None)
     parser.add_argument("--seed", type=int, default=None, help="Optional random seed to make training deterministic when possible")
+    parser.add_argument("--teacher-model", action="append", default=[], help="Path to a local GGUF teacher model; repeat for multiple teachers")
+    parser.add_argument("--use-default-teachers", action="store_true", help="Use the bundled local GGUF teacher models from models/")
+    parser.add_argument("--teacher-examples-per-model", type=int, default=2, help="Number of synthetic examples to request from each teacher per intent")
+    parser.add_argument("--teacher-temperature", type=float, default=0.2)
+    parser.add_argument("--teacher-max-tokens", type=int, default=256)
+    parser.add_argument("--teacher-output", type=str, default=None, help="Optional path to write the teacher-augmented intents JSON")
     parser.add_argument("--upload-s3", action='store_true')
     parser.add_argument("--upload-hf", action='store_true', help="Upload artifacts to Hugging Face Hub (requires HF_TOKEN and HF_REPO env vars)")
     parser.add_argument("--dry-run", action='store_true', help="Validate credentials and repo access without training or uploading")
@@ -262,14 +285,49 @@ def main():
         except Exception:
             pass
 
-    model, tokenizer, le, dataset_hash = build_and_train(config.INTENTS_FILE, epochs=args.epochs, batch_size=args.batch)
+    teacher_models = list(args.teacher_model)
+    if args.use_default_teachers and not teacher_models:
+        teacher_models = list(getattr(config, "DEFAULT_GGUF_TEACHER_MODEL_PATHS", []))
+
+    training_dataset_path = config.INTENTS_FILE
+    teacher_manifest_path = None
+    source_dataset_hash = compute_dataset_hash(config.INTENTS_FILE)
+
+    if teacher_models:
+        with open(config.INTENTS_FILE, "r", encoding="utf-8") as f:
+            source_intents = json.load(f)
+
+        augmented_intents, teacher_manifest = augment_intents_with_teachers(
+            source_intents,
+            teacher_models,
+            examples_per_model=args.teacher_examples_per_model,
+            temperature=args.teacher_temperature,
+            max_tokens=args.teacher_max_tokens,
+        )
+
+        os.makedirs(args.out_dir, exist_ok=True)
+        teacher_output = args.teacher_output or os.path.join(args.out_dir, "intents.teacher_augmented.json")
+        training_dataset_path, teacher_manifest_path = write_augmented_intents(teacher_output, augmented_intents, teacher_manifest)
+        logger.info("Teacher-augmented dataset written to %s", training_dataset_path)
+        logger.info("Teacher augmentation manifest written to %s", teacher_manifest_path)
+
+    model, tokenizer, le, dataset_hash = build_and_train(training_dataset_path, epochs=args.epochs, batch_size=args.batch)
     model_path, tokenizer_path, label_path = save_artifacts(model, tokenizer, le, version, out_dir=args.out_dir)
 
     logger.info("Artifacts saved: %s, %s, %s", model_path, tokenizer_path, label_path)
 
     # Write manifest and update canonical latest filenames
     manifest_path, canonical_model, canonical_tokenizer, canonical_label = write_manifest_and_update_latest(
-        model_path, tokenizer_path, label_path, version, out_dir=args.out_dir, dataset_hash=dataset_hash
+        model_path,
+        tokenizer_path,
+        label_path,
+        version,
+        out_dir=args.out_dir,
+        dataset_hash=dataset_hash,
+        source_dataset_hash=source_dataset_hash,
+        teacher_models=teacher_models,
+        training_dataset_path=training_dataset_path,
+        teacher_manifest=teacher_manifest_path,
     )
     logger.info("Manifest written to %s", manifest_path)
 

@@ -90,6 +90,11 @@ except FileNotFoundError:
 
 # LLM Configuration
 DEFAULT_LOCAL_LLM_MODEL_FILE = "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+DEFAULT_GGUF_TEACHER_MODEL_FILES = [
+    "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
+    "mistral-7b-instruct-v0.1.Q5_K_M.gguf",
+    "Qwen3-4B-Q2_K_L.gguf",
+]
 
 
 def _resolve_local_llm_model_path():
@@ -102,6 +107,18 @@ def _resolve_local_llm_model_path():
 
 
 LLM_MODEL_PATH = _resolve_local_llm_model_path()
+
+
+def _resolve_teacher_model_paths():
+    resolved = []
+    for candidate in DEFAULT_GGUF_TEACHER_MODEL_FILES:
+        candidate_path = candidate if os.path.isabs(candidate) else os.path.join(MODEL_DIR, candidate)
+        if os.path.exists(candidate_path):
+            resolved.append(candidate_path)
+    return resolved
+
+
+DEFAULT_GGUF_TEACHER_MODEL_PATHS = _resolve_teacher_model_paths()
 
 # Feature flags
 # Set to False to disable loading/using the neural net or local LLM fallback
