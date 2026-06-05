@@ -89,7 +89,19 @@ except FileNotFoundError:
     SCHEDULE = {}
 
 # LLM Configuration
-LLM_MODEL_PATH = os.path.join(BASE_DIR, "models", "Llama-3.2-1B-Instruct-Q4_K_M.gguf")
+DEFAULT_LOCAL_LLM_MODEL_FILE = "Llama-3.2-1B-Instruct-Q4_K_M.gguf"
+
+
+def _resolve_local_llm_model_path():
+    configured_path = os.environ.get("LOCAL_LLM_MODEL_PATH")
+    configured_file = os.environ.get("LOCAL_LLM_MODEL_FILE")
+    candidate = configured_path or configured_file or DEFAULT_LOCAL_LLM_MODEL_FILE
+    if os.path.isabs(candidate):
+        return candidate
+    return os.path.join(MODEL_DIR, candidate)
+
+
+LLM_MODEL_PATH = _resolve_local_llm_model_path()
 
 # Feature flags
 # Set to False to disable loading/using the neural net or local LLM fallback

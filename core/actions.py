@@ -474,11 +474,12 @@ class Actions:
         if not query or query == "None":
             return
 
+        if self._requires_confirmation(query):
+            if not self._confirm_sensitive_action(input_func):
+                return "action_cancelled"
+
         for matcher, handler in self._command_routes:
             if matcher(query):
-                if self._requires_confirmation(query):
-                    if not self._confirm_sensitive_action(input_func):
-                        return "action_cancelled"
                 self._invoke_route(handler, query, input_func=input_func, exit_func=exit_func)
                 return
 

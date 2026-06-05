@@ -152,13 +152,14 @@ function App() {
     const userText = text.trim();
 
     const normalized = userText.toLowerCase();
-    const yesWords = new Set(["yes", "y", "ok", "okay", "confirm", "proceed", "do it"]);
-    const noWords = new Set(["no", "n", "cancel", "stop", "don't", "do not"]);
+    const yesWords = new Set(["yes", "y", "yeah", "yep", "ok", "okay", "confirm", "proceed", "do it"]);
+    const noWords = new Set(["no", "n", "nope", "cancel", "stop", "don't", "do not"]);
 
     if (pendingConfirmationCommand) {
       if (yesWords.has(normalized)) {
         setState("processing");
         playProcessing();
+        const confirmedCommand = pendingConfirmationCommand;
         const confirmData = await sendCommand(pendingConfirmationCommand, {
           confirm: true,
           pendingCommand: pendingConfirmationCommand,
@@ -176,6 +177,7 @@ function App() {
         } else {
           addMessages([{ role: "user", text: normalized }]);
         }
+        setStatusNotice(confirmedCommand ? "Action confirmed." : "");
         speakRef.current(confirmData.response);
         return;
       }

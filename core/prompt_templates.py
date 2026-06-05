@@ -45,6 +45,43 @@ def build_llama3_prompt(
     return prompt
 
 
+def build_mistral_prompt(
+    user_input: str,
+    history: Iterable[tuple[str, str]] | None = None,
+    memory_summary: str | None = None,
+    max_history: int = 5,
+) -> str:
+    """Build a Mistral Instruct style prompt for local GGUF/GPT4All models."""
+    turns = list(history or [])[-max_history:]
+    system_text = SYSTEM_PROMPT
+    if memory_summary:
+        system_text += f"\n\nMemory summary:\n{memory_summary}"
+
+    prompt = "<s>"
+    if not turns:
+        return f"{prompt}[INST] {system_text}\n\n{user_input.strip()} [/INST]"
+
+    first_query, first_response = turns[0]
+    prompt += f"[INST] {system_text}\n\n{first_query.strip()} [/INST] {first_response.strip()}</s>"
+    for query, response in turns[1:]:
+        prompt += f"[INST] {query.strip()} [/INST] {response.strip()}</s>"
+    prompt += f"[INST] {user_input.strip()} [/INST]"
+    return prompt
+
+
+def build_local_prompt(
+    model_name: str | None,
+    user_input: str,
+    history: Iterable[tuple[str, str]] | None = None,
+    memory_summary: str | None = None,
+) -> str:
+    """Choose a prompt format based on the local GGUF model filename."""
+    normalized_name = (model_name or "").lower()
+    if "mistral" in normalized_name or "mixtral" in normalized_name:
+        return build_mistral_prompt(user_input, history, memory_summary=memory_summary)
+    return build_llama3_prompt(user_input, history, memory_summary=memory_summary)
+
+
 def build_external_payload(
     user_input: str,
     history: Iterable[tuple[str, str]] | None = None,

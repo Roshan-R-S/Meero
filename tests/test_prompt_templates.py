@@ -1,4 +1,10 @@
-from core.prompt_templates import build_external_payload, build_llama3_prompt, clean_llm_response
+from core.prompt_templates import (
+    build_external_payload,
+    build_llama3_prompt,
+    build_local_prompt,
+    build_mistral_prompt,
+    clean_llm_response,
+)
 
 
 def test_llama3_prompt_includes_summary_and_recent_history_only():
@@ -22,6 +28,27 @@ def test_external_payload_keeps_structured_context():
     assert payload["history"] == [("q", "a")]
     assert payload["memory_summary"] == "summary"
     assert "Meero" in payload["system"]
+
+
+def test_mistral_prompt_uses_inst_format_and_recent_history_only():
+    history = [(f"q{i}", f"a{i}") for i in range(7)]
+
+    prompt = build_mistral_prompt("current question", history, memory_summary="older facts")
+
+    assert prompt.startswith("<s>[INST]")
+    assert "Memory summary:\nolder facts" in prompt
+    assert "q0" not in prompt
+    assert "q1" not in prompt
+    assert "q2" in prompt
+    assert "current question" in prompt
+    assert prompt.endswith("[INST] current question [/INST]")
+
+
+def test_local_prompt_selects_mistral_for_mistral_models():
+    prompt = build_local_prompt("mistral-7b-instruct-v0.1.Q5_K_M.gguf", "hello")
+
+    assert prompt.startswith("<s>[INST]")
+    assert "<|start_header_id|>" not in prompt
 
 
 def test_clean_llm_response_strips_prompt_artifacts():

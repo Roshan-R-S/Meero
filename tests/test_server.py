@@ -152,6 +152,13 @@ class TestCommandEndpoint:
         assert data["action_status"] == "confirmation_required"
         assert data.get("pending_command") == "open settings"
 
+    def test_delete_command_requires_confirmation(self, client):
+        response = client.post("/command", json={"command": "delete all files"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action_status"] == "confirmation_required"
+        assert data.get("pending_command") == "delete all files"
+
     @patch("core.actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
     def test_sensitive_command_executes_after_confirm(self, mock_open, client, monkeypatch):
         monkeypatch.setattr("config.LOCAL_DESKTOP_MODE", True)

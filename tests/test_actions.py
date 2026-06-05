@@ -174,6 +174,14 @@ class TestVolumeControl:
 
 
 class TestSensitiveCommandConfirmation:
+    def test_delete_command_requires_confirmation(self, actions):
+        act, engine = actions
+        result = act.process_command("delete all files", input_func=lambda: "no")
+        response = engine.get_response().lower()
+
+        assert result == "action_cancelled"
+        assert "delete data or change system settings" in response
+
     @patch("core.actions.app_launcher.find_and_open_app", return_value=(True, "Opening settings."))
     def test_settings_open_cancelled_without_yes(self, _mock_open, actions):
         act, engine = actions

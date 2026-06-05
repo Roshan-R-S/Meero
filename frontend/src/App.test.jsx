@@ -79,7 +79,10 @@ describe("App typed fallback", () => {
       detailed: true,
       web_safe_mode: true,
     });
-    getSettings.mockResolvedValue({});
+    getSettings.mockResolvedValue({
+      text_input_enabled: true,
+      show_history: true,
+    });
     saveSettings.mockResolvedValue({ status: "ok" });
     window.localStorage?.removeItem?.("meero.messages");
     Object.defineProperty(navigator, "clipboard", {
@@ -141,6 +144,8 @@ describe("App typed fallback", () => {
       wake_word_enabled: false,
       voice_rate: 1,
       voice_pitch: 1,
+      show_history: true,
+      text_input_enabled: true,
     });
   });
 
@@ -205,4 +210,5 @@ describe("App typed fallback", () => {
 
     expect(screen.queryByText("what time is it")).not.toBeInTheDocument();
   });
+
 });

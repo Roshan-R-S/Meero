@@ -6,7 +6,7 @@ try:
 except ImportError:
     GPT4All = None
 
-from core.prompt_templates import build_llama3_prompt, clean_llm_response
+from core.prompt_templates import build_local_prompt, clean_llm_response
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ class LLMEngine:
 
         model_dir = os.path.dirname(os.path.abspath(model_path))
         model_filename = os.path.basename(model_path)
+        self.model_filename = model_filename
 
         self.llm = GPT4All(model_name=model_filename, model_path=model_dir, allow_download=False)
         logger.info("LLM Loaded successfully.")
@@ -31,7 +32,12 @@ class LLMEngine:
         if history is None:
             history = []
         try:
-            prompt = build_llama3_prompt(user_input, history, memory_summary=memory_summary)
+            prompt = build_local_prompt(
+                self.model_filename,
+                user_input,
+                history,
+                memory_summary=memory_summary,
+            )
             response = self.llm.generate(prompt, max_tokens=100, temp=0.7)
             return clean_llm_response(response)
 
