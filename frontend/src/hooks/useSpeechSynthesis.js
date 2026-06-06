@@ -52,7 +52,14 @@ const useSpeechSynthesis = (setState, onComplete, voiceConfig = {}) => {
     [setState, onComplete, voiceConfig.pitch, voiceConfig.rate],
   );
 
-  return { speak };
+  const cancel = useCallback(() => {
+    if (synth.current && synth.current.speaking) {
+      synth.current.cancel();
+      setState("idle");
+    }
+  }, [setState]);
+
+  return { speak, cancel };
 };
 
 export default useSpeechSynthesis;

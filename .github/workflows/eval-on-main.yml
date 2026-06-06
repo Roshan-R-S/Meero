@@ -33,7 +33,7 @@ jobs:
             --version main-${{ github.run_number }}
       - name: Run evaluation and write report
         run: |
-          python scripts/evaluate.py --out models/main_eval.json --min-accuracy "$MODEL_MIN_ACCURACY"
+            python scripts/evaluate.py --out models/main_eval.json --min-accuracy "$MODEL_MIN_ACCURACY"
       - name: Validate evaluation report
         run: |
           python - <<'PY'
@@ -55,8 +55,11 @@ jobs:
               print("Evaluation report has no samples")
               sys.exit(2)
           PY
+      - name: Run unseen cases evaluation
+        run: |
+          python scripts/evaluate.py --eval-cases data/intent_eval_cases.json --out models/unseen_eval.json --min-accuracy 0.50 --min-intent-accuracy 0.30
       - name: Upload evaluation artifact
         uses: actions/upload-artifact@v4
         with:
           name: main-eval-report
-          path: models/main_eval.json
+          path: models/*_eval.json

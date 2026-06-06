@@ -121,3 +121,22 @@ def get_summary_from_conn(conn) -> str:
     cur.execute("SELECT summary FROM memory_summary WHERE id = 1")
     row = cur.fetchone()
     return row[0] if row else ""
+
+
+def clear():
+    conn = _get_conn()
+    conn.execute("DELETE FROM history")
+    conn.execute("DELETE FROM memory_summary")
+    conn.commit()
+    conn.close()
+
+
+def export() -> dict:
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, query, response, ts FROM history ORDER BY id ASC")
+    rows = cur.fetchall()
+    history = [{"id": r[0], "query": r[1], "response": r[2], "ts": r[3]} for r in rows]
+    summary = get_summary_from_conn(conn)
+    conn.close()
+    return {"history": history, "summary": summary}

@@ -29,8 +29,14 @@ def _normalized_allowlist():
 
 
 def is_app_allowed(app_name):
-    """Return whether app launch/close is allowed by the optional allowlist."""
+    """Return whether app launch/close is allowed by the allowlist."""
     allowed = _normalized_allowlist()
+    
+    if getattr(config, "LOCAL_DESKTOP_MODE", False):
+        if not allowed:
+            # If in local desktop mode and allowlist is empty, block all app launches
+            return False
+            
     if not allowed:
         return True
     return app_name.lower().strip() in allowed

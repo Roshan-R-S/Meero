@@ -103,7 +103,7 @@ describe("api config", () => {
     expect(get).toHaveBeenNthCalledWith(
       1,
       "http://localhost:8000/debug/health",
-      { headers: {} },
+      { headers: { "x-meero-api-key": process.env.VITE_MEERO_API_KEY || "change-this-local-key" } }
     );
     expect(get).toHaveBeenNthCalledWith(2, "http://localhost:8000/health");
     expect(result).toEqual({ status: "ok", detailed: false });

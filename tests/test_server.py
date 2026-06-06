@@ -286,6 +286,27 @@ class TestRateLimiting:
         assert first.json()["action_status"] == "success"
         assert second.json()["action_status"] == "success"
 
+    def test_rate_limit_fail_open_false(self, monkeypatch):
+        from backend.app import app
+        import backend.app as server
+
+        server.LAST_COMMAND_TIME = 0
+        server.CLIENT_COMMAND_TIMES.clear()
+        monkeypatch.setattr(server.config, "RATE_LIMIT_FAIL_OPEN", False)
+
+        async def failing_limiter(request):
+            raise RuntimeError("Redis connection failed")
+            
+        monkeypatch.setattr(server.FastAPILimiter, "redis", True) # Mock initialized state
+        monkeypatch.setattr(server, "_RATE_LIMITER_READY", True)
+        monkeypatch.setattr(server.RateLimiter, "__call__", lambda self, req: failing_limiter(req))
+
+        client = TestClient(app)
+        response = client.post("/command", json={"command": "time"})
+        
+        assert response.status_code == 503
+        assert response.json().get("detail") == "Rate limiter unavailable"
+
 
 class TestSettingsEndpoint:
     def test_settings_rejects_unknown_keys(self, client):

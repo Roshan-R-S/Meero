@@ -13,7 +13,7 @@ import hashlib
 
 import numpy as np
 
-from sklearn.metrics import classification_report
+from sklearn.metrics import classification_report, confusion_matrix
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 # Ensure project root is on sys.path so we can import config when executed from scripts/
@@ -125,6 +125,7 @@ def evaluate(model_path, tokenizer_path, label_encoder_path, intents_path, maxle
             output_dict=True,
             zero_division=0,
         ),
+        "confusion_matrix": confusion_matrix(labels, preds).tolist(),
     }
 
     return report
@@ -145,6 +146,12 @@ def main():
         type=float,
         default=float(os.environ.get("MODEL_MIN_ACCURACY", "0.85")),
         help="Fail with exit code 2 when accuracy is below this value",
+    )
+    parser.add_argument(
+        "--min-intent-accuracy",
+        type=float,
+        default=0.0,
+        help="Fail with exit code 2 if any specific intent accuracy is below this value",
     )
     parser.add_argument("--latency-samples", type=int, default=100)
     parser.add_argument("--out", type=str, default=None, help="Write JSON report to file")
@@ -168,6 +175,20 @@ def main():
     if report["accuracy"] < args.min_accuracy:
         print(f"Accuracy too low: {report['accuracy']:.4f} < {args.min_accuracy:.4f}")
         sys.exit(2)
+
+    if args.min_intent_accuracy > 0:
+        cr = report["classification_report"]
+        failed_intents = []
+        for intent, metrics in cr.items():
+            if isinstance(metrics, dict) and "precision" in metrics:
+                # We can use f1-score or recall as the measure for intent accuracy
+                if metrics["f1-score"] < args.min_intent_accuracy:
+                    failed_intents.append((intent, metrics["f1-score"]))
+        if failed_intents:
+            print("The following intents failed the minimum intent accuracy check:")
+            for intent, score in failed_intents:
+                print(f"  - {intent}: {score:.4f} < {args.min_intent_accuracy:.4f}")
+            sys.exit(2)
 
 
 if __name__ == '__main__':

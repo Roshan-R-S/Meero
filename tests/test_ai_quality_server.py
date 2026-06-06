@@ -7,7 +7,7 @@ class FakeBrain:
         self.confidence = confidence
 
     def predict_with_confidence(self, query):
-        return self.response, self.confidence
+        return self.response, self.confidence, None
 
 
 class FakeLLM:

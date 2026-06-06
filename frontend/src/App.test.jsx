@@ -2,7 +2,7 @@ import "@testing-library/jest-dom";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { getHealth, getSettings, saveSettings, sendCommand } from "./api";
+import { getHealth, getSettings, saveSettings, sendCommand, getModelStatus } from "./api";
 import App from "./App";
 
 vi.mock("./api", () => ({
@@ -10,6 +10,7 @@ vi.mock("./api", () => ({
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   sendCommand: vi.fn(),
+  getModelStatus: vi.fn(),
 }));
 
 vi.mock("./components/Background", () => ({
@@ -84,6 +85,10 @@ describe("App typed fallback", () => {
       show_history: true,
     });
     saveSettings.mockResolvedValue({ status: "ok" });
+    getModelStatus.mockResolvedValue({
+      neural_net: { enabled: true, loaded: true },
+      gguf_llm: { enabled: true, loaded: true },
+    });
     window.localStorage?.removeItem?.("meero.messages");
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,

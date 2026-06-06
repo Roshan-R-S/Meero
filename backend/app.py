@@ -17,7 +17,7 @@ except Exception:
     _sentiment_available = False
 
 import core.memory_store as memory_store
-# from ai.external_llm import ExternalLLM
+
 from .command_service import execute_command
 
 try:
@@ -85,7 +85,10 @@ async def global_exception_handler(request, exc):
     # can surface a helpful message instead of a silent 500.
     logger.exception("Unhandled exception during request: %s %s", request.method, request.url)
     from fastapi.responses import JSONResponse
-    return JSONResponse(status_code=500, content={"error": "Internal server error", "detail": str(exc)})
+    content = {"error": "Internal server error"}
+    if getattr(config, "DEBUG_ERRORS", False):
+        content["detail"] = str(exc)
+    return JSONResponse(status_code=500, content=content)
 
 if _PROMETHEUS_AVAILABLE:
     HTTP_REQUESTS_TOTAL = Counter(
@@ -368,9 +371,42 @@ def process_command(payload: CommandRequest, http_request: Request):
         )
 
 
+@app.get("/memory", dependencies=[Depends(require_api_key)])
+def export_memory():
+    """Export the local SQLite memory for the user."""
+    return memory_store.export()
+
+
+@app.delete("/memory", dependencies=[Depends(require_api_key)])
+def clear_memory():
+    """Clear the local SQLite memory."""
+    memory_store.clear()
+    global CONVERSATION_HISTORY
+    with _state_lock:
+        CONVERSATION_HISTORY = []
+    return {"status": "memory_cleared"}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/model/status")
+def model_status():
+    """Return the status of the local models for UI lazy-loading and management."""
+    return {
+        "neural_net": {
+            "enabled": getattr(config, "USE_NEURAL_NET", True),
+            "loaded": brain is not None,
+            "path": getattr(config, "NEURAL_NET_MODEL_PATH", "models/chat_model.h5")
+        },
+        "gguf_llm": {
+            "enabled": getattr(config, "USE_LLM", True),
+            "loaded": llm is not None,
+            "path": MODEL_PATH
+        }
+    }
 
 
 def _debug_health():

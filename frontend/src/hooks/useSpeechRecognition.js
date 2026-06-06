@@ -15,7 +15,7 @@ const getSpeechAPI = () => {
   return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 };
 
-const useSpeechRecognition = (onResult, currentState, setState) => {
+const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = null) => {
   const recRef = useRef(null);
   const stateRef = useRef(currentState);
   const [isConversing, setIsConversing] = useState(false);
@@ -101,11 +101,13 @@ const useSpeechRecognition = (onResult, currentState, setState) => {
           if (cmd.length > 2) {
             playListeningStart();
             playListeningStop();
+            if (onInterrupt) onInterrupt();
             setState("processing");
             cbRef.current(cmd);
           } else {
             // "Hey Meero" -> Switch to Active
             wakeActiveRef.current = true;
+            if (onInterrupt) onInterrupt();
             setState("listening");
             playListeningStart();
           }
@@ -201,6 +203,7 @@ const useSpeechRecognition = (onResult, currentState, setState) => {
       wakeActiveRef.current = false;
       setIsConversing(true);
       isConversingRef.current = true;
+      if (onInterrupt) onInterrupt();
       try { rec.abort(); } catch { /* */ }
       
       timerRef.current = setTimeout(() => {

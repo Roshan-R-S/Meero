@@ -410,9 +410,12 @@ class Actions:
     def take_screenshot(self):
         self.speak("Taking screenshot")
         img = pyautogui.screenshot()
-        name = time.time()
-        img.save(f"{name}.png")
+        os.makedirs("data/screenshots", exist_ok=True)
+        filename = f"screenshot-{datetime.datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.png"
+        filepath = os.path.join("data", "screenshots", filename)
+        img.save(filepath)
         self.speak("Screenshot saved")
+        return {"metadata": {"screenshot_path": filepath}}
 
     def tell_joke(self):
         joke = pyjokes.get_joke()
@@ -480,8 +483,7 @@ class Actions:
 
         for matcher, handler in self._command_routes:
             if matcher(query):
-                self._invoke_route(handler, query, input_func=input_func, exit_func=exit_func)
-                return
+                return self._invoke_route(handler, query, input_func=input_func, exit_func=exit_func)
 
         return "neural_net_fallback"
 

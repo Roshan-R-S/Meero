@@ -1,6 +1,6 @@
 import { Mic, Radio, Settings, StopCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { sendCommand } from "./api";
+import { getModelStatus, sendCommand } from "./api";
 import Background from "./components/Background";
 import CommandInput from "./components/CommandInput";
 import HistoryPanel from "./components/HistoryPanel";
@@ -25,6 +25,7 @@ function App() {
 
   // -- BOOT SEQUENCE STATE --
   const [booting, setBooting] = useState(true);
+  const [loadingText, setLoadingText] = useState("INITIALIZING SYSTEM CORE...");
   const [serverReachable, setServerReachable] = useState(true);
 
   useEffect(() => {
@@ -46,16 +47,49 @@ function App() {
   }, []);
 
   useEffect(() => {
-    // Fake boot sequence
-    const timer = setTimeout(() => {
-      setBooting(false);
-    }, 3500); // 3.5s boot time
-    return () => clearTimeout(timer);
+    let polling = true;
+    
+    const checkStatus = async () => {
+      const status = await getModelStatus();
+      if (!polling) return;
+
+      if (!status) {
+        // If API fails, just retry next cycle
+        return;
+      }
+      
+      const nnLoaded = !status.neural_net?.enabled || status.neural_net?.loaded;
+      const ggufLoaded = !status.gguf_llm?.enabled || status.gguf_llm?.loaded;
+
+      if (!nnLoaded && !ggufLoaded) {
+        setLoadingText("LOADING NEURAL NET & GGUF MODEL...");
+      } else if (!nnLoaded) {
+        setLoadingText("LOADING NEURAL NET...");
+      } else if (!ggufLoaded) {
+        setLoadingText("LOADING GGUF MODEL...");
+      }
+
+      if (nnLoaded && ggufLoaded) {
+        setBooting(false);
+      }
+    };
+
+    // Initial check
+    checkStatus();
+
+    // Poll every 2 seconds
+    const interval = setInterval(checkStatus, 2000);
+
+    return () => {
+      polling = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // -- SPEECH HOOKS --
   // Refs to break circular dependency: handleCommand → speak → recognition
   const speakRef = useRef(null);
+  const cancelSpeechRef = useRef(null);
   const handleCommandRef = useRef(null);
 
   const {
@@ -71,6 +105,7 @@ function App() {
     (text) => handleCommandRef.current(text),
     state,
     setState,
+    () => cancelSpeechRef.current && cancelSpeechRef.current()
   );
 
   // Feature-detect Web Speech API availability so we can give feedback
@@ -120,7 +155,7 @@ function App() {
     }
   }, []);
 
-  const { speak } = useSpeechSynthesis(
+  const { speak, cancel: cancelSpeech } = useSpeechSynthesis(
     setState,
     useCallback(() => {
       // Determine what to do after speaking
@@ -237,8 +272,9 @@ function App() {
       }
       speak(text);
     };
+    cancelSpeechRef.current = cancelSpeech;
     handleCommandRef.current = handleCommand;
-  }, [speak, handleCommand]);
+  }, [speak, cancelSpeech, handleCommand]);
 
   const handleSettingsSave = useCallback(async () => {
     const result = await saveAssistantSettings();
@@ -252,7 +288,7 @@ function App() {
           MEERO
         </div>
         <div className="font-rajdhani text-sm text-cyan-800 tracking-widest mt-2 animate-bounce">
-          INITIALIZING SYSTEM CORE...
+          {loadingText}
         </div>
       </div>
     );

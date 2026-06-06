@@ -68,15 +68,19 @@ def _run_neural_fallback(query: str, brain, metadata: dict[str, Any]) -> tuple[O
     if getattr(config, "USE_NEURAL_NET", True) and brain:
         try:
             if hasattr(brain, "predict_with_confidence"):
-                response_text, confidence = brain.predict_with_confidence(query)
+                response_text, confidence, tag = brain.predict_with_confidence(query)
             else:
                 response_text = brain.predict(query)
                 confidence = 1.0 if response_text else 0.0
+                tag = None
         except Exception:
             logger.exception("Error during neural net prediction")
-            response_text, confidence = None, 0.0
+            response_text, confidence, tag = None, 0.0, None
 
         metadata["confidence"] = round(confidence, 4)
+        if tag:
+            metadata["intent"] = tag
+            
         threshold = getattr(config, "NEURAL_NET_CONFIDENCE_THRESHOLD", 0.8)
         if response_text and response_text not in NEURAL_FAILURE_PHRASES and confidence >= threshold:
             metadata["engine"] = "neural_net"
@@ -147,6 +151,9 @@ def execute_command(
     analyze_sentiment_fn: Optional[Callable[[str], str]] = None,
     client_is_local: bool = True,
 ) -> CommandOutcome:
+    import time
+    start_time = time.time()
+
     raw_query = (pending_command or query).strip()
     normalized_query = raw_query.lower()
     mock_engine = MockSpeechEngine()
@@ -235,6 +242,18 @@ def execute_command(
         _append_conversation(append_conversation_fn, raw_query, final_response)
 
         sentiment = analyze_sentiment_fn(final_response) if analyze_sentiment_fn else "neutral"
+        
+        latency = round(time.time() - start_time, 2)
+        metadata["latency"] = latency
+        
+        logger.info(
+            "[Command Execution] intent=%r, engine=%r, confidence=%s, latency=%ss",
+            metadata.get("intent", "unknown"),
+            metadata.get("engine", "actions"),
+            metadata.get("confidence", "N/A"),
+            latency,
+        )
+
         return CommandOutcome(
             response=final_response,
             action_status="success",

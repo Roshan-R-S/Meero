@@ -90,7 +90,8 @@ class TestProcessCommand:
         assert "date is" in response.lower()
 
     @patch("core.actions.start_file")
-    def test_open_calculator(self, mock_startfile, actions):
+    def test_open_calculator(self, mock_startfile, actions, monkeypatch):
+        monkeypatch.setattr("config.APP_LAUNCH_ALLOWLIST", ("calculator",))
         act, engine = actions
         act.process_command("open calculator")
         response = engine.get_response()
@@ -109,7 +110,8 @@ class TestProcessCommand:
         mock_startfile.assert_not_called()
 
     @patch("core.actions.subprocess.run")
-    def test_close_notepad(self, mock_run, actions):
+    def test_close_notepad(self, mock_run, actions, monkeypatch):
+        monkeypatch.setattr("config.APP_LAUNCH_ALLOWLIST", ("notepad",))
         act, engine = actions
         act.process_command("close notepad")
         response = engine.get_response()

@@ -65,6 +65,18 @@ export const getSettings = async () => {
   }
 };
 
+export const getModelStatus = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/model/status`, { headers: authHeaders });
+    try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: true } })); } catch (e) { }
+    return response.data;
+  } catch (error) {
+    logger.error("Model status API Error:", error);
+    try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: false } })); } catch (e) { }
+    return null;
+  }
+};
+
 export const saveSettings = async (settings) => {
   try {
     const response = await axios.post(`${API_URL}/settings`, settings, { headers: authHeaders });
