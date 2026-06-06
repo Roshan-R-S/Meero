@@ -2,6 +2,7 @@ import logging
 import os
 import threading
 import time
+import inspect
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
@@ -57,6 +58,7 @@ logger = logging.getLogger(__name__)
 MODEL_PATH = config.LLM_MODEL_PATH
 _state_lock = threading.Lock()
 CONVERSATION_HISTORY = []
+_RATE_LIMITER_READY = False
 
 if _sentiment_available and SentimentIntensityAnalyzer is not None:
     _sentiment_analyzer = SentimentIntensityAnalyzer()
@@ -125,6 +127,7 @@ async def prometheus_middleware(request: Request, call_next):
 
 @app.on_event("startup")
 async def startup_rate_limiter():
+    global _RATE_LIMITER_READY
     if not _RATE_LIMITER_AVAILABLE:
         logger.info("Rate limiter libraries not available; skipping init")
         return
@@ -132,14 +135,19 @@ async def startup_rate_limiter():
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
     try:
         redis_client = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
-        await FastAPILimiter.init(redis_client)
+        await redis_client.ping()
+        init_result = FastAPILimiter.init(redis_client)
+        if inspect.isawaitable(init_result):
+            await init_result
+        _RATE_LIMITER_READY = True
         logger.info("Rate limiter initialized with Redis: %s", redis_url)
     except Exception:
-        logger.exception("Failed to initialize rate limiter; continuing without distributed limits")
+        _RATE_LIMITER_READY = False
+        logger.warning("Redis unavailable at %s; disabling distributed rate limiting", redis_url)
 
 
 async def distributed_rate_limit(request: Request):
-    if RateLimiter is None or FastAPILimiter is None:
+    if RateLimiter is None or FastAPILimiter is None or not _RATE_LIMITER_READY:
         return
     if not getattr(FastAPILimiter, "redis", None):
         return
