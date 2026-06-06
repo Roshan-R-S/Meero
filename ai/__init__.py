@@ -7,7 +7,6 @@ GPT4All do not break unrelated imports.
 from importlib import import_module
 
 _EXPORTS = {
-    "ExternalLLM": ("ai.external_llm", "ExternalLLM"),
     "IntentCase": ("ai.intent_evaluator", "IntentCase"),
     "classify_action_intent": ("ai.intent_evaluator", "classify_action_intent"),
     "evaluate_cases": ("ai.intent_evaluator", "evaluate_cases"),

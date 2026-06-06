@@ -68,3 +68,28 @@ def test_settings_rejects_unknown_fields(monkeypatch, tmp_path):
     payload = {"wake_word_enabled": True, "not_a_valid_field": 123}
     r = client.post("/settings", json=payload, headers={"x-meero-api-key": "s3cr3t"})
     assert r.status_code == 422
+
+
+def test_settings_validates_voice_rate_range(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, "REQUIRE_API_KEY", True)
+    monkeypatch.setattr(config, "MEERO_API_KEY", "s3cr3t")
+    settings_file = tmp_path / "settings.json"
+    monkeypatch.setattr(app_module, "_settings_path", lambda: str(settings_file))
+
+    client = make_client(monkeypatch)
+
+    # voice_rate below minimum (0.5) should be rejected
+    payload = {"voice_rate": 0.1}
+    r = client.post("/settings", json=payload, headers={"x-meero-api-key": "s3cr3t"})
+    assert r.status_code == 422
+
+    # voice_rate above maximum (2.0) should be rejected
+    payload = {"voice_rate": 3.0}
+    r = client.post("/settings", json=payload, headers={"x-meero-api-key": "s3cr3t"})
+    assert r.status_code == 422
+
+    # voice_rate within range should be accepted
+    payload = {"voice_rate": 1.5}
+    r = client.post("/settings", json=payload, headers={"x-meero-api-key": "s3cr3t"})
+    assert r.status_code == 200
+

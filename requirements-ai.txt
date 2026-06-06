@@ -1,0 +1,5 @@
+# AI/ML dependencies for neural intent model and local LLM
+tensorflow==2.20.0
+numpy==2.2.6
+scikit-learn==1.7.2
+gpt4all==2.8.2

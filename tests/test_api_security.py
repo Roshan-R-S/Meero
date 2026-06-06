@@ -29,6 +29,11 @@ def setup_app(monkeypatch):
 def test_command_requires_api_key_and_rejects_wrong_key(monkeypatch):
     monkeypatch.setattr(config, "REQUIRE_API_KEY", True)
     monkeypatch.setattr(config, "MEERO_API_KEY", "s3cr3t")
+    monkeypatch.setattr(config, "RATE_LIMIT_COOLDOWN", 0.0)
+    
+    import backend.app as app_module
+    app_module.CLIENT_COMMAND_TIMES.clear()
+    
     client = setup_app(monkeypatch)
 
     payload = {"command": "hello"}
@@ -77,3 +82,25 @@ def test_metrics_protected_by_api_key_when_enabled(monkeypatch):
     # If Prometheus client isn't installed the endpoint returns a text response,
     # but it should still accept a valid API key and respond successfully.
     assert r.status_code == 200
+
+
+def test_require_api_key_true_with_missing_configured_key(monkeypatch):
+    """When REQUIRE_API_KEY=true but MEERO_API_KEY is empty, expect 500."""
+    monkeypatch.setattr(config, "REQUIRE_API_KEY", True)
+    monkeypatch.setattr(config, "MEERO_API_KEY", "")
+    client = setup_app(monkeypatch)
+
+    r = client.post("/command", json={"command": "hello"})
+    assert r.status_code == 500
+    assert "not configured" in r.json().get("detail", "")
+
+
+def test_command_succeeds_without_key_when_not_required(monkeypatch):
+    """When REQUIRE_API_KEY=false and no key configured, requests succeed."""
+    monkeypatch.setattr(config, "REQUIRE_API_KEY", False)
+    monkeypatch.setattr(config, "MEERO_API_KEY", "")
+    client = setup_app(monkeypatch)
+
+    r = client.post("/command", json={"command": "hello"})
+    assert r.status_code == 200
+

@@ -16,7 +16,7 @@ except Exception:
     _sentiment_available = False
 
 import core.memory_store as memory_store
-from ai.external_llm import ExternalLLM
+# from ai.external_llm import ExternalLLM
 from .command_service import execute_command
 
 try:
@@ -147,12 +147,12 @@ async def distributed_rate_limit(request: Request):
     try:
         await limiter(request)
     except Exception:
-        # If the rate limiter (Redis) is unavailable or errors, log and
-        # allow the request to proceed rather than raising a 500.
-        logger.exception("Rate limiter check failed; continuing without applying distributed limits")
-        return
+        logger.exception("Rate limiter check failed")
+        if getattr(config, "RATE_LIMIT_FAIL_OPEN", True):
+            return
+        raise HTTPException(status_code=503, detail="Rate limiter unavailable")
 
-external_llm = None
+
 if getattr(config, "USE_NEURAL_NET", True) and NeuralNet is not None:
     try:
         brain = NeuralNet()
@@ -172,11 +172,7 @@ if getattr(config, "USE_LLM", True) and LLMEngine is not None:
         llm = None
 else:
     llm = None
-    
-try:
-    external_llm = ExternalLLM()
-except Exception:
-    external_llm = None
+
 
 
 class CommandRequest(BaseModel):
@@ -339,7 +335,6 @@ def process_command(payload: CommandRequest, http_request: Request):
             pending_command=payload.pending_command,
             brain=brain,
             llm=llm,
-            external_llm=external_llm,
             conversation_history=CONVERSATION_HISTORY,
             memory_summary_fn=_memory_summary,
             append_conversation_fn=_append_conversation,
@@ -377,7 +372,7 @@ def _debug_health():
         "neural_net_loaded": brain is not None,
         "use_llm": getattr(config, "USE_LLM", True),
         "llm_loaded": llm is not None,
-        "external_llm_configured": bool(getattr(external_llm, "enabled", False)),
+
         "local_desktop_mode": getattr(config, "LOCAL_DESKTOP_MODE", False),
         "web_safe_mode": getattr(config, "WEB_SAFE_MODE", True),
         "conversation_history_len": len(CONVERSATION_HISTORY),

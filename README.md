@@ -7,7 +7,7 @@
 Meero is a local-first AI desktop assistant with a FastAPI backend and a
 React + Vite frontend. The browser UI handles speech recognition, typed
 commands, and speech synthesis. The backend routes commands through deterministic
-actions, neural intent fallback, optional local/external LLM fallback, memory,
+actions, neural intent fallback, optional local GGUF LLM fallback, memory,
 metrics, and safety checks.
 
 ## Preview
@@ -63,7 +63,7 @@ LOCAL_DESKTOP_MODE=true
 - FastAPI command API with confirmation for sensitive actions
 - Local desktop action routing guarded by desktop mode
 - Neural intent fallback for trained conversational intents
-- Optional local GPT4All and external LLM fallback
+- Optional local GPT4All / GGUF LLM fallback
 - SQLite conversation memory
 - Prometheus metrics
 - Optional Redis-backed distributed rate limiting plus per-client local cooldown
@@ -100,9 +100,8 @@ PROTECT_METRICS=false
 APP_LAUNCH_ALLOWLIST=
 MEERO_API_KEY=change-this-local-key
 REQUIRE_API_KEY=false
-LLM_API_PROVIDER=
-LLM_API_KEY=
-LLM_API_URL=
+DEBUG_ERRORS=false
+RATE_LIMIT_FAIL_OPEN=true
 MEMORY_MAX_INTERACTIONS=20
 MEMORY_SUMMARY_MAX_CHARS=1200
 ```
@@ -189,8 +188,7 @@ flowchart TD
   B --> C[Command Service]
   C --> D[Rule-based Actions]
   C --> E[Neural Intent Model]
-  C --> F[Local GPT4All]
-  C --> G[External LLM]
+  C --> F[Local GPT4All / GGUF]
   C --> H[SQLite Memory]
   B --> I[Prometheus Metrics]
   B --> J[Redis Rate Limiting]
@@ -204,7 +202,7 @@ flowchart TD
 - `core/actions_routing.py` - command route specifications
 - `core/memory_store.py` - SQLite-backed memory
 - `ai/neural_net.py` - neural intent runtime
-- `ai/llm_engine.py` - optional local GPT4All fallback
+- `ai/llm_engine.py` - optional local GPT4All / GGUF fallback
 - `frontend/` - React + Vite UI
 - `scripts/train_and_package.py` - canonical model training/packaging
 - `scripts/evaluate.py` - model evaluation with accuracy gating
@@ -278,7 +276,7 @@ See [TRAINING.md](./TRAINING.md) for deterministic runner options.
 
 - Desktop automation should not be exposed publicly.
 - Speech recognition depends on browser support and microphone permission.
-- Local GPT4All fallback requires the configured model file to exist.
+- Local GPT4All / GGUF fallback requires the configured model file to exist.
 - Production Docker is a starting point, not a complete hosted deployment.
 
 ## Roadmap

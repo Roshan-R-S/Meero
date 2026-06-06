@@ -4,13 +4,9 @@ Below are draft GitHub issues you can copy to create tracked work in your reposi
 
 ---
 
-## 1) Add provider adapters: `openai_compat`, `openrouter`, `huggingface`
-- **Description**: Add a small adapter layer under `ai/providers/` to normalize external LLM provider payloads and responses. Implement `openai_compat`, `openrouter`, and `huggingface` adapters and a factory.
-- **Acceptance criteria**:
-  - `ai/providers/*` contains adapters and a `factory.get_provider(name)`.
-  - Unit tests exist for each adapter mocking HTTP responses.
-  - `ai/external_llm.py` uses the factory to obtain the provider and normalize responses.
-- **Labels**: `enhancement`, `ml`, `backend`
+## ~~1) Add provider adapters: `openai_compat`, `openrouter`, `huggingface`~~
+- **Status**: Superseded — external LLM providers removed in favor of local GGUF models.
+- **Labels**: `wontfix`
 
 ---
 

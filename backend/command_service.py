@@ -2,7 +2,6 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
-from ai.external_llm import ExternalLLM
 from core.actions import Actions
 from core.mock_engine import MockSpeechEngine
 from core.prompt_templates import clean_llm_response
@@ -99,7 +98,6 @@ def _run_neural_fallback(query: str, brain, metadata: dict[str, Any]) -> tuple[O
 def _run_llm_fallback(
     query: str,
     llm,
-    external_llm: Optional[ExternalLLM],
     history,
     summary: str,
     metadata: dict[str, Any],
@@ -122,22 +120,6 @@ def _run_llm_fallback(
                 metadata["fallback_reason"] = "local_llm_error"
         else:
             metadata["fallback_reason"] = "local_llm_unavailable"
-
-        if not response_text and external_llm:
-            try:
-                response_text = external_llm.generate_response(
-                    query,
-                    history=history,
-                    memory_summary=summary,
-                )
-                response_text = clean_llm_response(response_text)
-                if response_text:
-                    metadata["engine"] = "external_llm"
-            except Exception:
-                logger.exception("External LLM generation failed")
-                metadata["fallback_reason"] = "external_llm_error"
-        elif not response_text and external_llm is None:
-            metadata["fallback_reason"] = "external_llm_unavailable"
     elif not response_text:
         metadata["fallback_reason"] = "llm_disabled"
 
@@ -159,7 +141,6 @@ def execute_command(
     pending_command: Optional[str] = None,
     brain=None,
     llm=None,
-    external_llm: Optional[ExternalLLM] = None,
     conversation_history=None,
     memory_summary_fn: Optional[Callable[[], str]] = None,
     append_conversation_fn: Optional[Callable[[str, str], None]] = None,
@@ -237,7 +218,6 @@ def execute_command(
                 response_text, metadata = _run_llm_fallback(
                     raw_query,
                     llm,
-                    external_llm,
                     conversation_history,
                     summary,
                     metadata,

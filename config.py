@@ -142,29 +142,19 @@ NEURAL_NET_CONFIDENCE_THRESHOLD = 0.8
 MEMORY_MAX_INTERACTIONS = int(os.environ.get("MEMORY_MAX_INTERACTIONS", "20"))
 MEMORY_SUMMARY_MAX_CHARS = int(os.environ.get("MEMORY_SUMMARY_MAX_CHARS", "1200"))
 
-# LLM generation timeout (seconds) — used by async or guarded calls.
-LLM_MAX_GENERATION_TIME = 10
-
-# Remote provider name (optional) — e.g., 'openai', 'openrouter', or None for local
-LLM_API_PROVIDER = os.environ.get("LLM_API_PROVIDER") or None
-
-# By default external providers are disabled. Set ENABLE_EXTERNAL_PROVIDER=true
-# to allow using remote LLM providers (requires provider keys in env/secret store).
-ENABLE_EXTERNAL_PROVIDER = _env_bool("ENABLE_EXTERNAL_PROVIDER", False)
-LLM_MODEL_NAME = os.environ.get("LLM_MODEL_NAME") or None
-
 # Neural Net Hyperparameters (shared between training and inference)
 NEURAL_NET_MAXLEN = 20
 NEURAL_NET_VOCAB_SIZE = 1000
 NEURAL_NET_EMBEDDING_DIM = 16
 
-# External provider configuration (optional)
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY") or ""
-OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL") or "https://api.openai.com/v1"
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY") or ""
-OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1"
-NVIDIA_API_KEY = os.environ.get("NVIDIA_API_KEY") or ""
-NVIDIA_BASE_URL = os.environ.get("NVIDIA_BASE_URL") or "https://api.nvidia.com"
-PROVIDER_REQUEST_TIMEOUT = int(os.environ.get("PROVIDER_REQUEST_TIMEOUT", "15"))
-HUGGINGFACE_API_KEY = os.environ.get("HUGGINGFACE_API_KEY") or ""
-HUGGINGFACE_BASE_URL = os.environ.get("HUGGINGFACE_BASE_URL") or "https://api-inference.huggingface.co/models"
+# LLM generation timeout (seconds) — used by async or guarded calls.
+LLM_MAX_GENERATION_TIME = 10
+
+# Debug flag — when True, unhandled exception responses include the error
+# detail string.  Keep False in production to avoid leaking internals.
+DEBUG_ERRORS = _env_bool("DEBUG_ERRORS", False)
+
+# Rate-limiter resilience — when True (default), a Redis/rate-limiter failure
+# allows the request through.  Set to False in production to fail closed.
+RATE_LIMIT_FAIL_OPEN = _env_bool("RATE_LIMIT_FAIL_OPEN", True)
+

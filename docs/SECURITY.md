@@ -84,3 +84,22 @@ Run the repository secret scanner before publishing changes:
 ```powershell
 python scripts/secret_scan.py
 ```
+
+## Error Details
+
+By default, unhandled exceptions return only `{"error": "Internal server error"}`
+without revealing internal details. Set `DEBUG_ERRORS=true` only in development
+to include `detail` in error responses. **Never** enable this in production.
+
+## Rate Limiter Resilience
+
+`RATE_LIMIT_FAIL_OPEN=true` (default) allows requests through when the Redis
+rate limiter is unavailable. In production, set `RATE_LIMIT_FAIL_OPEN=false`
+to fail closed and return 503 when the rate limiter cannot be reached.
+
+## External LLM Providers
+
+External LLM providers (OpenRouter, NVIDIA, HuggingFace, OpenAI-compatible)
+have been removed. Meero uses only local GGUF models via GPT4All for LLM
+fallback. No API keys or external network calls are made for inference.
+

@@ -42,7 +42,23 @@ def load_dataset(intents_path):
     return texts, labels
 
 
-def evaluate(model_path, tokenizer_path, label_encoder_path, intents_path, maxlen=None, threshold=0.4, sample_latency_n=100):
+def load_eval_cases(eval_cases_path):
+    """Load evaluation cases from a separate JSON file.
+
+    Expected format:
+    {"cases": [{"query": "...", "expected_intent": "..."}]}
+    """
+    with open(eval_cases_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    texts = []
+    labels = []
+    for case in data.get("cases", []):
+        texts.append(case["query"])
+        labels.append(case["expected_intent"])
+    return texts, labels
+
+
+def evaluate(model_path, tokenizer_path, label_encoder_path, intents_path, maxlen=None, threshold=0.4, sample_latency_n=100, eval_cases_path=None):
     model = load_model_compat(model_path)
 
     with open(tokenizer_path, "rb") as f:
@@ -50,9 +66,17 @@ def evaluate(model_path, tokenizer_path, label_encoder_path, intents_path, maxle
     with open(label_encoder_path, "rb") as f:
         label_encoder = pickle.load(f)
 
-    texts, labels = load_dataset(intents_path)
+    if eval_cases_path:
+        texts, labels = load_eval_cases(eval_cases_path)
+        dataset_label = os.path.basename(eval_cases_path)
+        dataset_hash = compute_dataset_hash(eval_cases_path)
+    else:
+        texts, labels = load_dataset(intents_path)
+        dataset_label = os.path.basename(intents_path)
+        dataset_hash = compute_dataset_hash(intents_path)
+
     if not texts:
-        raise RuntimeError("No evaluation data found in intents file")
+        raise RuntimeError("No evaluation data found")
 
     maxlen = maxlen or getattr(config, "NEURAL_NET_MAXLEN", 20)
     sequences = tokenizer.texts_to_sequences(texts)
@@ -86,8 +110,8 @@ def evaluate(model_path, tokenizer_path, label_encoder_path, intents_path, maxle
         "model": os.path.basename(model_path),
         "tokenizer": os.path.basename(tokenizer_path),
         "label_encoder": os.path.basename(label_encoder_path),
-        "dataset": os.path.basename(intents_path),
-        "dataset_hash": compute_dataset_hash(intents_path),
+        "dataset": dataset_label,
+        "dataset_hash": dataset_hash,
         "samples": len(labels),
         "accuracy": accuracy,
         "hallucination_rate": hallucination_rate,
@@ -112,6 +136,8 @@ def main():
     parser.add_argument("--tokenizer", type=str, default="models/tokenizer.pkl")
     parser.add_argument("--label-encoder", type=str, default="models/label_encoder.pkl")
     parser.add_argument("--intents", type=str, default="intents.json")
+    parser.add_argument("--eval-cases", type=str, default=None,
+                        help="Path to unseen eval cases JSON file (overrides --intents for evaluation)")
     parser.add_argument("--maxlen", type=int, default=None)
     parser.add_argument("--threshold", type=float, default=0.4)
     parser.add_argument(
@@ -124,7 +150,12 @@ def main():
     parser.add_argument("--out", type=str, default=None, help="Write JSON report to file")
     args = parser.parse_args()
 
-    report = evaluate(args.model, args.tokenizer, args.label_encoder, args.intents, maxlen=args.maxlen, threshold=args.threshold, sample_latency_n=args.latency_samples)
+    report = evaluate(
+        args.model, args.tokenizer, args.label_encoder, args.intents,
+        maxlen=args.maxlen, threshold=args.threshold,
+        sample_latency_n=args.latency_samples,
+        eval_cases_path=args.eval_cases,
+    )
 
     print("Evaluation summary:")
     print(json.dumps(report, indent=2))

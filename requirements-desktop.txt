@@ -1,0 +1,5 @@
+# Desktop automation and local utilities
+pyautogui==0.9.54
+psutil==7.1.3
+wikipedia==1.4.0
+pyjokes==0.8.3

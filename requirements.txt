@@ -1,21 +1,7 @@
-# Core Dependencies (pinned for reproducibility)
-tensorflow==2.20.0
-numpy==2.2.6
-scikit-learn==1.7.2
-pyautogui==0.9.54
-psutil==7.1.3
-wikipedia==1.4.0
-pyjokes==0.8.3
-fastapi==0.126.0
-uvicorn==0.38.0
-python-multipart==0.0.21
-gpt4all==2.8.2
-vaderSentiment==3.3.2
+# Full install: base + AI + desktop + optional cloud tools
+-r requirements-base.txt
+-r requirements-ai.txt
+-r requirements-desktop.txt
 
-# Hugging Face Hub client for optional uploads
+# Hugging Face Hub client for optional model uploads
 huggingface-hub==1.0.1
-
-# Distributed rate limiting
-fastapi-limiter==0.1.0
-redis==5.0.8
-prometheus-client==0.16.0

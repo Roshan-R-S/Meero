@@ -38,7 +38,7 @@ Key modules:
 - `core/memory_store.py` persists conversation history and summaries in a local
   SQLite database that is created at runtime.
 - `ai/neural_net.py` loads canonical model artifacts for trained intent fallback.
-- `ai/llm_engine.py` and `ai/external_llm.py` provide optional LLM fallbacks.
+- `ai/llm_engine.py` provides the optional local GGUF LLM fallback.
 
 ## 3. Runtime Data Flow
 
@@ -48,8 +48,7 @@ flowchart TD
   B --> C[Command Service]
   C --> D[Rule-based Actions]
   C --> E[Neural Intent Model]
-  C --> F[Local GPT4All]
-  C --> G[External LLM]
+  C --> F[Local GPT4All / GGUF]
   C --> H[SQLite Memory]
   B --> I[Prometheus Metrics]
   B --> J[Redis Rate Limiting]
@@ -60,8 +59,8 @@ flowchart TD
 3. The backend checks local desktop safety rules, then runs rule-based actions
    first.
 4. If no action route matches, the backend tries the neural intent model.
-5. If the neural model cannot answer confidently, the backend tries local or
-   external LLM fallback.
+5. If the neural model cannot answer confidently, the backend tries the local
+   GGUF LLM fallback.
 6. The backend returns text, action status, sentiment, and metadata.
 7. The frontend displays and speaks the response in the browser.
 

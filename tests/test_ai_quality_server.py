@@ -26,7 +26,7 @@ class FakeLLM:
         return self.response
 
 
-def client_with_server_state(monkeypatch, brain=None, llm=None, external_llm=None, summary=""):
+def client_with_server_state(monkeypatch, brain=None, llm=None, summary=""):
     import backend.app as server
 
     server.LAST_COMMAND_TIME = 0
@@ -35,7 +35,6 @@ def client_with_server_state(monkeypatch, brain=None, llm=None, external_llm=Non
     server.CONVERSATION_HISTORY.extend([("previous question", "previous answer")])
     monkeypatch.setattr(server, "brain", brain)
     monkeypatch.setattr(server, "llm", llm)
-    monkeypatch.setattr(server, "external_llm", external_llm)
     monkeypatch.setattr(server, "_memory_summary", lambda: summary)
     monkeypatch.setattr(server.memory_store, "append", lambda *args, **kwargs: None)
     return TestClient(server.app)
