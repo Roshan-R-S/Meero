@@ -27,6 +27,7 @@ function App() {
   const [booting, setBooting] = useState(true);
   const [loadingText, setLoadingText] = useState("INITIALIZING SYSTEM CORE...");
   const [serverReachable, setServerReachable] = useState(true);
+  const [ggufMissing, setGgufMissing] = useState(false);
 
   useEffect(() => {
     const storage = typeof window !== "undefined" ? window.localStorage : null;
@@ -61,15 +62,25 @@ function App() {
       const nnLoaded = !status.neural_net?.enabled || status.neural_net?.loaded;
       const ggufLoaded = !status.gguf_llm?.enabled || status.gguf_llm?.loaded;
 
+      if (status.gguf_llm?.status === "missing") {
+        setGgufMissing(true);
+      }
+
       if (!nnLoaded && !ggufLoaded) {
         setLoadingText("LOADING NEURAL NET & GGUF MODEL...");
       } else if (!nnLoaded) {
         setLoadingText("LOADING NEURAL NET...");
       } else if (!ggufLoaded) {
-        setLoadingText("LOADING GGUF MODEL...");
+        if (status.gguf_llm?.status === "missing") {
+          setLoadingText("GGUF MODEL MISSING...");
+        } else {
+          setLoadingText("LOADING GGUF MODEL...");
+        }
       }
 
-      if (nnLoaded && ggufLoaded) {
+      // If missing GGUF, we stay on boot screen until user decides to bypass.
+      // The bypass sets ggufLoaded artificially or disables it.
+      if (nnLoaded && ggufLoaded && !ggufMissing) {
         setBooting(false);
       }
     };
@@ -249,7 +260,7 @@ function App() {
       addMessages([{ role: "user", text: userText }]);
     }
     speakRef.current(data.response);
-  }, [addMessages, pendingConfirmationCommand]);
+  }, [addMessages, pendingConfirmationCommand, textOutputEnabled]);
 
   const handleTypedSubmit = useCallback((event) => {
     event.preventDefault();
@@ -290,6 +301,22 @@ function App() {
         <div className="font-rajdhani text-sm text-cyan-800 tracking-widest mt-2 animate-bounce">
           {loadingText}
         </div>
+        {ggufMissing && (
+          <div className="mt-8 flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-500">
+            <div className="text-red-500 text-sm tracking-widest">
+              GGUF Model file could not be found locally.
+            </div>
+            <button
+              onClick={() => {
+                setGgufMissing(false);
+                setBooting(false);
+              }}
+              className="px-6 py-2 border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-black transition-colors uppercase tracking-widest font-bold"
+            >
+              Continue without LLM
+            </button>
+          </div>
+        )}
       </div>
     );
   }

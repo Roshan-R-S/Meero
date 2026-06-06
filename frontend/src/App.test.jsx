@@ -149,6 +149,8 @@ describe("App typed fallback", () => {
       wake_word_enabled: false,
       voice_rate: 1,
       voice_pitch: 1,
+      mic_enabled: true,
+      text_output_enabled: true,
       show_history: true,
       text_input_enabled: true,
     });

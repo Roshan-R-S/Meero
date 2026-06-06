@@ -132,6 +132,8 @@ MEERO_API_KEY = os.environ.get("MEERO_API_KEY", "")
 REQUIRE_API_KEY = _env_bool("REQUIRE_API_KEY", False)
 PROTECT_METRICS = _env_bool("PROTECT_METRICS", False)
 APP_LAUNCH_ALLOWLIST = tuple(_env_list("APP_LAUNCH_ALLOWLIST", []))
+APP_CLOSE_ALLOWLIST = tuple(_env_list("APP_CLOSE_ALLOWLIST", []))
+APP_FORCE_CLOSE_ALLOWLIST = tuple(_env_list("APP_FORCE_CLOSE_ALLOWLIST", []))
 
 # Neural net confidence threshold (0.0 - 1.0) used to decide whether to use the
 # neural net's answer or fall back to the LLM. Keep high if you prefer LLMs.

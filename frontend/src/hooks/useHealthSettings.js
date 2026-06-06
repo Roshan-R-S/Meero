@@ -46,14 +46,11 @@ export default function useHealthSettings({ wakeWordEnabled, setWakeWordEnabled 
       wake_word_enabled: wakeWordEnabled,
       voice_rate: voiceRate,
       voice_pitch: voicePitch,
+      mic_enabled: micEnabled,
+      text_output_enabled: textOutputEnabled,
+      show_history: showHistory,
+      text_input_enabled: textInputEnabled,
     };
-    // Only include mic/text toggles when they differ from default true to
-    // avoid changing API payload shape for older clients/tests.
-    if (typeof micEnabled === "boolean" && micEnabled !== true) payload.mic_enabled = micEnabled;
-    if (typeof textOutputEnabled === "boolean" && textOutputEnabled !== true) payload.text_output_enabled = textOutputEnabled;
-    // Only include show/history and text input when enabled (defaults are false)
-    if (typeof showHistory === "boolean" && showHistory === true) payload.show_history = showHistory;
-    if (typeof textInputEnabled === "boolean" && textInputEnabled === true) payload.text_input_enabled = textInputEnabled;
     return saveSettings(payload);
   }, [wakeWordEnabled, voiceRate, voicePitch, micEnabled, textOutputEnabled, showHistory, textInputEnabled]);
 

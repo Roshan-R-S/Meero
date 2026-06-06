@@ -1,5 +1,7 @@
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw, X, Download, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
 import { formatMessageTime } from "../hooks/useMessages";
+import { exportMemory, clearMemory, getModelStatus } from "../api";
 
 export default function SettingsPanel({
   apiHealth,
@@ -22,8 +24,38 @@ export default function SettingsPanel({
   showHistory,
   textInputEnabled,
 }) {
+  const [modelStatus, setModelStatus] = useState(null);
+
+  useEffect(() => {
+    getModelStatus().then(data => {
+      if (data) setModelStatus(data);
+    });
+  }, []);
+
+  const handleExportMemory = async () => {
+    const data = await exportMemory();
+    if (data) {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "meero_memory.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleClearMemory = async () => {
+    if (window.confirm("Are you sure you want to clear all memory? This cannot be undone.")) {
+      await clearMemory();
+      alert("Memory cleared.");
+    }
+  };
+
   return (
-    <div className="absolute right-4 top-4 z-50 w-[min(21rem,calc(100vw-2rem))] rounded border border-cyan-400/25 bg-black/75 p-4 text-sm text-cyan-50 shadow-[0_0_32px_rgba(8,145,178,0.22)] backdrop-blur">
+    <div className="absolute right-4 top-4 z-50 w-[min(21rem,calc(100vw-2rem))] rounded border border-cyan-400/25 bg-black/75 p-4 text-sm text-cyan-50 shadow-[0_0_32px_rgba(8,145,178,0.22)] backdrop-blur overflow-y-auto max-h-[90vh]">
       <div className="mb-4 flex items-center justify-between">
         <span className="font-orbitron text-xs uppercase tracking-widest text-cyan-300">Settings</span>
         <button
@@ -161,6 +193,36 @@ export default function SettingsPanel({
         >
           <RefreshCw size={13} />
         </button>
+      </div>
+
+      <div className="mb-4">
+        <h3 className="mb-2 text-xs font-orbitron uppercase text-cyan-300 tracking-widest border-b border-cyan-800 pb-1">Model Status</h3>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <span className="rounded border border-cyan-400/20 px-2 py-1">
+            NN: {modelStatus ? (modelStatus.neural_net?.loaded ? "loaded" : "error") : "unknown"}
+          </span>
+          <span className="rounded border border-cyan-400/20 px-2 py-1">
+            LLM: {modelStatus ? modelStatus.gguf_llm?.status : "unknown"}
+          </span>
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <h3 className="mb-2 text-xs font-orbitron uppercase text-cyan-300 tracking-widest border-b border-cyan-800 pb-1">Memory</h3>
+        <div className="flex gap-2">
+          <button
+            onClick={handleExportMemory}
+            className="flex-1 flex items-center justify-center gap-2 rounded border border-cyan-600 px-2 py-1 text-xs transition hover:bg-cyan-900/40"
+          >
+            <Download size={12} /> Export
+          </button>
+          <button
+            onClick={handleClearMemory}
+            className="flex-1 flex items-center justify-center gap-2 rounded border border-red-600/50 text-red-400 px-2 py-1 text-xs transition hover:bg-red-900/40"
+          >
+            <Trash2 size={12} /> Clear
+          </button>
+        </div>
       </div>
 
       <button

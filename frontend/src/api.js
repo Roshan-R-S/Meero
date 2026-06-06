@@ -88,3 +88,23 @@ export const saveSettings = async (settings) => {
     return { status: "error" };
   }
 };
+
+export const exportMemory = async () => {
+  try {
+    const response = await axios.get(`${API_URL}/memory`, { headers: authHeaders });
+    return response.data;
+  } catch (error) {
+    logger.error("Export memory API Error:", error);
+    return null;
+  }
+};
+
+export const clearMemory = async () => {
+  try {
+    const response = await axios.delete(`${API_URL}/memory`, { headers: authHeaders });
+    return response.data;
+  } catch (error) {
+    logger.error("Clear memory API Error:", error);
+    return { status: "error" };
+  }
+};

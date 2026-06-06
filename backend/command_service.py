@@ -5,6 +5,8 @@ from typing import Any, Callable, Optional
 from core.actions import Actions
 from core.mock_engine import MockSpeechEngine
 from core.prompt_templates import clean_llm_response
+from .schemas import CommandOutcome
+from .telemetry import log_audit_event
 
 import config
 
@@ -26,15 +28,6 @@ DESKTOP_COMMAND_MATCHERS = (
     "_match_close_app",
     "_match_screenshot",
 )
-
-
-@dataclass
-class CommandOutcome:
-    response: str
-    action_status: str
-    sentiment: str = "neutral"
-    pending_command: Optional[str] = None
-    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 def _memory_summary(memory_summary_fn: Optional[Callable[[], str]]) -> str:
@@ -169,7 +162,7 @@ def execute_command(
     try:
         if _is_desktop_command(normalized_query, actions):
             if not client_is_local:
-                return CommandOutcome(
+                outcome = CommandOutcome(
                     response="Desktop control is available only from the local machine.",
                     action_status="blocked",
                     sentiment="negative",
@@ -178,8 +171,9 @@ def execute_command(
                         "fallback_reason": "local_request_required",
                     },
                 )
+                return outcome
             if not getattr(config, "LOCAL_DESKTOP_MODE", True) or getattr(config, "WEB_SAFE_MODE", False):
-                return CommandOutcome(
+                outcome = CommandOutcome(
                     response="Desktop control is disabled. Enable LOCAL_DESKTOP_MODE to use that command.",
                     action_status="blocked",
                     sentiment="neutral",
@@ -188,12 +182,13 @@ def execute_command(
                         "fallback_reason": "desktop_mode_disabled",
                     },
                 )
+                return outcome
 
         needs_confirmation = bool(
             hasattr(actions, "_requires_confirmation") and actions._requires_confirmation(normalized_query)
         )
         if needs_confirmation and not confirm:
-            return CommandOutcome(
+            outcome = CommandOutcome(
                 response=(
                     "This action may delete data or change system settings. "
                     "Say yes to continue or no to cancel."
@@ -206,6 +201,7 @@ def execute_command(
                     "fallback_reason": "confirmation_required",
                 },
             )
+            return outcome
 
         confirmation_input = (lambda: "yes") if confirm else dummy_input
         result = actions.process_command(
@@ -254,18 +250,50 @@ def execute_command(
             latency,
         )
 
-        return CommandOutcome(
+        outcome = CommandOutcome(
             response=final_response,
             action_status="success",
             sentiment=sentiment,
             pending_command=None,
             metadata=metadata,
         )
-    except Exception as exc:
-        logger.exception("Error processing command")
-        return CommandOutcome(
-            response="I encountered an internal error. Please try again.",
+    except Exception as e:
+        logger.exception("Error executing command via pipeline")
+        outcome = CommandOutcome(
+            response="I encountered an internal error processing that command.",
             action_status="error",
             sentiment="negative",
-            metadata={"engine": "error", "fallback_reason": type(exc).__name__},
+            metadata={"engine": "error", "fallback_reason": str(e)},
         )
+    finally:
+        latency_ms = (time.time() - start_time) * 1000
+        
+        out_response = "Error"
+        out_action_status = "error"
+        out_sentiment = "neutral"
+        out_engine = "unknown"
+        out_confidence = None
+        out_intent = None
+        
+        if 'outcome' in locals() and outcome:
+            out_response = outcome.response
+            out_action_status = outcome.action_status
+            out_sentiment = outcome.sentiment
+            out_engine = outcome.metadata.get("engine", "unknown")
+            out_confidence = outcome.metadata.get("confidence")
+            out_intent = outcome.metadata.get("intent")
+            
+            outcome.metadata["latency_ms"] = latency_ms
+
+        log_audit_event(
+            command=query,
+            action_status=out_action_status,
+            response=out_response,
+            engine=out_engine,
+            sentiment=out_sentiment,
+            confidence=out_confidence,
+            intent=out_intent,
+            latency_ms=latency_ms
+        )
+
+    return outcome

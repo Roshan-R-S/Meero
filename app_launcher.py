@@ -178,8 +178,8 @@ def close_app_by_name(app_name):
     """
     app_lower = app_name.lower().strip()
 
-    if not is_app_allowed(app_lower):
-        return _blocked_message(app_name, "closing")
+    if getattr(config, "APP_CLOSE_ALLOWLIST", None) and app_lower not in config.APP_CLOSE_ALLOWLIST:
+        return False, f"Closing {app_name} is blocked by your safety configuration."
 
     # Map common names to process names
     process_map = {
@@ -211,8 +211,14 @@ def close_app_by_name(app_name):
         # Try appending .exe and using it directly
         process_name = app_lower if app_lower.endswith(".exe") else f"{app_lower}.exe"
 
+    force_close = getattr(config, "APP_FORCE_CLOSE_ALLOWLIST", None) and app_lower in config.APP_FORCE_CLOSE_ALLOWLIST
+    
+    taskkill_args = ["taskkill", "/im", process_name]
+    if force_close:
+        taskkill_args.insert(1, "/f")
+
     result = subprocess.run(
-        ["taskkill", "/f", "/im", process_name],
+        taskkill_args,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         text=True

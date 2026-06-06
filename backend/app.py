@@ -81,6 +81,10 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
+    if isinstance(exc, HTTPException):
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    
     # Log full exception server-side and return a JSON error so the frontend
     # can surface a helpful message instead of a silent 500.
     logger.exception("Unhandled exception during request: %s %s", request.method, request.url)
@@ -131,6 +135,10 @@ async def prometheus_middleware(request: Request, call_next):
 @app.on_event("startup")
 async def startup_rate_limiter():
     global _RATE_LIMITER_READY
+    
+    # Start background LLM loading
+    threading.Thread(target=_load_llm_background, daemon=True).start()
+    
     if not _RATE_LIMITER_AVAILABLE:
         logger.info("Rate limiter libraries not available; skipping init")
         return
@@ -174,15 +182,36 @@ if getattr(config, "USE_NEURAL_NET", True) and NeuralNet is not None:
 else:
     brain = None
 
-if getattr(config, "USE_LLM", True) and LLMEngine is not None:
+llm = None
+_llm_status = {
+    "loading": False,
+    "missing": False,
+    "ready": False,
+    "message": ""
+}
+
+def _load_llm_background():
+    global llm, _llm_status
+    if not getattr(config, "USE_LLM", True) or LLMEngine is None:
+        _llm_status["message"] = "LLM disabled in config or not installed."
+        return
+
+    if not os.path.exists(MODEL_PATH):
+        logger.warning(f"GGUF model file not found at {MODEL_PATH}")
+        _llm_status["missing"] = True
+        _llm_status["message"] = "Model file not found"
+        return
+
+    _llm_status["loading"] = True
     try:
         llm = LLMEngine(MODEL_PATH)
         logger.info("LLM initialized via GPT4All (Standalone).")
+        _llm_status["ready"] = True
+        _llm_status["loading"] = False
     except Exception as e:
         logger.error("Error loading GPT4All: %s", e)
-        llm = None
-else:
-    llm = None
+        _llm_status["loading"] = False
+        _llm_status["message"] = f"Error: {e}"
 
 
 
@@ -371,13 +400,13 @@ def process_command(payload: CommandRequest, http_request: Request):
         )
 
 
-@app.get("/memory", dependencies=[Depends(require_api_key)])
+@app.get("/memory", dependencies=[Depends(require_local_request), Depends(require_api_key)])
 def export_memory():
     """Export the local SQLite memory for the user."""
     return memory_store.export()
 
 
-@app.delete("/memory", dependencies=[Depends(require_api_key)])
+@app.delete("/memory", dependencies=[Depends(require_local_request), Depends(require_api_key)])
 def clear_memory():
     """Clear the local SQLite memory."""
     memory_store.clear()
@@ -392,19 +421,22 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/model/status")
+@app.get("/model/status", dependencies=[Depends(require_local_request), Depends(require_api_key)])
 def model_status():
     """Return the status of the local models for UI lazy-loading and management."""
+    status_str = "ready" if _llm_status["ready"] else ("missing" if _llm_status["missing"] else ("loading" if _llm_status["loading"] else "error"))
     return {
         "neural_net": {
             "enabled": getattr(config, "USE_NEURAL_NET", True),
             "loaded": brain is not None,
-            "path": getattr(config, "NEURAL_NET_MODEL_PATH", "models/chat_model.h5")
+            "name": os.path.basename(getattr(config, "NEURAL_NET_MODEL_PATH", "models/chat_model.h5"))
         },
         "gguf_llm": {
             "enabled": getattr(config, "USE_LLM", True),
-            "loaded": llm is not None,
-            "path": MODEL_PATH
+            "loaded": _llm_status["ready"],
+            "status": status_str,
+            "message": _llm_status["message"],
+            "name": os.path.basename(MODEL_PATH)
         }
     }
 
