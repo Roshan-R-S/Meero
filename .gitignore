@@ -13,10 +13,15 @@ build/
 *.pkl
 *.h5
 models/*.gguf
+models/local-llm/
+models/local-stt/
+models/local-tts/
+models/vosk-model*/
 models/*_eval.json
 models/*diagnostics*.json
 models/*sweep*.json
 models/*.metadata.json
+models/intents.teacher_augmented.json*
 archive/
 *.db-journal
 
@@ -25,6 +30,8 @@ archive/
 data/*.db
 data/settings.json
 data/audit.jsonl
+data/voice-cache/
+data/screenshots/
 
 # IDE / Editor
 .vscode/

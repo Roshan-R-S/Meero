@@ -5,12 +5,16 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { getHealth, getSettings, saveSettings, sendCommand, getModelStatus } from "./api";
 import App from "./App";
 
+const browserToggle = vi.hoisted(() => vi.fn());
+const voiceToggle = vi.hoisted(() => vi.fn());
+
 vi.mock("./api", () => ({
   getHealth: vi.fn(),
   getSettings: vi.fn(),
   saveSettings: vi.fn(),
   sendCommand: vi.fn(),
   getModelStatus: vi.fn(),
+  sendVoiceCommand: vi.fn(),
 }));
 
 vi.mock("./components/Background", () => ({
@@ -34,7 +38,7 @@ vi.mock("./hooks/useSpeechRecognition", () => ({
   default: vi.fn(() => ({
     isConversing: false,
     isConversingRef: { current: false },
-    toggleListen: vi.fn(),
+    toggleListen: browserToggle,
     recognitionRef: { current: { start: vi.fn() } },
     wakeWordEnabled: false,
     setWakeWordEnabled: vi.fn(),
@@ -46,6 +50,16 @@ vi.mock("./hooks/useSpeechRecognition", () => ({
 vi.mock("./hooks/useSpeechSynthesis", () => ({
   default: vi.fn(() => ({
     speak: vi.fn(),
+  })),
+}));
+
+vi.mock("./hooks/useVoicePipeline", () => ({
+  default: vi.fn(() => ({
+    recording: false,
+    processing: false,
+    error: "",
+    supported: true,
+    toggleRecording: voiceToggle,
   })),
 }));
 
@@ -127,7 +141,7 @@ describe("App typed fallback", () => {
     delete window.SpeechRecognition;
   });
 
-  test("honors a saved disabled text-input preference when speech is supported", async () => {
+  test("keeps typed input visible when browser speech fallback is not enabled", async () => {
     window.SpeechRecognition = vi.fn();
     getSettings.mockResolvedValue({
       text_input_enabled: false,
@@ -136,7 +150,7 @@ describe("App typed fallback", () => {
     await renderApp();
     await finishBoot();
 
-    expect(screen.queryByLabelText("Type command")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Type command")).toBeInTheDocument();
     delete window.SpeechRecognition;
   });
 
@@ -158,6 +172,37 @@ describe("App typed fallback", () => {
     expect(screen.getByText("user:")).toBeInTheDocument();
     expect(screen.getByText("what time is it")).toBeInTheDocument();
     expect(screen.getAllByText("Done.").length).toBeGreaterThan(0);
+  });
+
+  test("prefers local push-to-talk when local STT is available", async () => {
+    getModelStatus.mockResolvedValue({
+      neural_net: { enabled: true, loaded: true },
+      gguf_llm: { enabled: false, loaded: false },
+      voice: { stt: { available: true } },
+    });
+    await renderApp();
+    await finishBoot();
+
+    fireEvent.click(screen.getByLabelText("Start listening"));
+
+    expect(voiceToggle).toHaveBeenCalledTimes(1);
+    expect(browserToggle).not.toHaveBeenCalled();
+  });
+
+  test("uses browser speech only when the fallback setting is enabled", async () => {
+    window.SpeechRecognition = vi.fn();
+    getSettings.mockResolvedValue({
+      browser_speech_fallback_enabled: true,
+      local_voice_enabled: true,
+    });
+    await renderApp();
+    await finishBoot();
+
+    fireEvent.click(screen.getByLabelText("Start listening"));
+
+    expect(browserToggle).toHaveBeenCalledTimes(1);
+    expect(voiceToggle).not.toHaveBeenCalled();
+    delete window.SpeechRecognition;
   });
 
   test("opens settings panel and saves supported settings", async () => {
@@ -182,6 +227,8 @@ describe("App typed fallback", () => {
       text_output_enabled: true,
       show_history: true,
       text_input_enabled: true,
+      local_voice_enabled: true,
+      browser_speech_fallback_enabled: false,
     });
   });
 

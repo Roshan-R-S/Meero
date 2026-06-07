@@ -1,0 +1,9 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.voice
+    volumes:
+      - ./models/local-stt:/app/models/local-stt:ro
+      - ./models/local-tts:/app/models/local-tts:ro
+      - ./models/local-llm:/app/models/local-llm:ro

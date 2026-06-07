@@ -1,5 +1,5 @@
 import { Copy, Trash2 } from "lucide-react";
-import { formatMessageTime } from "../hooks/useMessages";
+import { formatTime } from "../utils/formatTime";
 
 export default function HistoryPanel({ messages, onClear, onCopy }) {
   if (messages.length === 0) return null;
@@ -23,8 +23,8 @@ export default function HistoryPanel({ messages, onClear, onCopy }) {
           <div className="min-w-0 flex-1">
             <div className="mb-0.5 flex items-center gap-2">
               <span className="text-cyan-300">{msg.role}:</span>
-              {formatMessageTime(msg.createdAt) && (
-                <time className="text-[0.65rem] text-cyan-100/45">{formatMessageTime(msg.createdAt)}</time>
+              {formatTime(msg.createdAt) && (
+                <time className="text-[0.65rem] text-cyan-100/45">{formatTime(msg.createdAt)}</time>
               )}
             </div>
             <span className="break-words">{msg.text}</span>

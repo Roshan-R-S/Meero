@@ -66,6 +66,7 @@ APP_FORCE_CLOSE_ALLOWLIST=notepad
 
 - React + Vite assistant interface with voice and typed command input
 - Browser Speech Recognition and SpeechSynthesis support
+- Preferred local push-to-talk voice through Vosk and Piper/SAPI
 - FastAPI command API with confirmation for sensitive actions
 - Local desktop action routing guarded by desktop mode
 - Neural intent fallback for trained conversational intents
@@ -220,7 +221,7 @@ flowchart TD
 - `scripts/train_and_package.py` - canonical model training/packaging
 - `scripts/evaluate.py` - model evaluation with accuracy gating
 
-See [PROJECT_ARCHITECTURE.md](./PROJECT_ARCHITECTURE.md) for the runtime flow.
+See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for the runtime flow.
 
 ## Checks
 
@@ -265,7 +266,7 @@ This repo's CI workflows run:
 
 ## Training And Evaluation
 
-Train canonical model artifacts after changing `intents.json`:
+Train canonical model artifacts after changing `data/intents.json`:
 
 ```powershell
 python scripts/train_and_package.py --epochs 100 --batch 8 --out-dir models
@@ -294,6 +295,8 @@ python scripts/evaluate_routes.py --eval-cases data/voice_eval_cases.json
 ```
 
 See [TRAINING.md](./TRAINING.md) for deterministic runner options.
+See [docs/LOCAL_MODELS.md](./docs/LOCAL_MODELS.md) for explicit local voice and
+GGUF model setup.
 
 ## Known Limitations
 
@@ -321,6 +324,6 @@ See [TRAINING.md](./TRAINING.md) for deterministic runner options.
 - [x] Voice-specific routing evaluation
 - [x] Fail-closed desktop app allowlists
 - [x] Private-by-default audit logging
-- [ ] Local Vosk STT runtime provider
-- [ ] Local Piper TTS runtime provider
+- [x] Local Vosk STT runtime provider
+- [x] Local Piper/SAPI TTS runtime provider
 - [ ] Public deployment hardening

@@ -54,12 +54,16 @@ ASSISTANT_NAME = "Meero"
 USER_NAME = "Roshan"
 
 # Paths
-INTENTS_FILE = os.path.join(BASE_DIR, "intents.json")
+DATA_DIR = os.path.join(BASE_DIR, "data")
+INTENTS_FILE = os.path.join(DATA_DIR, "intents.json")
 # Default model locations live under the `models/` directory. The training
 # script will write versioned artifacts and also update the canonical
 # filenames below so the app always loads the latest model by default.
 MODEL_DIR = os.path.join(BASE_DIR, "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
+LOCAL_LLM_DIR = os.path.join(MODEL_DIR, "local-llm")
+LOCAL_STT_DIR = os.path.join(MODEL_DIR, "local-stt")
+LOCAL_TTS_DIR = os.path.join(MODEL_DIR, "local-tts")
 MODEL_FILE = os.path.join(MODEL_DIR, "chat_model.h5")
 TOKENIZER_FILE = os.path.join(MODEL_DIR, "tokenizer.pkl")
 LABEL_ENCODER_FILE = os.path.join(MODEL_DIR, "label_encoder.pkl")
@@ -103,7 +107,9 @@ def _resolve_local_llm_model_path():
     candidate = configured_path or configured_file or DEFAULT_LOCAL_LLM_MODEL_FILE
     if os.path.isabs(candidate):
         return candidate
-    return os.path.join(MODEL_DIR, candidate)
+    preferred = os.path.join(LOCAL_LLM_DIR, candidate)
+    legacy = os.path.join(MODEL_DIR, candidate)
+    return preferred if os.path.exists(preferred) or not os.path.exists(legacy) else legacy
 
 
 LLM_MODEL_PATH = _resolve_local_llm_model_path()
@@ -112,9 +118,16 @@ LLM_MODEL_PATH = _resolve_local_llm_model_path()
 def _resolve_teacher_model_paths():
     resolved = []
     for candidate in DEFAULT_GGUF_TEACHER_MODEL_FILES:
-        candidate_path = candidate if os.path.isabs(candidate) else os.path.join(MODEL_DIR, candidate)
-        if os.path.exists(candidate_path):
-            resolved.append(candidate_path)
+        if os.path.isabs(candidate):
+            candidates = [candidate]
+        else:
+            candidates = [
+                os.path.join(LOCAL_LLM_DIR, candidate),
+                os.path.join(MODEL_DIR, candidate),
+            ]
+        existing = next((path for path in candidates if os.path.exists(path)), None)
+        if existing:
+            resolved.append(existing)
     return resolved
 
 
@@ -162,3 +175,13 @@ RATE_LIMIT_FAIL_OPEN = _env_bool("RATE_LIMIT_FAIL_OPEN", True)
 
 # Audit privacy — command and response text remain excluded unless explicitly enabled.
 AUDIT_LOG_COMMAND_TEXT = _env_bool("AUDIT_LOG_COMMAND_TEXT", False)
+
+# Local voice. Models are installed explicitly; application startup never downloads them.
+VOICE_STT_PROVIDER = os.environ.get("VOICE_STT_PROVIDER", "vosk").strip().lower()
+VOICE_TTS_PROVIDER = os.environ.get("VOICE_TTS_PROVIDER", "piper").strip().lower()
+VOSK_MODEL_PATH = os.environ.get("VOSK_MODEL_PATH", os.path.join(LOCAL_STT_DIR, "vosk-en-us"))
+WHISPER_MODEL_PATH = os.environ.get("WHISPER_MODEL_PATH", os.path.join(LOCAL_STT_DIR, "whisper"))
+PIPER_MODEL_PATH = os.environ.get("PIPER_MODEL_PATH", os.path.join(LOCAL_TTS_DIR, "voice.onnx"))
+PIPER_EXECUTABLE = os.environ.get("PIPER_EXECUTABLE", "piper")
+VOICE_MAX_UPLOAD_BYTES = int(os.environ.get("VOICE_MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
+VOICE_MAX_DURATION_SECONDS = float(os.environ.get("VOICE_MAX_DURATION_SECONDS", "30"))

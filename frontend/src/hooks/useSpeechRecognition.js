@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { playListeningStart, playListeningStop } from "../utils/sound";
 import { logger } from "../utils/logger";
+import { getBrowserSpeechRecognition } from "../utils/speechSupport";
 
 const WAKE_VARIANTS = [
   "hey meero", "hey miro", "a meero", "hey mirror", "hey nero",
@@ -9,11 +10,6 @@ const WAKE_VARIANTS = [
 
 const clean = (text) =>
   text.toLowerCase().replace(/[.,!?;:'"]/g, "").replace(/\s+/g, " ").trim();
-
-const getSpeechAPI = () => {
-  if (typeof window === "undefined") return null;
-  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-};
 
 const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = null) => {
   const recRef = useRef(null);
@@ -59,7 +55,7 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
 
   // ── Init Recognition ───────────────────────────────────────────
   useEffect(() => {
-    const SpeechAPI = getSpeechAPI();
+    const SpeechAPI = getBrowserSpeechRecognition();
     if (!SpeechAPI) return;
     if (!recRef.current) recRef.current = new SpeechAPI();
     const rec = recRef.current;
