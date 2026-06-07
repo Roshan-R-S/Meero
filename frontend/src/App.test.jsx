@@ -104,11 +104,40 @@ describe("App typed fallback", () => {
   });
 
   test("shows typed command fallback when speech recognition is unavailable", async () => {
+    getSettings.mockResolvedValue({
+      text_input_enabled: false,
+      show_history: true,
+    });
+
     await renderApp();
     await finishBoot();
 
     expect(screen.getByLabelText("Type command")).toBeInTheDocument();
     expect(screen.getByText(/Speech recognition is not available/i)).toBeInTheDocument();
+  });
+
+  test("shows typed command input by default when no preference is saved", async () => {
+    window.SpeechRecognition = vi.fn();
+    getSettings.mockResolvedValue({});
+
+    await renderApp();
+    await finishBoot();
+
+    expect(screen.getByLabelText("Type command")).toBeInTheDocument();
+    delete window.SpeechRecognition;
+  });
+
+  test("honors a saved disabled text-input preference when speech is supported", async () => {
+    window.SpeechRecognition = vi.fn();
+    getSettings.mockResolvedValue({
+      text_input_enabled: false,
+    });
+
+    await renderApp();
+    await finishBoot();
+
+    expect(screen.queryByLabelText("Type command")).not.toBeInTheDocument();
+    delete window.SpeechRecognition;
   });
 
   test("submits typed commands through the existing command API", async () => {

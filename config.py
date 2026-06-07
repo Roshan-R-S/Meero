@@ -160,3 +160,5 @@ DEBUG_ERRORS = _env_bool("DEBUG_ERRORS", False)
 # allows the request through.  Set to False in production to fail closed.
 RATE_LIMIT_FAIL_OPEN = _env_bool("RATE_LIMIT_FAIL_OPEN", True)
 
+# Audit privacy — command and response text remain excluded unless explicitly enabled.
+AUDIT_LOG_COMMAND_TEXT = _env_bool("AUDIT_LOG_COMMAND_TEXT", False)

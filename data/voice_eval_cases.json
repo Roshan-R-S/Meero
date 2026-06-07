@@ -1,0 +1,64 @@
+{
+  "cases": [
+    {
+      "query": "hey miro open calculator",
+      "expected_intent": "open_app"
+    },
+    {
+      "query": "hey mirror launch visual studio coat",
+      "expected_intent": "open_app"
+    },
+    {
+      "query": "start cal cue later",
+      "expected_intent": "open_app"
+    },
+    {
+      "query": "close note pad",
+      "expected_intent": "close_app"
+    },
+    {
+      "query": "close spot if eye",
+      "expected_intent": "close_app"
+    },
+    {
+      "query": "take a screen shot",
+      "expected_intent": "screenshot"
+    },
+    {
+      "query": "hey meero capture a screen shot",
+      "expected_intent": "screenshot"
+    },
+    {
+      "query": "turn down sound",
+      "expected_intent": "volume"
+    },
+    {
+      "query": "increase the sound please",
+      "expected_intent": "volume"
+    },
+    {
+      "query": "mute the sound",
+      "expected_intent": "volume"
+    },
+    {
+      "query": "open a new browser tab",
+      "expected_intent": "tab"
+    },
+    {
+      "query": "close this browser tab",
+      "expected_intent": "tab"
+    },
+    {
+      "query": "scroll down a bit",
+      "expected_intent": "scroll"
+    },
+    {
+      "query": "hey nero tell me a joke",
+      "expected_intent": "joke"
+    },
+    {
+      "query": "what time is it please",
+      "expected_intent": "time"
+    }
+  ]
+}

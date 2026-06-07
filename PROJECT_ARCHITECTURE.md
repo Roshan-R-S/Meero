@@ -76,6 +76,12 @@ variables:
 - `MEERO_API_KEY` enables API-key checks for protected endpoints.
 - `REQUIRE_API_KEY=true` makes protected endpoints fail closed when no key is
   configured.
+- `APP_LAUNCH_ALLOWLIST` and `APP_CLOSE_ALLOWLIST` explicitly grant local app
+  control; empty lists fail closed in local desktop mode.
+- `APP_FORCE_CLOSE_ALLOWLIST` permits forced termination only for approved
+  close targets.
+- `AUDIT_LOG_COMMAND_TEXT=false` keeps spoken command and response text out of
+  audit logs.
 
 The `/settings` endpoint is local-only and accepts a strict schema for supported
 assistant settings. `/health` is intentionally minimal; `/debug/health` exposes
@@ -93,3 +99,24 @@ Runtime model loading uses canonical artifact paths:
 Training and packaging are handled by `scripts/train_and_package.py`. Generated
 experiment artifacts, diagnostics, and local runtime databases are not part of
 the source architecture.
+
+## 6. Local Speech Roadmap
+
+Browser Speech Recognition and SpeechSynthesis remain the v0.1.0-local runtime
+providers. Future providers should preserve the same transcript-to-command and
+response-to-speech boundaries:
+
+```mermaid
+flowchart LR
+  A[Audio Input] --> B[STT Provider]
+  B --> C[Text Command Pipeline]
+  C --> D[Text Response]
+  D --> E[TTS Provider]
+  E --> F[Audio Output]
+```
+
+- First local STT provider: Vosk. The repository already contains
+  `scripts/setup_vosk.py` and model setup assets.
+- Preferred local TTS provider: Piper.
+- Lightweight Windows TTS fallback: Windows SAPI.
+- External inference providers remain out of scope.

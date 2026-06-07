@@ -3,6 +3,8 @@ import os
 import time
 import logging
 
+import config
+
 logger = logging.getLogger(__name__)
 
 AUDIT_LOG_PATH = os.path.abspath(os.path.join(
@@ -23,15 +25,16 @@ def log_audit_event(
         os.makedirs(os.path.dirname(AUDIT_LOG_PATH), exist_ok=True)
         event = {
             "timestamp": time.time(),
-            "command": command,
             "action_status": action_status,
-            "response": response,
             "engine": engine,
             "sentiment": sentiment,
             "confidence": confidence,
             "intent": intent,
             "latency_ms": latency_ms
         }
+        if getattr(config, "AUDIT_LOG_COMMAND_TEXT", False):
+            event["command"] = command
+            event["response"] = response
         with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(event) + "\n")
     except Exception as e:

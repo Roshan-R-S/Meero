@@ -7,7 +7,7 @@ export default function useHealthSettings({ wakeWordEnabled, setWakeWordEnabled 
   const [micEnabled, setMicEnabled] = useState(true);
   const [textOutputEnabled, setTextOutputEnabled] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
-  const [textInputEnabled, setTextInputEnabled] = useState(false);
+  const [textInputEnabled, setTextInputEnabled] = useState(true);
   const [apiHealth, setApiHealth] = useState(null);
   const [lastHealthCheckedAt, setLastHealthCheckedAt] = useState(null);
 

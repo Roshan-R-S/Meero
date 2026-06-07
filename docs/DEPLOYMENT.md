@@ -12,12 +12,17 @@ WEB_SAFE_MODE=false
 LOCAL_DESKTOP_MODE=true
 REQUIRE_API_KEY=false
 PROTECT_METRICS=false
-APP_LAUNCH_ALLOWLIST=
+APP_LAUNCH_ALLOWLIST=notepad,calculator,paint,vscode
+APP_CLOSE_ALLOWLIST=notepad,calculator,paint,vscode
+APP_FORCE_CLOSE_ALLOWLIST=notepad
+AUDIT_LOG_COMMAND_TEXT=false
 MEERO_API_KEY=
 ```
 
 Desktop automation is available only for local requests. Add `MEERO_API_KEY` and
 matching `VITE_MEERO_API_KEY` if another browser or device can reach the backend.
+Launch and close operations remain blocked until their explicit allowlists are
+configured.
 
 ## Private Or VPN Hosted Assistant
 
@@ -30,6 +35,7 @@ LOCAL_DESKTOP_MODE=false
 REQUIRE_API_KEY=true
 PROTECT_METRICS=true
 MEERO_API_KEY=<strong-random-value>
+AUDIT_LOG_COMMAND_TEXT=false
 ```
 
 For browser builds, `VITE_MEERO_API_KEY` can send the matching key, but it is not
@@ -45,6 +51,7 @@ LOCAL_DESKTOP_MODE=false
 REQUIRE_API_KEY=true
 PROTECT_METRICS=true
 MEERO_API_KEY=<strong-random-value>
+AUDIT_LOG_COMMAND_TEXT=false
 ```
 
 Do not expose desktop automation. Put the app behind login, reverse-proxy auth,
@@ -72,5 +79,7 @@ docker compose config
 docker compose -f docker-compose.prod.yml config
 ```
 
-For local desktop mode, set `APP_LAUNCH_ALLOWLIST` if you want to restrict app
-launch/close commands to approved names such as `notepad,calculator,paint`.
+For local desktop mode, set `APP_LAUNCH_ALLOWLIST` and `APP_CLOSE_ALLOWLIST` to
+the approved application names. Both operations fail closed when their
+allowlists are empty. Use `APP_FORCE_CLOSE_ALLOWLIST` only for approved close
+targets that may be terminated with force.

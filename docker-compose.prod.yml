@@ -16,6 +16,7 @@ services:
       - REQUIRE_API_KEY=true
       - PROTECT_METRICS=true
       - MEERO_API_KEY=${MEERO_API_KEY}
+      - AUDIT_LOG_COMMAND_TEXT=false
     depends_on:
       - redis
 

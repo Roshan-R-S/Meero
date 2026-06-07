@@ -2,18 +2,14 @@ import axios from 'axios';
 import { logger } from './utils/logger';
 
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-// Prefer Node-style env when running tests (Vitest sets process.env.VITEST),
-// otherwise prefer Vite's import.meta.env for browser/dev usage.
-const isTest = typeof process !== 'undefined' && Boolean(process.env && process.env.VITEST);
-let envApiKey = '';
-if (isTest) {
-  envApiKey = (typeof process !== 'undefined' && process.env && process.env.VITE_MEERO_API_KEY) || '';
-} else {
-  envApiKey = (typeof process !== 'undefined' && process.env && process.env.VITE_MEERO_API_KEY) || import.meta.env?.VITE_MEERO_API_KEY || '';
-}
-export const API_KEY = envApiKey || '';
+export const AUTH_VALUE = import.meta.env.VITE_MEERO_API_KEY || '';
 
-const authHeaders = API_KEY ? { 'x-meero-api-key': API_KEY } : {};
+const authHeaders = AUTH_VALUE ? { 'x-meero-api-key': AUTH_VALUE } : {};
+
+const notifyServerReachable = (reachable) => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable } }));
+};
 
 export const sendCommand = async (command, options = {}) => {
   try {
@@ -23,13 +19,12 @@ export const sendCommand = async (command, options = {}) => {
       confirm: Boolean(options.confirm),
       pending_command: options.pendingCommand || null,
     }, { headers: authHeaders });
-    // Notify UI that server is reachable
-    try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: true } })); } catch (e) { /* ignore */ }
+    notifyServerReachable(true);
     logger.log("[API] /command response:", response.data);
     return response.data;
   } catch (error) {
     logger.error("API Error:", error);
-    try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: false } })); } catch (e) { /* ignore */ }
+    notifyServerReachable(false);
     return { response: "I cannot reach the server.", action_status: "error" };
   }
 };
@@ -37,17 +32,17 @@ export const sendCommand = async (command, options = {}) => {
 export const getHealth = async () => {
   try {
     const response = await axios.get(`${API_URL}/debug/health`, { headers: authHeaders });
-    try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: true } })); } catch (e) { }
+    notifyServerReachable(true);
     return { ...response.data, detailed: true };
   } catch (debugError) {
     logger.log("Debug health unavailable; falling back to public health.", debugError);
     try {
       const response = await axios.get(`${API_URL}/health`);
-      try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: true } })); } catch (e) { }
+      notifyServerReachable(true);
       return { ...response.data, detailed: false };
     } catch (error) {
       logger.error("Health API Error:", error);
-      try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: false } })); } catch (e) { }
+      notifyServerReachable(false);
       return null;
     }
   }
@@ -56,11 +51,11 @@ export const getHealth = async () => {
 export const getSettings = async () => {
   try {
     const response = await axios.get(`${API_URL}/settings`, { headers: authHeaders });
-    try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: true } })); } catch (e) { }
+    notifyServerReachable(true);
     return response.data;
   } catch (error) {
     logger.error("Settings API Error:", error);
-    try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: false } })); } catch (e) { }
+    notifyServerReachable(false);
     return {};
   }
 };
@@ -68,11 +63,11 @@ export const getSettings = async () => {
 export const getModelStatus = async () => {
   try {
     const response = await axios.get(`${API_URL}/model/status`, { headers: authHeaders });
-    try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: true } })); } catch (e) { }
+    notifyServerReachable(true);
     return response.data;
   } catch (error) {
     logger.error("Model status API Error:", error);
-    try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: false } })); } catch (e) { }
+    notifyServerReachable(false);
     return null;
   }
 };
@@ -80,11 +75,11 @@ export const getModelStatus = async () => {
 export const saveSettings = async (settings) => {
   try {
     const response = await axios.post(`${API_URL}/settings`, settings, { headers: authHeaders });
-    try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: true } })); } catch (e) { }
+    notifyServerReachable(true);
     return response.data;
   } catch (error) {
     logger.error("Save settings API Error:", error);
-    try { window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable: false } })); } catch (e) { }
+    notifyServerReachable(false);
     return { status: "error" };
   }
 };

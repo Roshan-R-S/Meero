@@ -16,5 +16,12 @@ def test_unseen_intent_eval_cases_route_expected_commands():
 
     report = evaluate_cases(cases)
 
-    # The baseline neural net model evaluates at around 53% on the 30 unseen diverse cases.
-    assert report["accuracy"] >= 0.5, report["results"]
+    assert report["accuracy"] == 1.0, report["results"]
+
+
+def test_voice_eval_cases_route_expected_commands():
+    cases = load_cases(Path("data/voice_eval_cases.json"))
+
+    report = evaluate_cases(cases)
+
+    assert report["accuracy"] == 1.0, report["results"]

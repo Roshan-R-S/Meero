@@ -8,7 +8,7 @@ export default defineConfig({
   timeout: 30 * 1000,
   expect: { timeout: 5000 },
   webServer: {
-    command: `pnpm run dev -- --host 127.0.0.1 --port ${port}`,
+    command: `pnpm run dev --host 127.0.0.1 --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 60 * 1000,

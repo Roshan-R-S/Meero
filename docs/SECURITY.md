@@ -54,9 +54,18 @@ control, and scrolling are blocked unless:
 Use `WEB_SAFE_MODE=true` for demos or environments where host control should be
 disabled.
 
-Set `APP_LAUNCH_ALLOWLIST=notepad,calculator,paint,vscode` to restrict local
-app launch and close commands to explicitly approved application names. Leave it
-empty to preserve the default local-desktop behavior.
+App launch and close permissions use separate fail-closed allowlists in local
+desktop mode:
+
+```env
+APP_LAUNCH_ALLOWLIST=notepad,calculator,paint,vscode
+APP_CLOSE_ALLOWLIST=notepad,calculator,paint,vscode
+APP_FORCE_CLOSE_ALLOWLIST=notepad
+```
+
+An empty launch or close allowlist blocks that operation when
+`LOCAL_DESKTOP_MODE=true`. Force-close entries only take effect for apps also
+listed in `APP_CLOSE_ALLOWLIST`.
 
 ## Production Deployment
 
@@ -103,3 +112,8 @@ External LLM providers (OpenRouter, NVIDIA, HuggingFace, OpenAI-compatible)
 have been removed. Meero uses only local GGUF models via GPT4All for LLM
 fallback. No API keys or external network calls are made for inference.
 
+## Audit Logging
+
+Audit events omit command and response text by default. Set
+`AUDIT_LOG_COMMAND_TEXT=true` only for local debugging when storing spoken
+content is acceptable. Keep it false for normal and production-style use.

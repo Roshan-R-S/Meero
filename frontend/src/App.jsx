@@ -35,7 +35,7 @@ function App() {
     const handleFirstClick = () => {
       playStartup();
       storage?.setItem?.("hasInteracted", "true");
-      try { window.removeEventListener("click", handleFirstClick); } catch (e) { }
+      window.removeEventListener("click", handleFirstClick);
     };
 
     // Web Audio API requires user interaction to start
@@ -43,7 +43,7 @@ function App() {
       window.addEventListener("click", handleFirstClick);
     }
     return () => {
-      try { window.removeEventListener("click", handleFirstClick); } catch (e) { }
+      window.removeEventListener("click", handleFirstClick);
     };
   }, []);
 
@@ -80,7 +80,7 @@ function App() {
 
       // If missing GGUF, we stay on boot screen until user decides to bypass.
       // The bypass sets ggufLoaded artificially or disables it.
-      if (nnLoaded && ggufLoaded && !ggufMissing) {
+      if (nnLoaded && ggufLoaded) {
         setBooting(false);
       }
     };
@@ -432,7 +432,7 @@ function App() {
               Speech recognition is not available in this browser. Try Chrome or Edge and enable microphone permissions.
             </div>
           )}
-          {textInputEnabled && (
+          {(textInputEnabled || !speechSupported) && (
             <CommandInput
               disabled={state === "processing"}
               onSubmit={handleTypedSubmit}

@@ -11,6 +11,7 @@ Below are draft GitHub issues you can copy to create tracked work in your reposi
 ---
 
 ## 2) Create unseen eval dataset and update `scripts/evaluate.py`
+- **Status**: Completed with separate neural and deterministic route evaluators.
 - **Description**: Split `data/intents.json` into `data/intents_train.json` and `data/intents_eval.json`, and update the evaluation script to use the held-out eval file by default.
 - **Acceptance criteria**:
   - New eval file exists with held-out examples.
@@ -21,6 +22,7 @@ Below are draft GitHub issues you can copy to create tracked work in your reposi
 ---
 
 ## 3) Split backend dependencies
+- **Status**: Completed, including lightweight and full test dependency sets.
 - **Description**: Break `requirements.txt` into purpose-specific files (base, ai, desktop, cloud) and update Dockerfiles to install only needed sets for each image variant.
 - **Acceptance criteria**:
   - New `requirements-*.txt` files created.
@@ -30,6 +32,7 @@ Below are draft GitHub issues you can copy to create tracked work in your reposi
 ---
 
 ## 4) Add CI job to run backend API security tests
+- **Status**: Completed through the backend test jobs in `ci.yml`.
 - **Description**: Add a GitHub Actions job that runs pytest for tests covering API security and settings. Use repository secrets and mocked providers for networked tests.
 - **Acceptance criteria**:
   - Workflow step added and green on PRs.

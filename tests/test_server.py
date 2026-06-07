@@ -24,7 +24,6 @@ def client():
         from backend.app import app
         # Reset rate limiter for each test
         import backend.app as server
-        server.LAST_COMMAND_TIME = 0
         server.CLIENT_COMMAND_TIMES.clear()
         server.config.MEERO_API_KEY = ""
         server.config.REQUIRE_API_KEY = False
@@ -256,7 +255,6 @@ class TestRateLimiting:
     def test_rate_limit_blocks_rapid_requests(self, client, monkeypatch):
         """Two commands within 1 second should trigger rate limiting."""
         import backend.app as server
-        server.LAST_COMMAND_TIME = 0
         server.CLIENT_COMMAND_TIMES.clear()
         monkeypatch.setattr(server, "RATE_LIMIT_COOLDOWN", 60.0)
 
@@ -273,7 +271,6 @@ class TestRateLimiting:
         from backend.app import app
         import backend.app as server
 
-        server.LAST_COMMAND_TIME = 0
         server.CLIENT_COMMAND_TIMES.clear()
         monkeypatch.setattr(server, "RATE_LIMIT_COOLDOWN", 60.0)
 
@@ -290,7 +287,6 @@ class TestRateLimiting:
         from backend.app import app
         import backend.app as server
 
-        server.LAST_COMMAND_TIME = 0
         server.CLIENT_COMMAND_TIMES.clear()
         monkeypatch.setattr(server.config, "RATE_LIMIT_FAIL_OPEN", False)
 
