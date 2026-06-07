@@ -136,7 +136,7 @@ def main():
     parser.add_argument("--model", type=str, default="models/chat_model.h5")
     parser.add_argument("--tokenizer", type=str, default="models/tokenizer.pkl")
     parser.add_argument("--label-encoder", type=str, default="models/label_encoder.pkl")
-    parser.add_argument("--intents", type=str, default="intents.json")
+    parser.add_argument("--intents", type=str, default="data/intents.json")
     parser.add_argument("--eval-cases", type=str, default=None,
                         help="Path to unseen eval cases JSON file (overrides --intents for evaluation)")
     parser.add_argument("--maxlen", type=int, default=None)

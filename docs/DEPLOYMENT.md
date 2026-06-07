@@ -72,6 +72,19 @@ Production-style:
 docker compose -f docker-compose.prod.yml up --build
 ```
 
+The production Compose file uses `Dockerfile.websafe`, which keeps desktop
+automation disabled. `Dockerfile.voice` adds local voice dependencies but does
+not bundle or download models. Mount explicitly installed model directories
+under `/app/models/local-stt`, `/app/models/local-tts`, and
+`/app/models/local-llm`.
+
+Run the production topology with the local voice image and read-only model
+mounts:
+
+```powershell
+docker compose -f docker-compose.prod.yml -f docker-compose.voice.yml up --build
+```
+
 Before publishing, verify the resolved configuration:
 
 ```powershell

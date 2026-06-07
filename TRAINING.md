@@ -1,7 +1,7 @@
 # Reproducible Training
 
 Use `scripts/train_and_package.py` as the canonical training path. It trains the
-intent classifier from `intents.json`, writes versioned artifacts, refreshes the
+intent classifier from `data/intents.json`, writes versioned artifacts, refreshes the
 canonical runtime artifacts, and updates `models/manifest.json`.
 
 ## Direct Run

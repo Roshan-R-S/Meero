@@ -4,7 +4,7 @@
 Usage:
   python scripts/train_and_package.py --epochs 100 --batch 8 --upload-s3
 
-This script trains a small Keras model on `intents.json`, saves the model,
+This script trains a small Keras model on `data/intents.json`, saves the model,
 tokenizer, and label encoder into the `models/` directory with a versioned
 filename, and optionally uploads artifacts to S3 when `S3_BUCKET` is set.
 """
@@ -91,7 +91,7 @@ def build_and_train(intents_path, epochs=100, batch_size=8):
             labels.append(tag)
 
     if not texts:
-        raise RuntimeError("No training data found in intents.json")
+        raise RuntimeError("No training data found in the configured intents dataset")
 
     # Lazy import of Keras/TensorFlow-specific modules to allow dry-run without TF
     from tensorflow.keras.preprocessing.text import Tokenizer

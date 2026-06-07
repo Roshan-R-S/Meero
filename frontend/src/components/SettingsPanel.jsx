@@ -1,7 +1,8 @@
 import { RefreshCw, X, Download, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { formatMessageTime } from "../hooks/useMessages";
 import { exportMemory, clearMemory, getModelStatus } from "../api";
+import ModelStatusCard from "./ModelStatusCard";
+import { formatTime } from "../utils/formatTime";
 
 export default function SettingsPanel({
   apiHealth,
@@ -23,6 +24,10 @@ export default function SettingsPanel({
   textOutputEnabled,
   showHistory,
   textInputEnabled,
+  localVoiceEnabled,
+  browserSpeechFallbackEnabled,
+  setLocalVoiceEnabled,
+  setBrowserSpeechFallbackEnabled,
 }) {
   const [modelStatus, setModelStatus] = useState(null);
 
@@ -95,6 +100,28 @@ export default function SettingsPanel({
           <div className="w-11 h-6 bg-gray-700 rounded-full peer-checked:bg-cyan-500 transition-colors" />
           <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transform peer-checked:translate-x-5 transition-transform" />
         </label>
+      </div>
+
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <span>Prefer local voice</span>
+        <input
+          type="checkbox"
+          checked={localVoiceEnabled}
+          onChange={(event) => setLocalVoiceEnabled(event.target.checked)}
+          aria-label="Prefer local voice"
+          className="accent-cyan-400"
+        />
+      </div>
+
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <span>Browser speech fallback</span>
+        <input
+          type="checkbox"
+          checked={browserSpeechFallbackEnabled}
+          onChange={(event) => setBrowserSpeechFallbackEnabled(event.target.checked)}
+          aria-label="Browser speech fallback"
+          className="accent-cyan-400"
+        />
       </div>
 
       <div className="mb-4 flex items-center justify-between gap-4">
@@ -182,7 +209,7 @@ export default function SettingsPanel({
           Desktop: {apiHealth?.detailed ? (apiHealth?.web_safe_mode ? "safe" : "local") : "unknown"}
         </span>
         <span className="rounded border border-cyan-400/20 px-2 py-1">
-          Checked: {lastHealthCheckedAt ? formatMessageTime(lastHealthCheckedAt) : "never"}
+          Checked: {formatTime(lastHealthCheckedAt)}
         </span>
         <button
           type="button"
@@ -197,14 +224,7 @@ export default function SettingsPanel({
 
       <div className="mb-4">
         <h3 className="mb-2 text-xs font-orbitron uppercase text-cyan-300 tracking-widest border-b border-cyan-800 pb-1">Model Status</h3>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <span className="rounded border border-cyan-400/20 px-2 py-1">
-            NN: {modelStatus ? (modelStatus.neural_net?.loaded ? "loaded" : "error") : "unknown"}
-          </span>
-          <span className="rounded border border-cyan-400/20 px-2 py-1">
-            LLM: {modelStatus ? modelStatus.gguf_llm?.status : "unknown"}
-          </span>
-        </div>
+        <ModelStatusCard modelStatus={modelStatus} />
       </div>
 
       <div className="mb-4">

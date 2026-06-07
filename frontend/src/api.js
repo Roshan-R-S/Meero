@@ -29,6 +29,22 @@ export const sendCommand = async (command, options = {}) => {
   }
 };
 
+export const sendVoiceCommand = async (audio, options = {}) => {
+  const form = new FormData();
+  form.append('audio', audio, 'command.wav');
+  form.append('synthesize', String(options.synthesize ?? true));
+  if (options.pendingCommand) form.append('pending_command', options.pendingCommand);
+  try {
+    const response = await axios.post(`${API_URL}/voice-command`, form, { headers: authHeaders });
+    notifyServerReachable(true);
+    return response.data;
+  } catch (error) {
+    logger.error("Voice API Error:", error);
+    notifyServerReachable(false);
+    throw new Error(error.response?.data?.detail || "Local voice processing failed.");
+  }
+};
+
 export const getHealth = async () => {
   try {
     const response = await axios.get(`${API_URL}/debug/health`, { headers: authHeaders });

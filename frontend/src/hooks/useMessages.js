@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { formatTime } from "../utils/formatTime";
 
 const MAX_STORED_MESSAGES = 25;
 
@@ -17,12 +18,7 @@ const loadStoredMessages = () => {
   }
 };
 
-export const formatMessageTime = (createdAt) => {
-  if (!createdAt) return "";
-  const date = new Date(createdAt);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-};
+export const formatMessageTime = formatTime;
 
 export default function useMessages() {
   const [messages, setMessages] = useState(loadStoredMessages);

@@ -11,7 +11,9 @@
 
 ## Commands And Desktop Safety
 
-- `backend/command_service.py`: deterministic, neural, then local LLM fallback.
+- `backend/orchestrator/`: execution context, safety, deterministic actions,
+  neural fallback, local LLM fallback, and privacy-safe decision traces.
+- `backend/command_service.py`: compatibility facade for the orchestrator.
 - `core/actions.py`: deterministic action implementations and matchers.
 - `core/actions_routing.py`: ordered route definitions.
 - `app_launcher.py`: launch, close, and force-close allowlists.
@@ -27,6 +29,14 @@
 - `frontend/src/hooks/useHealthSettings.js`: persisted UI settings.
 - Relevant tests: hook tests, `frontend/src/App.test.jsx`, and
   `frontend/tests/e2e/app.spec.js`.
+
+## Local Voice
+
+- `backend/voice/`: bounded WAV validation, Vosk/faster-whisper STT,
+  Piper/SAPI TTS, and the voice-command pipeline.
+- `frontend/src/hooks/useAudioRecorder.js`: local 16 kHz mono WAV capture.
+- `frontend/src/hooks/useVoicePipeline.js`: push-to-talk request and playback.
+- `scripts/download_models.py`: explicit checksum-verified model installation.
 
 ## AI And Evaluation
 
@@ -52,5 +62,5 @@
 ## Generated Or Runtime Files
 
 Do not commit caches, virtual environments, frontend build output, runtime
-databases, `data/settings.json`, `data/audit.jsonl`, generated model reports, or
-local GGUF files.
+databases, `data/settings.json`, `data/audit.jsonl`, voice cache, downloaded
+local models, generated model reports, or local GGUF files.

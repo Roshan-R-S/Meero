@@ -8,6 +8,8 @@ export default function useHealthSettings({ wakeWordEnabled, setWakeWordEnabled 
   const [textOutputEnabled, setTextOutputEnabled] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
   const [textInputEnabled, setTextInputEnabled] = useState(true);
+  const [localVoiceEnabled, setLocalVoiceEnabled] = useState(true);
+  const [browserSpeechFallbackEnabled, setBrowserSpeechFallbackEnabled] = useState(false);
   const [apiHealth, setApiHealth] = useState(null);
   const [lastHealthCheckedAt, setLastHealthCheckedAt] = useState(null);
 
@@ -34,6 +36,10 @@ export default function useHealthSettings({ wakeWordEnabled, setWakeWordEnabled 
       if (typeof settings.text_output_enabled === "boolean") setTextOutputEnabled(settings.text_output_enabled);
       if (typeof settings.show_history === "boolean") setShowHistory(settings.show_history);
       if (typeof settings.text_input_enabled === "boolean") setTextInputEnabled(settings.text_input_enabled);
+      if (typeof settings.local_voice_enabled === "boolean") setLocalVoiceEnabled(settings.local_voice_enabled);
+      if (typeof settings.browser_speech_fallback_enabled === "boolean") {
+        setBrowserSpeechFallbackEnabled(settings.browser_speech_fallback_enabled);
+      }
     };
     loadStatus();
     return () => {
@@ -50,9 +56,11 @@ export default function useHealthSettings({ wakeWordEnabled, setWakeWordEnabled 
       text_output_enabled: textOutputEnabled,
       show_history: showHistory,
       text_input_enabled: textInputEnabled,
+      local_voice_enabled: localVoiceEnabled,
+      browser_speech_fallback_enabled: browserSpeechFallbackEnabled,
     };
     return saveSettings(payload);
-  }, [wakeWordEnabled, voiceRate, voicePitch, micEnabled, textOutputEnabled, showHistory, textInputEnabled]);
+  }, [wakeWordEnabled, voiceRate, voicePitch, micEnabled, textOutputEnabled, showHistory, textInputEnabled, localVoiceEnabled, browserSpeechFallbackEnabled]);
 
   return {
     apiHealth,
@@ -71,5 +79,9 @@ export default function useHealthSettings({ wakeWordEnabled, setWakeWordEnabled 
     setShowHistory,
     textInputEnabled,
     setTextInputEnabled,
+    localVoiceEnabled,
+    setLocalVoiceEnabled,
+    browserSpeechFallbackEnabled,
+    setBrowserSpeechFallbackEnabled,
   };
 }

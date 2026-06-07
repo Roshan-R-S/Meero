@@ -86,6 +86,14 @@ MEERO_API_KEY=<strong-random-value>
 `/settings` is local-only and accepts only the supported settings schema. Unknown
 keys are rejected.
 
+## Local Voice
+
+`/voice/transcribe`, `/voice/synthesize`, and `/voice-command` are local-only
+and use the same API-key dependency as other protected endpoints. Audio is
+bounded, validated as mono PCM WAV, processed in request-scoped temporary
+files, and not retained. Transcripts and synthesized response text remain
+excluded from audit logs by default.
+
 ## Secrets
 
 Run the repository secret scanner before publishing changes:

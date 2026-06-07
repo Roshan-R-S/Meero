@@ -57,10 +57,10 @@ jobs:
           PY
       - name: Run unseen cases evaluation
         run: |
-          python scripts/evaluate_routes.py --eval-cases data/intent_eval_cases.json --out models/unseen_eval.json --min-accuracy 0.50 --min-intent-accuracy 0.30
+          python scripts/evaluate_routes.py --eval-cases data/intent_eval_cases.json --out models/unseen_eval.json --min-accuracy 1.0 --min-intent-accuracy 1.0
       - name: Run voice cases evaluation
         run: |
-          python scripts/evaluate_routes.py --eval-cases data/voice_eval_cases.json --out models/voice_eval.json --min-accuracy 0.50 --min-intent-accuracy 0.30
+          python scripts/evaluate_routes.py --eval-cases data/voice_eval_cases.json --out models/voice_eval.json --min-accuracy 1.0 --min-intent-accuracy 1.0
       - name: Upload evaluation artifact
         uses: actions/upload-artifact@v4
         with:

@@ -2,10 +2,11 @@ import logging
 import os
 import threading
 import time
-import inspect
+import base64
+from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,6 +20,14 @@ except Exception:
 import core.memory_store as memory_store
 
 from .command_service import execute_command
+from .middleware import auth as auth_middleware
+from .middleware import rate_limit as rate_limit_middleware
+from .middleware.errors import global_exception_handler
+from .voice import LocalVoicePipeline
+from .voice.audio_utils import AudioValidationError
+from .voice.schemas import SynthesisRequest, TranscriptionResponse, VoiceCommandResponse
+from .voice.stt_service import STTUnavailableError
+from .voice.tts_service import TTSUnavailableError
 
 try:
     from ai.neural_net import NeuralNet
@@ -31,16 +40,8 @@ except Exception:
     LLMEngine = None
 import config
 
-try:
-    from fastapi_limiter import FastAPILimiter
-    from fastapi_limiter.depends import RateLimiter
-    import redis.asyncio as redis
-    _RATE_LIMITER_AVAILABLE = True
-except Exception:
-    FastAPILimiter = None
-    RateLimiter = None
-    redis = None
-    _RATE_LIMITER_AVAILABLE = False
+FastAPILimiter = rate_limit_middleware.FastAPILimiter
+RateLimiter = rate_limit_middleware.RateLimiter
 
 try:
     from prometheus_client import Counter, Histogram, CONTENT_TYPE_LATEST, generate_latest
@@ -65,7 +66,14 @@ if _sentiment_available and SentimentIntensityAnalyzer is not None:
 else:
     _sentiment_analyzer = None
 
-app = FastAPI(title="Meero Backend")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    threading.Thread(target=_load_llm_background, daemon=True).start()
+    await startup_rate_limiter()
+    yield
+
+
+app = FastAPI(title="Meero Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -76,20 +84,7 @@ app.add_middleware(
 )
 
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    if isinstance(exc, HTTPException):
-        from fastapi.responses import JSONResponse
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
-    
-    # Log full exception server-side and return a JSON error so the frontend
-    # can surface a helpful message instead of a silent 500.
-    logger.exception("Unhandled exception during request: %s %s", request.method, request.url)
-    from fastapi.responses import JSONResponse
-    content = {"error": "Internal server error"}
-    if getattr(config, "DEBUG_ERRORS", False):
-        content["detail"] = str(exc)
-    return JSONResponse(status_code=500, content=content)
+app.add_exception_handler(Exception, global_exception_handler)
 
 if _PROMETHEUS_AVAILABLE:
     HTTP_REQUESTS_TOTAL = Counter(
@@ -129,44 +124,17 @@ async def prometheus_middleware(request: Request, call_next):
             ).observe(elapsed)
 
 
-@app.on_event("startup")
 async def startup_rate_limiter():
     global _RATE_LIMITER_READY
-    
-    # Start background LLM loading
-    threading.Thread(target=_load_llm_background, daemon=True).start()
-    
-    if not _RATE_LIMITER_AVAILABLE:
-        logger.info("Rate limiter libraries not available; skipping init")
-        return
-
-    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379")
-    try:
-        redis_client = redis.from_url(redis_url, encoding="utf-8", decode_responses=True)
-        await redis_client.ping()
-        init_result = FastAPILimiter.init(redis_client)
-        if inspect.isawaitable(init_result):
-            await init_result
-        _RATE_LIMITER_READY = True
-        logger.info("Rate limiter initialized with Redis: %s", redis_url)
-    except Exception:
-        _RATE_LIMITER_READY = False
-        logger.warning("Redis unavailable at %s; disabling distributed rate limiting", redis_url)
+    await rate_limit_middleware.initialize()
+    _RATE_LIMITER_READY = rate_limit_middleware.ready
 
 
 async def distributed_rate_limit(request: Request):
-    if RateLimiter is None or FastAPILimiter is None or not _RATE_LIMITER_READY:
-        return
-    if not getattr(FastAPILimiter, "redis", None):
-        return
-    limiter = RateLimiter(times=10, seconds=60)
-    try:
-        await limiter(request)
-    except Exception:
-        logger.exception("Rate limiter check failed")
-        if getattr(config, "RATE_LIMIT_FAIL_OPEN", True):
-            return
-        raise HTTPException(status_code=503, detail="Rate limiter unavailable")
+    rate_limit_middleware.ready = _RATE_LIMITER_READY
+    rate_limit_middleware.FastAPILimiter = FastAPILimiter
+    rate_limit_middleware.RateLimiter = RateLimiter
+    await rate_limit_middleware.check(request)
 
 
 if getattr(config, "USE_NEURAL_NET", True) and NeuralNet is not None:
@@ -186,6 +154,7 @@ _llm_status = {
     "ready": False,
     "message": ""
 }
+voice_pipeline = LocalVoicePipeline()
 
 def _load_llm_background():
     global llm, _llm_status
@@ -223,6 +192,9 @@ class ResponseMetadata(BaseModel):
     engine: str = "unknown"
     confidence: Optional[float] = None
     fallback_reason: Optional[str] = None
+    intent: Optional[str] = None
+    latency_ms: Optional[float] = None
+    decision_trace: list[dict] = Field(default_factory=list)
 
 
 class CommandResponse(BaseModel):
@@ -243,20 +215,19 @@ class SettingsPayload(BaseModel):
     text_output_enabled: Optional[bool] = None
     show_history: Optional[bool] = None
     text_input_enabled: Optional[bool] = None
+    local_voice_enabled: Optional[bool] = None
+    browser_speech_fallback_enabled: Optional[bool] = None
 
 
-LOCAL_HOSTS = {"127.0.0.1", "::1", "localhost", "testclient"}
+LOCAL_HOSTS = auth_middleware.LOCAL_HOSTS
 
 
 def _client_host(request: Request) -> str:
-    if request.client is None:
-        return "unknown"
-    return request.client.host
+    return auth_middleware.client_host(request)
 
 
 def _is_local_request(request: Request) -> bool:
-    host = _client_host(request)
-    return host in LOCAL_HOSTS or host.startswith("127.")
+    return auth_middleware.is_local_request(request)
 
 
 def require_local_request(request: Request) -> None:
@@ -265,14 +236,7 @@ def require_local_request(request: Request) -> None:
 
 
 def require_api_key(x_meero_api_key: Optional[str] = Header(default=None)) -> None:
-    configured_key = getattr(config, "MEERO_API_KEY", "") or os.environ.get("MEERO_API_KEY", "")
-    require_key = getattr(config, "REQUIRE_API_KEY", False)
-    if require_key and not configured_key:
-        raise HTTPException(status_code=500, detail="API key is required but not configured")
-    if not configured_key:
-        return
-    if x_meero_api_key != configured_key:
-        raise HTTPException(status_code=401, detail="Invalid API key")
+    auth_middleware.require_api_key(x_meero_api_key)
 
 
 def require_metrics_access(x_meero_api_key: Optional[str] = Header(default=None)) -> None:
@@ -359,11 +323,11 @@ def process_command(payload: CommandRequest, http_request: Request):
         CLIENT_COMMAND_TIMES[client_key] = current_time
 
     try:
-        raw_query = (payload.pending_command or payload.command).strip()
-        logger.info("Processing command: %s", raw_query)
+        logger.info("Processing command mode=%s", payload.mode)
 
         outcome = execute_command(
             payload.command,
+            mode=payload.mode,
             confirm=payload.confirm,
             pending_command=payload.pending_command,
             brain=brain,
@@ -409,6 +373,84 @@ def clear_memory():
     return {"status": "memory_cleared"}
 
 
+def _voice_http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, AudioValidationError) or isinstance(exc, ValueError):
+        return HTTPException(status_code=400, detail=str(exc))
+    if isinstance(exc, (STTUnavailableError, TTSUnavailableError)):
+        return HTTPException(status_code=503, detail=str(exc))
+    return HTTPException(status_code=500, detail="Local voice processing failed")
+
+
+@app.post(
+    "/voice/transcribe",
+    response_model=TranscriptionResponse,
+    dependencies=[Depends(require_local_request), Depends(require_api_key)],
+)
+async def transcribe_voice(audio: UploadFile = File(...)):
+    try:
+        transcript = voice_pipeline.transcribe(await audio.read())
+        return TranscriptionResponse(transcript=transcript, provider=voice_pipeline.stt.provider)
+    except Exception as exc:
+        raise _voice_http_error(exc) from exc
+
+
+@app.post(
+    "/voice/synthesize",
+    dependencies=[Depends(require_local_request), Depends(require_api_key)],
+)
+def synthesize_voice(payload: SynthesisRequest):
+    try:
+        return Response(content=voice_pipeline.synthesize(payload.text), media_type="audio/wav")
+    except Exception as exc:
+        raise _voice_http_error(exc) from exc
+
+
+@app.post(
+    "/voice-command",
+    response_model=VoiceCommandResponse,
+    dependencies=[
+        Depends(distributed_rate_limit),
+        Depends(require_local_request),
+        Depends(require_api_key),
+    ],
+)
+async def process_voice_command(
+    http_request: Request,
+    audio: UploadFile = File(...),
+    confirm: bool = Form(False),
+    pending_command: Optional[str] = Form(None),
+    synthesize: bool = Form(True),
+):
+    try:
+        result = voice_pipeline.execute(
+            await audio.read(),
+            execute_command,
+            synthesize=synthesize,
+            confirm=confirm,
+            pending_command=pending_command,
+            brain=brain,
+            llm=llm,
+            conversation_history=CONVERSATION_HISTORY,
+            memory_summary_fn=_memory_summary,
+            append_conversation_fn=_append_conversation,
+            analyze_sentiment_fn=analyze_sentiment,
+            client_is_local=_is_local_request(http_request),
+        )
+        audio_base64 = base64.b64encode(result.audio).decode("ascii") if result.audio else None
+        return VoiceCommandResponse(
+            transcript=result.transcript,
+            response=result.outcome.response,
+            action_status=result.outcome.action_status,
+            sentiment=result.outcome.sentiment,
+            pending_command=result.outcome.pending_command,
+            metadata=result.outcome.metadata,
+            audio_base64=audio_base64,
+            audio_mime_type="audio/wav" if audio_base64 else None,
+        )
+    except Exception as exc:
+        raise _voice_http_error(exc) from exc
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -430,7 +472,8 @@ def model_status():
             "status": status_str,
             "message": _llm_status["message"],
             "name": os.path.basename(MODEL_PATH)
-        }
+        },
+        "voice": voice_pipeline.status(),
     }
 
 
