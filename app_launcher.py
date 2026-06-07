@@ -20,32 +20,38 @@ logger = logging.getLogger(__name__)
 _start_menu_cache = None
 
 
-def _normalized_allowlist():
+def _normalized_allowlist(config_name):
     return {
         item.strip().lower()
-        for item in getattr(config, "APP_LAUNCH_ALLOWLIST", ())
+        for item in getattr(config, config_name, ())
         if item and item.strip()
     }
 
 
 def is_app_allowed(app_name):
-    """Return whether app launch/close is allowed by the allowlist."""
-    allowed = _normalized_allowlist()
-    
-    if getattr(config, "LOCAL_DESKTOP_MODE", False):
-        if not allowed:
-            # If in local desktop mode and allowlist is empty, block all app launches
-            return False
-            
+    """Return whether app launch is allowed by the launch allowlist."""
+    allowed = _normalized_allowlist("APP_LAUNCH_ALLOWLIST")
+    if getattr(config, "LOCAL_DESKTOP_MODE", False) and not allowed:
+        return False
     if not allowed:
         return True
     return app_name.lower().strip() in allowed
 
 
-def _blocked_message(app_name, action):
+def is_app_close_allowed(app_name):
+    """Return whether app close is allowed by the close allowlist."""
+    allowed = _normalized_allowlist("APP_CLOSE_ALLOWLIST")
+    if getattr(config, "LOCAL_DESKTOP_MODE", False) and not allowed:
+        return False
+    if not allowed:
+        return True
+    return app_name.lower().strip() in allowed
+
+
+def _blocked_message(app_name, action, config_name):
     return (
         False,
-        f"{action.capitalize()} {app_name} is not allowed by APP_LAUNCH_ALLOWLIST.",
+        f"{action.capitalize()} {app_name} is not allowed by {config_name}.",
     )
 
 
@@ -109,7 +115,7 @@ def find_and_open_app(app_name):
         return False, "I didn't catch the application name."
 
     if not is_app_allowed(app_lower):
-        return _blocked_message(app_name, "opening")
+        return _blocked_message(app_name, "opening", "APP_LAUNCH_ALLOWLIST")
 
     # Strategy 1: Check PATH (works for CLI tools, browsers, etc.)
     exe_path = shutil.which(app_lower)
@@ -178,8 +184,11 @@ def close_app_by_name(app_name):
     """
     app_lower = app_name.lower().strip()
 
-    if getattr(config, "APP_CLOSE_ALLOWLIST", None) and app_lower not in config.APP_CLOSE_ALLOWLIST:
-        return False, f"Closing {app_name} is blocked by your safety configuration."
+    if not app_lower:
+        return False, "I didn't catch the application name."
+
+    if not is_app_close_allowed(app_lower):
+        return _blocked_message(app_name, "closing", "APP_CLOSE_ALLOWLIST")
 
     # Map common names to process names
     process_map = {
@@ -211,7 +220,7 @@ def close_app_by_name(app_name):
         # Try appending .exe and using it directly
         process_name = app_lower if app_lower.endswith(".exe") else f"{app_lower}.exe"
 
-    force_close = getattr(config, "APP_FORCE_CLOSE_ALLOWLIST", None) and app_lower in config.APP_FORCE_CLOSE_ALLOWLIST
+    force_close = app_lower in _normalized_allowlist("APP_FORCE_CLOSE_ALLOWLIST")
     
     taskkill_args = ["taskkill", "/im", process_name]
     if force_close:

@@ -111,7 +111,8 @@ class TestProcessCommand:
 
     @patch("core.actions.subprocess.run")
     def test_close_notepad(self, mock_run, actions, monkeypatch):
-        monkeypatch.setattr("config.APP_LAUNCH_ALLOWLIST", ("notepad",))
+        monkeypatch.setattr("config.APP_CLOSE_ALLOWLIST", ("notepad",))
+        mock_run.return_value.returncode = 0
         act, engine = actions
         act.process_command("close notepad")
         response = engine.get_response()
@@ -121,13 +122,14 @@ class TestProcessCommand:
 
     @patch("core.actions.subprocess.run")
     def test_close_app_blocked_by_allowlist(self, mock_run, actions, monkeypatch):
-        monkeypatch.setattr("config.APP_LAUNCH_ALLOWLIST", ("notepad",))
+        monkeypatch.setattr("config.APP_CLOSE_ALLOWLIST", ("notepad",))
         act, engine = actions
 
         act.process_command("close spotify", input_func=lambda: "yes")
 
         response = engine.get_response().lower()
         assert "not allowed" in response
+        assert "app_close_allowlist" in response
         mock_run.assert_not_called()
 
     @patch("core.actions.webbrowser")

@@ -1,4 +1,5 @@
--r requirements.txt
+-r requirements-base.txt
+-r requirements-desktop.txt
 
 pytest==8.3.2
 httpx==0.28.*

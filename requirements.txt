@@ -1,4 +1,5 @@
-# Full install: base + AI + desktop + optional cloud tools
+# Full local runtime install: base + AI + desktop.
+# Artifact publishing clients remain optional in requirements-cloud.txt.
 -r requirements-base.txt
 -r requirements-ai.txt
 -r requirements-desktop.txt

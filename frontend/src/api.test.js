@@ -97,13 +97,13 @@ describe("api config", () => {
       default: { get },
     }));
 
-    const { getHealth } = await import("./api");
+    const { AUTH_VALUE, getHealth } = await import("./api");
     const result = await getHealth();
 
     expect(get).toHaveBeenNthCalledWith(
       1,
       "http://localhost:8000/debug/health",
-      { headers: { "x-meero-api-key": process.env.VITE_MEERO_API_KEY || "change-this-local-key" } }
+      { headers: AUTH_VALUE ? { "x-meero-api-key": AUTH_VALUE } : {} }
     );
     expect(get).toHaveBeenNthCalledWith(2, "http://localhost:8000/health");
     expect(result).toEqual({ status: "ok", detailed: false });

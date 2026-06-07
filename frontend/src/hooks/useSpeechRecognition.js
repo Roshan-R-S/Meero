@@ -33,6 +33,8 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
   useEffect(() => { wakeRef.current = wakeWordEnabled; }, [wakeWordEnabled]);
   const cbRef = useRef(onResult);
   useEffect(() => { cbRef.current = onResult; }, [onResult]);
+  const interruptRef = useRef(onInterrupt);
+  useEffect(() => { interruptRef.current = onInterrupt; }, [onInterrupt]);
 
   // ── Restart Helper ─────────────────────────────────────────────
   const restartWake = useCallback((ms = 150) => {
@@ -101,13 +103,13 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
           if (cmd.length > 2) {
             playListeningStart();
             playListeningStop();
-            if (onInterrupt) onInterrupt();
+            if (interruptRef.current) interruptRef.current();
             setState("processing");
             cbRef.current(cmd);
           } else {
             // "Hey Meero" -> Switch to Active
             wakeActiveRef.current = true;
-            if (onInterrupt) onInterrupt();
+            if (interruptRef.current) interruptRef.current();
             setState("listening");
             playListeningStart();
           }
@@ -203,7 +205,7 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
       wakeActiveRef.current = false;
       setIsConversing(true);
       isConversingRef.current = true;
-      if (onInterrupt) onInterrupt();
+      if (interruptRef.current) interruptRef.current();
       try { rec.abort(); } catch { /* */ }
       
       timerRef.current = setTimeout(() => {

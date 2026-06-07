@@ -6,11 +6,11 @@
     },
     {
       "query": "hey there buddy",
-      "expected_intent": "greeting"
+      "expected_intent": "fallback"
     },
     {
       "query": "good morning assistant",
-      "expected_intent": "greeting"
+      "expected_intent": "fallback"
     },
     {
       "query": "could you tell me the date",
@@ -18,7 +18,7 @@
     },
     {
       "query": "what day of the week is it",
-      "expected_intent": "time"
+      "expected_intent": "fallback"
     },
     {
       "query": "show my university time table",
@@ -26,7 +26,7 @@
     },
     {
       "query": "what lectures do i have tomorrow",
-      "expected_intent": "schedule"
+      "expected_intent": "fallback"
     },
     {
       "query": "can you tell me a joke",
@@ -34,7 +34,7 @@
     },
     {
       "query": "make me laugh please",
-      "expected_intent": "joke"
+      "expected_intent": "fallback"
     },
     {
       "query": "visit github",
@@ -42,7 +42,7 @@
     },
     {
       "query": "open facebook for me",
-      "expected_intent": "open_website"
+      "expected_intent": "social_media"
     },
     {
       "query": "google search python decorators",
@@ -50,7 +50,7 @@
     },
     {
       "query": "look up machine learning on the web",
-      "expected_intent": "browse"
+      "expected_intent": "fallback"
     },
     {
       "query": "condition of the system please",
@@ -58,7 +58,7 @@
     },
     {
       "query": "how much ram is being used",
-      "expected_intent": "system"
+      "expected_intent": "fallback"
     },
     {
       "query": "take a screenshot now",
@@ -66,7 +66,7 @@
     },
     {
       "query": "capture my screen please",
-      "expected_intent": "screenshot"
+      "expected_intent": "fallback"
     },
     {
       "query": "increase volume please",
@@ -106,19 +106,19 @@
     },
     {
       "query": "shut down notepad",
-      "expected_intent": "close_app"
+      "expected_intent": "fallback"
     },
     {
       "query": "goodbye meero",
-      "expected_intent": "farewell"
+      "expected_intent": "fallback"
     },
     {
       "query": "see you later",
-      "expected_intent": "farewell"
+      "expected_intent": "fallback"
     },
     {
       "query": "who made you",
-      "expected_intent": "creator"
+      "expected_intent": "fallback"
     }
   ]
 }

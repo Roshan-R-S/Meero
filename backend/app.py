@@ -69,10 +69,7 @@ app = FastAPI(title="Meero Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    # During local development allow the frontend origin. Use '*' to avoid
-    # CORS issues when developing locally. In production set `CORS_ORIGINS`
-    # appropriately in environment.
-    allow_origins=getattr(config, "CORS_ORIGINS", ["http://localhost:5173"]) or ["*"],
+    allow_origins=config.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -297,7 +294,6 @@ def analyze_sentiment(text: str) -> str:
     return "neutral"
 
 
-LAST_COMMAND_TIME = 0
 CLIENT_COMMAND_TIMES = {}
 RATE_LIMIT_COOLDOWN = getattr(config, "RATE_LIMIT_COOLDOWN", 1.0)
 
@@ -349,8 +345,6 @@ def metrics():
     dependencies=[Depends(distributed_rate_limit), Depends(require_api_key)],
 )
 def process_command(payload: CommandRequest, http_request: Request):
-    global LAST_COMMAND_TIME
-    
     with _state_lock:
         current_time = time.time()
         client_key = _client_host(http_request)
@@ -363,7 +357,6 @@ def process_command(payload: CommandRequest, http_request: Request):
                 metadata=ResponseMetadata(engine="rate_limiter", fallback_reason="cooldown_active"),
             )
         CLIENT_COMMAND_TIMES[client_key] = current_time
-        LAST_COMMAND_TIME = current_time
 
     try:
         raw_query = (payload.pending_command or payload.command).strip()

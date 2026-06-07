@@ -151,7 +151,7 @@ class Actions:
 
     @staticmethod
     def _match_volume(q):
-        return Actions._match_any_phrase(q, ("volume", "mute"))
+        return Actions._match_any_phrase(q, ("volume", "mute", "sound"))
 
     @staticmethod
     def _match_open_website(q):
@@ -184,7 +184,7 @@ class Actions:
 
     @staticmethod
     def _match_screenshot(q):
-        return Actions._match_any_phrase(q, ("screenshot",))
+        return Actions._match_any_phrase(q, ("screenshot", "screen shot"))
 
     @staticmethod
     def _match_joke(q):
@@ -209,10 +209,14 @@ class Actions:
 
     @staticmethod
     def _match_tab(q):
-        return Actions._match_any_phrase(q, (
-            "new tab", "close tab", "next tab", "previous tab",
-            "switch tab", "close this tab"
-        ))
+        return any(
+            Actions._match_regex(q, pattern)
+            for pattern in (
+                r"\bnew(?: browser)? tab\b",
+                r"\bclose(?: this)?(?: browser)? tab\b",
+                r"\b(?:next|previous|switch)(?: browser)? tab\b",
+            )
+        )
 
     def cal_day(self):
         return datetime.datetime.today().strftime("%A")
@@ -247,9 +251,10 @@ class Actions:
             self.speak("Going forward")
 
     def tab_management(self, command):
-        if "new tab" in command:
+        normalized_command = command.replace("browser ", "")
+        if "new tab" in normalized_command:
             # If the command includes a search request, open a search URL
-            m = re.search(r"(?:search for|search|google)\s+(.+)$", command, re.IGNORECASE)
+            m = re.search(r"(?:search for|search|google)\s+(.+)$", normalized_command, re.IGNORECASE)
             if m:
                 search_term = m.group(1).strip()
                 if search_term:
@@ -262,13 +267,13 @@ class Actions:
                     return
             pyautogui.hotkey('ctrl', 't')
             self.speak("Opening new tab")
-        elif "close tab" in command or "close this tab" in command:
+        elif "close tab" in normalized_command or "close this tab" in normalized_command:
             pyautogui.hotkey('ctrl', 'w')
             self.speak("Closing tab")
-        elif "next tab" in command or "switch tab" in command:
+        elif "next tab" in normalized_command or "switch tab" in normalized_command:
             pyautogui.hotkey('ctrl', 'Tab')
             self.speak("Switching to next tab")
-        elif "previous tab" in command:
+        elif "previous tab" in normalized_command:
             pyautogui.hotkey('ctrl', 'shift', 'Tab')
             self.speak("Switching to previous tab")
 

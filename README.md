@@ -34,6 +34,9 @@ Desktop automation is guarded by environment flags:
   `MEERO_API_KEY` is configured.
 - Production-style deployments should set `REQUIRE_API_KEY=true` so a missing
   API key fails closed instead of disabling auth.
+- Local desktop mode fails closed for app launch and close commands until their
+  explicit allowlists are configured.
+- Audit logs omit spoken command and response text by default.
 
 ## Safety Modes
 
@@ -54,6 +57,9 @@ For local assistant use:
 ```env
 WEB_SAFE_MODE=false
 LOCAL_DESKTOP_MODE=true
+APP_LAUNCH_ALLOWLIST=notepad,calculator,paint,vscode
+APP_CLOSE_ALLOWLIST=notepad,calculator,paint,vscode
+APP_FORCE_CLOSE_ALLOWLIST=notepad
 ```
 
 ## Features
@@ -98,13 +104,20 @@ LOCAL_DESKTOP_MODE=false
 WEB_SAFE_MODE=true
 PROTECT_METRICS=false
 APP_LAUNCH_ALLOWLIST=
+APP_CLOSE_ALLOWLIST=
+APP_FORCE_CLOSE_ALLOWLIST=
 MEERO_API_KEY=change-this-local-key
 REQUIRE_API_KEY=false
 DEBUG_ERRORS=false
 RATE_LIMIT_FAIL_OPEN=true
+AUDIT_LOG_COMMAND_TEXT=false
 MEMORY_MAX_INTERACTIONS=20
 MEMORY_SUMMARY_MAX_CHARS=1200
 ```
+
+When `LOCAL_DESKTOP_MODE=true`, empty launch or close allowlists block the
+corresponding operation. `APP_FORCE_CLOSE_ALLOWLIST` only adds force-close
+behavior for apps that are already permitted by `APP_CLOSE_ALLOWLIST`.
 
 Frontend variables:
 
@@ -235,6 +248,9 @@ Optional S3 upload dependencies:
 pip install -r requirements-cloud.txt
 ```
 
+`requirements-cloud.txt` is only for publishing model artifacts. Meero does not
+use cloud inference providers.
+
 ## CI
 
 This repo's CI workflows run:
@@ -270,6 +286,13 @@ Override the gate when needed:
 python scripts/evaluate.py --out models/local_eval.json --min-accuracy 0.80
 ```
 
+Evaluate deterministic unseen and ASR-style voice routing separately:
+
+```powershell
+python scripts/evaluate_routes.py --eval-cases data/intent_eval_cases.json
+python scripts/evaluate_routes.py --eval-cases data/voice_eval_cases.json
+```
+
 See [TRAINING.md](./TRAINING.md) for deterministic runner options.
 
 ## Known Limitations
@@ -295,4 +318,9 @@ See [TRAINING.md](./TRAINING.md) for deterministic runner options.
 - [x] Better model evaluation reports
 - [x] Demo GIF and screenshots
 - [x] Architecture diagram
+- [x] Voice-specific routing evaluation
+- [x] Fail-closed desktop app allowlists
+- [x] Private-by-default audit logging
+- [ ] Local Vosk STT runtime provider
+- [ ] Local Piper TTS runtime provider
 - [ ] Public deployment hardening
