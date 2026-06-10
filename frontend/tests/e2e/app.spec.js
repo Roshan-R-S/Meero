@@ -15,11 +15,19 @@ test.beforeEach(async ({ page }) => {
     } else if (path === '/settings') {
       body = { show_history: true };
     } else if (path === '/command') {
-      body = {
-        response: 'Mock response.',
-        action_status: 'success',
-        sentiment: 'neutral',
-      };
+      const command = route.request().postDataJSON();
+      body = command.command === 'open settings' && !command.confirm
+        ? {
+            response: 'Please confirm.',
+            action_status: 'confirmation_required',
+            pending_command: 'open settings',
+            sentiment: 'neutral',
+          }
+        : {
+            response: 'Mock response.',
+            action_status: 'success',
+            sentiment: 'neutral',
+          };
     }
 
     await route.fulfill({
@@ -43,11 +51,35 @@ test('typed command flow records history and can clear it', async ({ page }) => 
   await page.getByLabel('Type command').fill('what time is it');
   await page.getByLabel('Send command').click();
 
-  await expect(page.getByText('what time is it')).toBeVisible();
+  await expect(page.getByText('what time is it').first()).toBeVisible();
   await expect(page.getByText('Mock response.').first()).toBeVisible();
 
   await page.getByLabel('Clear conversation history').click();
   await expect(page.getByText('what time is it')).toHaveCount(0);
+});
+
+test('pending actions require an explicit confirmation', async ({ page }) => {
+  await page.getByLabel('Type command').fill('open settings');
+  await page.getByLabel('Send command').click();
+
+  await expect(page.getByLabel('Action confirmation')).toBeVisible();
+  await expect(page.getByLabel('Action confirmation').getByText('open settings')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Confirm' }).click();
+
+  await expect(page.getByLabel('Action confirmation')).toHaveCount(0);
+  await expect(page.getByText('Mock response.').first()).toBeVisible();
+});
+
+test('conversation history opens as a drawer on mobile', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByLabel('Type command').fill('what time is it');
+  await page.getByLabel('Send command').click();
+
+  await page.getByLabel('Open conversation history').click();
+
+  await expect(page.getByRole('complementary', { name: 'Conversation history' })).toBeVisible();
+  await expect(page.getByLabel('Close history panel')).toBeVisible();
 });
 
 test('settings panel opens and shows offline-safe API status', async ({ page }) => {

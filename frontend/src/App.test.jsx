@@ -84,6 +84,7 @@ const finishBoot = async () => {
 describe("App typed fallback", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    sendCommand.mockReset();
     sendCommand.mockResolvedValue({
       response: "Done.",
       action_status: "success",
@@ -170,8 +171,68 @@ describe("App typed fallback", () => {
 
     expect(sendCommand).toHaveBeenCalledWith("what time is it");
     expect(screen.getByText("user:")).toBeInTheDocument();
-    expect(screen.getByText("what time is it")).toBeInTheDocument();
+    expect(screen.getAllByText("what time is it").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Done.").length).toBeGreaterThan(0);
+  });
+
+  test("confirms a pending action through the existing command contract", async () => {
+    sendCommand
+      .mockResolvedValueOnce({
+        response: "Please confirm.",
+        action_status: "confirmation_required",
+        pending_command: "open settings",
+        sentiment: "neutral",
+      })
+      .mockResolvedValueOnce({
+        response: "Opened settings.",
+        action_status: "success",
+        sentiment: "neutral",
+      });
+
+    await renderApp();
+    await finishBoot();
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Type command"), {
+        target: { value: "open settings" },
+      });
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Send command"));
+      await Promise.resolve();
+    });
+
+    expect(screen.getByLabelText("Action confirmation")).toBeInTheDocument();
+    expect(screen.getAllByText("open settings").length).toBeGreaterThan(0);
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+      await Promise.resolve();
+    });
+
+    expect(sendCommand).toHaveBeenLastCalledWith("open settings", {
+      confirm: true,
+      pendingCommand: "open settings",
+    });
+    expect(screen.queryByLabelText("Action confirmation")).not.toBeInTheDocument();
+  });
+
+  test("offers a limited interface after repeated boot status failures", async () => {
+    getModelStatus.mockResolvedValue(null);
+
+    await renderApp();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4500);
+    });
+
+    expect(screen.getByText(/cannot reach the local server/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry connection" })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Limited mode" }));
+    });
+
+    expect(screen.getByLabelText("Type command")).toBeInTheDocument();
   });
 
   test("prefers local push-to-talk when local STT is available", async () => {
@@ -291,7 +352,7 @@ describe("App typed fallback", () => {
       fireEvent.click(screen.getByLabelText("Clear conversation history"));
     });
 
-    expect(screen.queryByText("what time is it")).not.toBeInTheDocument();
+    expect(screen.queryAllByText("what time is it")).toHaveLength(0);
   });
 
 });
