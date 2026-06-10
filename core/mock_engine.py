@@ -1,9 +1,8 @@
-class MockSpeechEngine:
-    def __init__(self):
-        self.response_buffer = []
+"""Backward-compatible alias for the production response collector."""
 
-    def speak(self, text):
-        self.response_buffer.append(text)
+from .response_collector import ResponseCollector
 
-    def get_response(self):
-        return " ".join(self.response_buffer)
+
+MockSpeechEngine = ResponseCollector
+
+__all__ = ["MockSpeechEngine"]

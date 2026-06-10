@@ -1,8 +1,8 @@
 FROM python:3.10-slim
 
 WORKDIR /app
-COPY requirements.txt requirements-base.txt requirements-ai.txt requirements-desktop.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements-websafe.txt requirements-base.txt requirements-ai.txt requirements-actions.txt ./
+RUN pip install --no-cache-dir -r requirements-websafe.txt
 COPY . /app
 
 ENV PYTHONUNBUFFERED=1

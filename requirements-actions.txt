@@ -1,0 +1,4 @@
+# Safe deterministic actions available without desktop GUI automation.
+psutil==7.1.3
+wikipedia==1.4.0
+pyjokes==0.8.3

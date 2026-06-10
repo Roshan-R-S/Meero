@@ -1,0 +1,4 @@
+# Web-safe backend runtime: API, local AI, and deterministic non-GUI actions.
+-r requirements-base.txt
+-r requirements-ai.txt
+-r requirements-actions.txt

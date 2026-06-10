@@ -9,7 +9,9 @@ assistant experience.
 Key modules:
 
 - `frontend/src/App.jsx` coordinates UI state, browser speech hooks, and backend
-  `/command` calls.
+  `/command` and `/voice-command` calls.
+- `frontend/src/hooks/useAudioRecorder.js` and `useVoicePipeline.js` implement
+  the preferred local push-to-talk request and audio playback path.
 - `frontend/src/hooks/useSpeechRecognition.js` handles Web Speech API input.
 - `frontend/src/hooks/useSpeechSynthesis.js` handles browser text-to-speech.
 - `frontend/src/api.js` reads `VITE_API_URL` and sends command requests.
@@ -34,8 +36,10 @@ Key modules:
   controlling tabs, reporting time/date, screenshots, jokes, and system status.
 - `core/actions_routing.py` defines command route specs used by the action
   engine and intent evaluation tests.
-- `core/mock_engine.py` captures action responses for API responses instead of
-  speaking them through a local desktop TTS engine.
+- `core/response_collector.py` captures action responses for API responses
+  instead of speaking them through a local desktop TTS engine.
+- `core/mock_engine.py` temporarily preserves the old `MockSpeechEngine`
+  import as a compatibility alias.
 - `core/memory_store.py` persists conversation history and summaries in a local
   SQLite database that is created at runtime.
 - `ai/neural_net.py` loads canonical model artifacts for trained intent fallback.
@@ -103,9 +107,10 @@ the source architecture.
 
 ## 6. Local Speech
 
-Browser Speech Recognition and SpeechSynthesis remain the v0.1.0-local runtime
-providers. Future providers should preserve the same transcript-to-command and
-response-to-speech boundaries:
+Local push-to-talk through Vosk/faster-whisper and Piper/SAPI is the preferred
+voice path. Browser Speech Recognition and SpeechSynthesis remain explicit
+fallback providers. Future providers should preserve the same
+transcript-to-command and response-to-speech boundaries:
 
 ```mermaid
 flowchart LR
@@ -125,3 +130,97 @@ flowchart LR
 The local push-to-talk endpoint sends the resulting transcript through the
 same orchestrator as typed commands, so it cannot bypass local-request,
 desktop-mode, allowlist, or confirmation checks.
+
+`AIOrchestrator` creates a fresh response collector and deterministic action
+engine for each command through injectable factories. This keeps command state
+request-scoped while allowing focused policy and trace tests.
+
+Local STT provider models are loaded lazily and cached per `STTService`
+instance. Model initialization and inference are locked so repeated local
+requests reuse the model without sharing recognizer state.
+
+### Voice Request Flow
+
+1. The browser records a bounded 16 kHz mono 16-bit PCM WAV.
+2. `POST /voice-command` validates and transcribes the audio locally.
+3. The transcript enters the same orchestrator used by `POST /command`.
+4. Piper, or Windows SAPI as fallback, may synthesize the response locally.
+5. Request audio and temporary files are discarded.
+
+Voice endpoints are local-only and API-key protected. Confirmation prompts and
+cancellation responses use the same optional TTS finalization path as normal
+responses. Piper and SAPI subprocesses are bounded by
+`VOICE_TTS_TIMEOUT_SECONDS`.
+
+The privacy-safe decision trace is ordered as:
+
+```txt
+stt -> voice_confirmation (when applicable) -> safety/actions/fallback -> tts
+```
+
+Trace steps may include provider, status, reason, confidence, and latency. They
+never include audio, transcript text, command text, response text, or model
+paths.
+
+## 7. Repository Map
+
+### Backend API And Security
+
+- `backend/app.py`: FastAPI endpoints, CORS, auth, local-only checks, rate
+  limiting, settings, model status, and metrics.
+- `backend/schemas.py`: internal command-service outcome contract.
+- `backend/telemetry.py`: private-by-default JSONL audit events.
+- Relevant tests: `tests/test_server.py`, `tests/test_api_security.py`,
+  `tests/test_cors.py`, `tests/test_telemetry.py`.
+
+### Commands And Desktop Safety
+
+- `backend/orchestrator/`: execution context, safety, deterministic actions,
+  neural fallback, local LLM fallback, and privacy-safe decision traces.
+- `backend/command_service.py`: compatibility facade for the orchestrator.
+- `core/actions.py`: deterministic action implementations and matchers.
+- `core/actions_routing.py`: ordered route definitions.
+- `core/response_collector.py`: request-scoped deterministic response buffer.
+- `app_launcher.py`: launch, close, and force-close allowlists.
+- Relevant tests: `tests/test_actions.py`, `tests/test_app_launcher.py`,
+  `tests/test_command_service.py`.
+
+### Frontend Voice UX
+
+- `frontend/src/App.jsx`: assistant state, confirmations, and command flow.
+- `frontend/src/hooks/useSpeechRecognition.js`: wake word, push-to-talk, and
+  continued conversation.
+- `frontend/src/hooks/useSpeechSynthesis.js`: browser TTS and restart callback.
+- `frontend/src/hooks/useHealthSettings.js`: persisted UI settings.
+- Relevant tests: hook tests, `frontend/src/App.test.jsx`, and
+  `frontend/tests/e2e/app.spec.js`.
+
+### Local Voice
+
+- `backend/voice/`: bounded WAV validation, Vosk/faster-whisper STT,
+  Piper/SAPI TTS, and the voice-command pipeline.
+- `frontend/src/hooks/useAudioRecorder.js`: local 16 kHz mono WAV capture.
+- `frontend/src/hooks/useVoicePipeline.js`: push-to-talk request and playback.
+- `scripts/download_models.py`: explicit checksum-verified model installation.
+
+### AI And Evaluation
+
+- `ai/neural_net.py`: neural intent runtime.
+- `ai/llm_engine.py`: local GPT4All/GGUF fallback.
+- `scripts/train_and_package.py`: canonical training and packaging.
+- `scripts/evaluate.py`: model accuracy, confidence, and latency reports.
+- `scripts/evaluate_routes.py`: deterministic unseen and voice routing gates.
+- `data/intent_eval_cases.json`: deterministic routing and fallback cases.
+- `data/voice_eval_cases.json`: ASR-style voice evaluation cases.
+
+### CI And Deployment
+
+- `.github/workflows/ci.yml`: backend, frontend, deployment, and image checks.
+- `.github/workflows/eval-on-main.yml`: training and routing evaluation gates.
+- `requirements-test.txt`: lightweight test dependencies.
+- `requirements-test-full.txt`: lightweight plus AI dependencies.
+- Dockerfiles and Compose files: local and production runtime variants.
+
+Generated caches, virtual environments, frontend builds, runtime databases,
+settings, audit logs, voice cache, downloaded models, model reports, and local
+GGUF files must not be committed.

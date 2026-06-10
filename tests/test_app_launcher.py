@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import app_launcher
+import subprocess
 
 
 def test_launch_allowlist_fails_closed_in_local_desktop_mode(monkeypatch):
@@ -41,6 +42,7 @@ def test_close_allowed_app_without_force(mock_run, monkeypatch):
 
     assert success is True
     assert mock_run.call_args.args[0] == ["taskkill", "/im", "notepad.exe"]
+    assert mock_run.call_args.kwargs["timeout"] == 5
 
 
 @patch("app_launcher.subprocess.run")
@@ -67,3 +69,18 @@ def test_force_close_adds_force_flag_for_allowed_app(mock_run, monkeypatch):
 
     assert success is True
     assert mock_run.call_args.args[0] == ["taskkill", "/f", "/im", "notepad.exe"]
+
+
+@patch("app_launcher.subprocess.run")
+def test_close_timeout_returns_safe_failure(mock_run, monkeypatch):
+    monkeypatch.setattr("config.LOCAL_DESKTOP_MODE", True)
+    monkeypatch.setattr("config.APP_CLOSE_ALLOWLIST", ("private-app",))
+    monkeypatch.setattr("config.DESKTOP_SUBPROCESS_TIMEOUT_SECONDS", 2)
+    mock_run.side_effect = subprocess.TimeoutExpired(["taskkill"], 2)
+
+    success, message = app_launcher.close_app_by_name("private-app")
+
+    assert success is False
+    assert message == "Closing the application timed out."
+    assert "private-app" not in message
+    assert mock_run.call_args.kwargs["timeout"] == 2

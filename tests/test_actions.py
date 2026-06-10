@@ -1,15 +1,15 @@
-"""Unit tests for Actions class methods using MockSpeechEngine."""
+"""Unit tests for Actions class methods using ResponseCollector."""
 
 import pytest
 from unittest.mock import patch, MagicMock
 from core.actions import Actions
-from core.mock_engine import MockSpeechEngine
+from core.response_collector import ResponseCollector
 
 
 @pytest.fixture
 def actions():
-    """Create an Actions instance with a MockSpeechEngine."""
-    engine = MockSpeechEngine()
+    """Create an Actions instance with a ResponseCollector."""
+    engine = ResponseCollector()
     return Actions(engine), engine
 
 

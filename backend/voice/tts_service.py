@@ -19,12 +19,16 @@ class TTSService:
     def __init__(self, provider: str | None = None):
         self.provider = (provider or getattr(config, "VOICE_TTS_PROVIDER", "piper")).lower()
 
+    @staticmethod
+    def _sapi_supported() -> bool:
+        return os.name == "nt"
+
     def status(self) -> dict:
         piper_available = bool(
             Path(getattr(config, "PIPER_MODEL_PATH", "")).exists()
             and shutil.which(getattr(config, "PIPER_EXECUTABLE", "piper"))
         )
-        sapi_available = os.name == "nt" and shutil.which("powershell") is not None
+        sapi_available = self._sapi_supported() and shutil.which("powershell") is not None
         return {
             "provider": self.provider,
             "available": piper_available or sapi_available,
@@ -33,18 +37,22 @@ class TTSService:
         }
 
     def synthesize(self, text: str) -> bytes:
+        audio, _provider = self.synthesize_with_provider(text)
+        return audio
+
+    def synthesize_with_provider(self, text: str) -> tuple[bytes, str]:
         clean_text = text.strip()
         if not clean_text:
             raise ValueError("Synthesis text is empty")
         if self.provider == "piper":
             try:
-                return self._piper(clean_text)
+                return self._piper(clean_text), "piper"
             except TTSUnavailableError:
-                if os.name == "nt":
-                    return self._sapi(clean_text)
+                if self._sapi_supported():
+                    return self._sapi(clean_text), "sapi"
                 raise
         if self.provider == "sapi":
-            return self._sapi(clean_text)
+            return self._sapi(clean_text), "sapi"
         raise TTSUnavailableError(f"Unsupported local TTS provider: {self.provider}")
 
     @staticmethod
@@ -62,14 +70,17 @@ class TTSService:
                 text=True,
                 check=True,
                 capture_output=True,
+                timeout=getattr(config, "VOICE_TTS_TIMEOUT_SECONDS", 10),
             )
             return Path(output_name).read_bytes()
+        except subprocess.TimeoutExpired as exc:
+            raise TTSUnavailableError("Piper synthesis timed out") from exc
         finally:
             Path(output_name).unlink(missing_ok=True)
 
     @staticmethod
     def _sapi(text: str) -> bytes:
-        if os.name != "nt":
+        if not TTSService._sapi_supported():
             raise TTSUnavailableError("Windows SAPI is unavailable on this platform")
         handle, output_name = tempfile.mkstemp(prefix="meero-sapi-", suffix=".wav")
         os.close(handle)
@@ -85,7 +96,10 @@ class TTSService:
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
                 check=True,
                 capture_output=True,
+                timeout=getattr(config, "VOICE_TTS_TIMEOUT_SECONDS", 10),
             )
             return Path(output_name).read_bytes()
+        except subprocess.TimeoutExpired as exc:
+            raise TTSUnavailableError("Windows speech synthesis timed out") from exc
         finally:
             Path(output_name).unlink(missing_ok=True)

@@ -22,7 +22,8 @@ Meero can control local desktop features such as apps, tabs, scrolling, volume,
 and screenshots. Treat it as a local assistant unless you add stronger
 authentication and deployment controls.
 
-For a concise deployment safety checklist, see [docs/SECURITY.md](./docs/SECURITY.md).
+For deployment modes and the production safety checklist, see
+[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md).
 
 Desktop automation is guarded by environment flags:
 
@@ -184,6 +185,15 @@ desktop automation disabled:
 docker compose -f docker-compose.prod.yml up --build
 ```
 
+Production-style local voice uses the voice image overlay:
+
+```powershell
+docker compose -f docker-compose.prod.yml -f docker-compose.voice.yml up --build
+```
+
+The production topology mounts `./data` as writable local state and `./models`
+read-only. Models are installed explicitly and are never baked into images.
+
 For production-style runs, set a non-empty `MEERO_API_KEY` and keep:
 
 ```env
@@ -214,6 +224,7 @@ flowchart TD
 - `backend/command_service.py` - command orchestration and fallback flow
 - `core/actions.py` - deterministic action engine
 - `core/actions_routing.py` - command route specifications
+- `core/response_collector.py` - request-scoped action response collection
 - `core/memory_store.py` - SQLite-backed memory
 - `ai/neural_net.py` - neural intent runtime
 - `ai/llm_engine.py` - optional local GPT4All / GGUF fallback
@@ -272,6 +283,24 @@ Train canonical model artifacts after changing `data/intents.json`:
 python scripts/train_and_package.py --epochs 100 --batch 8 --out-dir models
 ```
 
+To train with the bundled local GGUF teacher models:
+
+```powershell
+python scripts/train_and_package.py --epochs 100 --batch 8 --use-default-teachers --teacher-examples-per-model 2 --out-dir models
+```
+
+Deterministic runner wrappers set `PYTHONHASHSEED=42`,
+`TF_DETERMINISTIC_OPS=1`, `TF_ENABLE_ONEDNN_OPTS=0`, and
+`OMP_NUM_THREADS=1` before invoking the canonical training script:
+
+```powershell
+.\scripts\run_train.ps1 -InstallRequirements
+```
+
+```bash
+./scripts/run_train.sh --install
+```
+
 Evaluate with the default minimum accuracy gate of `0.85`:
 
 ```powershell
@@ -294,8 +323,7 @@ python scripts/evaluate_routes.py --eval-cases data/intent_eval_cases.json
 python scripts/evaluate_routes.py --eval-cases data/voice_eval_cases.json
 ```
 
-See [TRAINING.md](./TRAINING.md) for deterministic runner options.
-See [docs/LOCAL_MODELS.md](./docs/LOCAL_MODELS.md) for explicit local voice and
+See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for explicit local voice and
 GGUF model setup.
 
 ## Known Limitations
@@ -306,6 +334,9 @@ GGUF model setup.
 - Production Docker is a starting point, not a complete hosted deployment.
 
 ## Roadmap
+
+See [docs/ROADMAP.md](./docs/ROADMAP.md) for release notes and remaining
+production hardening work.
 
 - [x] Voice assistant UI
 - [x] FastAPI command backend

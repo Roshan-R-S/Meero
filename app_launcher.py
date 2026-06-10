@@ -226,12 +226,17 @@ def close_app_by_name(app_name):
     if force_close:
         taskkill_args.insert(1, "/f")
 
-    result = subprocess.run(
-        taskkill_args,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        text=True
-    )
+    try:
+        result = subprocess.run(
+            taskkill_args,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=getattr(config, "DESKTOP_SUBPROCESS_TIMEOUT_SECONDS", 5),
+        )
+    except subprocess.TimeoutExpired:
+        logger.warning("taskkill timed out for an allowed application")
+        return False, "Closing the application timed out."
 
     if result.returncode == 0:
         return True, f"Closed {app_name}."

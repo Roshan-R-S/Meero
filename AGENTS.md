@@ -27,7 +27,7 @@ command pipeline, local safety controls, and private-by-default behavior.
   `scripts/evaluate.py`
 - Deployment and CI: Dockerfiles, Compose files, `.github/workflows/`
 
-See `docs/REPO_MAP.md` for a fuller map.
+See `docs/ARCHITECTURE.md` for the fuller repository and runtime map.
 
 ## Validation
 
