@@ -56,7 +56,7 @@ export default function useVoicePipeline({ onResult, pendingCommand, setState })
     } finally {
       setProcessing(false);
     }
-  }, [pendingCommand, recorder, submitAudio]);
+  }, [recorder, submitAudio]);
 
   return { ...recorder, processing, error, toggleRecording };
 }

@@ -166,7 +166,7 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
     };
 
     return () => clearTimeout(timerRef.current);
-  }, [setState, restartWake]);
+  }, [finalizeRecognition, setState, restartWake]);
 
   // ── Toggles ────────────────────────────────────────────────────
   useEffect(() => {

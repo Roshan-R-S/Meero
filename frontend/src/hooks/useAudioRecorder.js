@@ -58,20 +58,6 @@ export default function useAudioRecorder() {
   const lastVoiceAtRef = useRef(0);
   const stoppingRef = useRef(false);
 
-  const finalizeRecording = useCallback(async () => {
-    const sampleRate = contextRef.current?.sampleRate || 16000;
-    const length = chunksRef.current.reduce((total, chunk) => total + chunk.length, 0);
-    const samples = new Float32Array(length);
-    let offset = 0;
-    chunksRef.current.forEach((chunk) => {
-      samples.set(chunk, offset);
-      offset += chunk.length;
-    });
-    await cleanup();
-    if (!samples.length) throw new Error("No audio was captured.");
-    return encodeWav(resample(samples, sampleRate), 16000);
-  }, []);
-
   const cleanup = useCallback(async () => {
     processorRef.current?.disconnect();
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -85,6 +71,20 @@ export default function useAudioRecorder() {
     stoppingRef.current = false;
     setRecording(false);
   }, []);
+
+  const finalizeRecording = useCallback(async () => {
+    const sampleRate = contextRef.current?.sampleRate || 16000;
+    const length = chunksRef.current.reduce((total, chunk) => total + chunk.length, 0);
+    const samples = new Float32Array(length);
+    let offset = 0;
+    chunksRef.current.forEach((chunk) => {
+      samples.set(chunk, offset);
+      offset += chunk.length;
+    });
+    await cleanup();
+    if (!samples.length) throw new Error("No audio was captured.");
+    return encodeWav(resample(samples, sampleRate), 16000);
+  }, [cleanup]);
 
   const stopRecording = useCallback(async () => {
     if (!recording) throw new Error("Recorder is not active.");
@@ -136,7 +136,7 @@ export default function useAudioRecorder() {
     processorRef.current = processor;
     streamRef.current = stream;
     setRecording(true);
-  }, []);
+  }, [finalizeRecording]);
 
   const cancelRecording = useCallback(async () => {
     chunksRef.current = [];
