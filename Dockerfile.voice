@@ -1,0 +1,14 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends espeak-ng libsndfile1 && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt requirements-base.txt requirements-ai.txt requirements-desktop.txt requirements-voice.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-voice.txt
+COPY . /app
+
+ENV PYTHONUNBUFFERED=1
+ENV LOCAL_DESKTOP_MODE=false
+ENV WEB_SAFE_MODE=true
+
+EXPOSE 8000
+CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]

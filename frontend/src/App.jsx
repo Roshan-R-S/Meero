@@ -1,18 +1,21 @@
-import { Mic, Radio, Settings, StopCircle } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getModelStatus, sendCommand } from "./api";
+import AssistantOrb from "./components/AssistantOrb";
 import Background from "./components/Background";
-import CommandInput from "./components/CommandInput";
 import HistoryPanel from "./components/HistoryPanel";
 import HologramOverlay from "./components/HologramOverlay";
 import SettingsPanel from "./components/SettingsPanel";
-import ThreeOrb from "./components/ThreeOrb";
+import StatusBanner from "./components/StatusBanner";
+import VoiceControls from "./components/VoiceControls";
 import useHealthSettings from "./hooks/useHealthSettings";
 import useMessages from "./hooks/useMessages";
 import useSpeechRecognition from "./hooks/useSpeechRecognition";
 import useSpeechSynthesis from "./hooks/useSpeechSynthesis";
+import useVoicePipeline from "./hooks/useVoicePipeline";
 import "./index.css";
 import { playProcessing, playStartup } from "./utils/sound";
+import { browserSpeechRecognitionSupported } from "./utils/speechSupport";
 
 function App() {
   const [state, setState] = useState("idle"); // idle, listening, processing, speaking
@@ -20,6 +23,7 @@ function App() {
   const [pendingConfirmationCommand, setPendingConfirmationCommand] = useState(null);
   const [typedCommand, setTypedCommand] = useState("");
   const [statusNotice, setStatusNotice] = useState("");
+  const statusNoticeTimerRef = useRef(null);
   const { messages, addMessages, clearMessages } = useMessages();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -28,6 +32,7 @@ function App() {
   const [loadingText, setLoadingText] = useState("INITIALIZING SYSTEM CORE...");
   const [serverReachable, setServerReachable] = useState(true);
   const [ggufMissing, setGgufMissing] = useState(false);
+  const [modelStatus, setModelStatus] = useState(null);
 
   useEffect(() => {
     const storage = typeof window !== "undefined" ? window.localStorage : null;
@@ -58,6 +63,7 @@ function App() {
         // If API fails, just retry next cycle
         return;
       }
+      setModelStatus(status);
       
       const nnLoaded = !status.neural_net?.enabled || status.neural_net?.loaded;
       const ggufLoaded = !status.gguf_llm?.enabled || status.gguf_llm?.loaded;
@@ -120,7 +126,7 @@ function App() {
   );
 
   // Feature-detect Web Speech API availability so we can give feedback
-  const speechSupported = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const speechSupported = browserSpeechRecognitionSupported();
 
   const {
     apiHealth,
@@ -139,6 +145,10 @@ function App() {
     setShowHistory,
     textInputEnabled,
     setTextInputEnabled,
+    localVoiceEnabled,
+    setLocalVoiceEnabled,
+    browserSpeechFallbackEnabled,
+    setBrowserSpeechFallbackEnabled,
   } = useHealthSettings({ wakeWordEnabled, setWakeWordEnabled });
 
   useEffect(() => {
@@ -164,6 +174,15 @@ function App() {
     } catch {
       setStatusNotice("Could not copy response.");
     }
+  }, []);
+
+  const showTransientStatusNotice = useCallback((message) => {
+    clearTimeout(statusNoticeTimerRef.current);
+    setStatusNotice(message);
+    if (!message) return;
+    statusNoticeTimerRef.current = setTimeout(() => {
+      setStatusNotice("");
+    }, 5000);
   }, []);
 
   const { speak, cancel: cancelSpeech } = useSpeechSynthesis(
@@ -215,14 +234,10 @@ function App() {
         if (["blocked", "error", "rate_limited"].includes(confirmData.action_status)) {
           setStatusNotice(confirmData.response);
         }
-        if (textOutputEnabled) {
-          addMessages([
-            { role: "user", text: normalized },
-            { role: "assistant", text: confirmData.response },
-          ]);
-        } else {
-          addMessages([{ role: "user", text: normalized }]);
-        }
+        addMessages([
+          { role: "user", text: normalized },
+          { role: "assistant", text: confirmData.response },
+        ]);
         setStatusNotice(confirmedCommand ? "Action confirmed." : "");
         speakRef.current(confirmData.response);
         return;
@@ -251,16 +266,50 @@ function App() {
     if (["blocked", "error", "rate_limited"].includes(data.action_status)) {
       setStatusNotice(data.response);
     }
-    if (textOutputEnabled) {
-      addMessages([
-        { role: "user", text: userText },
-        { role: "assistant", text: data.response },
-      ]);
-    } else {
-      addMessages([{ role: "user", text: userText }]);
-    }
+    addMessages([
+      { role: "user", text: userText },
+      { role: "assistant", text: data.response },
+    ]);
     speakRef.current(data.response);
   }, [addMessages, pendingConfirmationCommand, textOutputEnabled]);
+
+  const handleLocalVoiceResult = useCallback(async (data) => {
+    if (data.action_status === "confirmation_required" && data.pending_command) {
+      setPendingConfirmationCommand(data.pending_command);
+    } else if (data.action_status !== "confirmation_required") {
+      setPendingConfirmationCommand(null);
+    }
+    if (data.sentiment) setSentiment(data.sentiment);
+    if (["blocked", "error", "rate_limited", "cancelled"].includes(data.action_status)) {
+      setStatusNotice(data.response);
+    }
+    const nextMessages = [
+      { role: "user", text: data.transcript || "Voice command" },
+      { role: "assistant", text: data.response },
+    ];
+    addMessages(nextMessages);
+    setState(data.audio_base64 ? "speaking" : "idle");
+  }, [addMessages, textOutputEnabled]);
+
+  const {
+    recording: localRecording,
+    processing: localVoiceProcessing,
+    error: localVoiceError,
+    supported: localCaptureSupported,
+    toggleRecording: toggleLocalRecording,
+  } = useVoicePipeline({
+    onResult: handleLocalVoiceResult,
+    pendingCommand: pendingConfirmationCommand,
+    setState,
+  });
+  const localVoiceAvailable = Boolean(
+    localVoiceEnabled && modelStatus?.voice?.stt?.available && localCaptureSupported,
+  );
+
+  useEffect(() => {
+    const browserVoiceActive = !localVoiceAvailable && browserSpeechFallbackEnabled;
+    if (!browserVoiceActive && wakeWordEnabled) setWakeWordEnabled(false);
+  }, [browserSpeechFallbackEnabled, localVoiceAvailable, setWakeWordEnabled, wakeWordEnabled]);
 
   const handleTypedSubmit = useCallback((event) => {
     event.preventDefault();
@@ -287,10 +336,18 @@ function App() {
     handleCommandRef.current = handleCommand;
   }, [speak, cancelSpeech, handleCommand]);
 
+  useEffect(() => {
+    return () => clearTimeout(statusNoticeTimerRef.current);
+  }, []);
+
   const handleSettingsSave = useCallback(async () => {
     const result = await saveAssistantSettings();
-    setStatusNotice(result.status === "ok" ? "Settings saved." : "Could not save settings.");
-  }, [saveAssistantSettings]);
+    if (result.status === "ok") {
+      showTransientStatusNotice("Settings saved.");
+    } else {
+      setStatusNotice("Could not save settings.");
+    }
+  }, [saveAssistantSettings, showTransientStatusNotice]);
 
   if (booting) {
     return (
@@ -330,8 +387,15 @@ function App() {
 
       {!serverReachable && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-60 rounded bg-red-700/90 px-4 py-2 text-sm text-white shadow">
-          Server unreachable — <button onClick={tryReconnect} className="underline">Retry</button>
+          Server unreachable - <button onClick={tryReconnect} className="underline">Retry</button>
         </div>
+      )}
+      {serverReachable && (statusNotice || recognitionError || localVoiceError) && (
+        <StatusBanner
+          serverReachable={serverReachable}
+          notice={statusNotice || recognitionError || localVoiceError}
+          onRetry={tryReconnect}
+        />
       )}
 
       {showHistory && (
@@ -368,6 +432,10 @@ function App() {
           textOutputEnabled={textOutputEnabled}
           showHistory={showHistory}
           textInputEnabled={textInputEnabled}
+          localVoiceEnabled={localVoiceEnabled}
+          browserSpeechFallbackEnabled={browserSpeechFallbackEnabled}
+          setLocalVoiceEnabled={setLocalVoiceEnabled}
+          setBrowserSpeechFallbackEnabled={setBrowserSpeechFallbackEnabled}
         />
       )}
 
@@ -382,70 +450,27 @@ function App() {
 
         {/* Visualizer - Center Stage */}
         <div className="flex-1 flex items-center justify-center w-full h-full relative z-20">
-          <div className="w-full h-full max-h-[280px] sm:max-h-[420px] md:max-h-[560px]">
-            <ThreeOrb state={state} sentiment={sentiment} />
-          </div>
+          <AssistantOrb state={state} sentiment={sentiment} />
         </div>
 
-        {/* Controls - Bottom */}
-        <div className="absolute bottom-0 z-50 flex flex-col items-center gap-3 sm:gap-4">
-          {/* Wake Word Toggle */}
-          <button
-            onClick={() => setWakeWordEnabled(!wakeWordEnabled)}
-            title={
-              wakeWordEnabled
-                ? "Disable wake word"
-                : 'Enable "Hey Meero" wake word'
-            }
-            className={`p-2 rounded-full transition-all duration-300 text-xs ${
-              wakeWordEnabled
-                ? "bg-green-500/80 shadow-[0_0_20px_rgba(34,197,94,0.4)] text-white"
-                : "bg-gray-700/50 hover:bg-gray-600 text-gray-400"
-            }`}
-          >
-            <Radio size={18} />
-          </button>
-
-          {/* Mic Button */}
-          <button
-            onClick={speechSupported && micEnabled ? toggleListen : undefined}
-            aria-label={
-              state === "listening" ? "Stop listening" : "Start listening"
-            }
-            aria-disabled={!speechSupported || !micEnabled}
-            title={!speechSupported ? "Speech recognition unavailable in this browser. Use Chrome or enable Web Speech API." : (!micEnabled ? "Microphone disabled in settings" : undefined)}
-            disabled={!speechSupported || !micEnabled}
-            className={`p-6 sm:p-5 rounded-full transition-all duration-300 transform hover:scale-105 active:scale-95 ${
-              state === "listening"
-                ? "bg-red-500/90 shadow-[0_0_40px_rgba(239,68,68,0.6)] animate-pulse"
-                : "bg-cyan-600/90 hover:bg-cyan-500 shadow-[0_0_30px_rgba(8,145,178,0.4)]"
-            } ${!speechSupported ? "opacity-50 cursor-not-allowed" : ""}`}
-          >
-            {state === "listening" ? (
-              <StopCircle size={32} />
-            ) : (
-              <Mic size={32} />
-            )}
-          </button>
-          {!speechSupported && (
-            <div className="text-xs text-yellow-300 mt-2 text-center max-w-xs z-50">
-              Speech recognition is not available in this browser. Try Chrome or Edge and enable microphone permissions.
-            </div>
-          )}
-          {(textInputEnabled || !speechSupported) && (
-            <CommandInput
-              disabled={state === "processing"}
-              onSubmit={handleTypedSubmit}
-              setTypedCommand={setTypedCommand}
-              typedCommand={typedCommand}
-            />
-          )}
-          {(statusNotice || recognitionError) && (
-            <div className="text-xs text-yellow-200 text-center max-w-xs z-50">
-              {statusNotice || recognitionError}
-            </div>
-          )}
-        </div>
+        <VoiceControls
+          browserFallbackEnabled={browserSpeechFallbackEnabled}
+          browserSpeechSupported={speechSupported}
+          localVoiceAvailable={localVoiceAvailable}
+          localVoiceEnabled={localVoiceEnabled}
+          micEnabled={micEnabled}
+          onBrowserToggle={toggleListen}
+          onLocalToggle={toggleLocalRecording}
+          onTypedSubmit={handleTypedSubmit}
+          processing={state === "processing" || localVoiceProcessing}
+          recording={localRecording}
+          setTypedCommand={setTypedCommand}
+          state={state}
+          textInputEnabled={textInputEnabled}
+          typedCommand={typedCommand}
+          wakeWordEnabled={wakeWordEnabled}
+          setWakeWordEnabled={setWakeWordEnabled}
+        />
       </div>
 
       {/* Minimal State Indicator */}

@@ -53,6 +53,7 @@ describe("useSpeechRecognition", () => {
       emitResult(`${wakeVariant} open calculator`);
 
       expect(onInterrupt).toHaveBeenCalledOnce();
+      expect(recognition.abort).toHaveBeenCalled();
       expect(setState).toHaveBeenCalledWith("processing");
       expect(onResult).toHaveBeenCalledWith("open calculator");
     },
@@ -74,6 +75,7 @@ describe("useSpeechRecognition", () => {
     emitResult("what time is it");
 
     expect(onResult).toHaveBeenCalledWith("what time is it");
+    expect(recognition.abort).toHaveBeenCalled();
     expect(setState).toHaveBeenCalledWith("processing");
   });
 
@@ -89,6 +91,7 @@ describe("useSpeechRecognition", () => {
 
     expect(recognition.abort).toHaveBeenCalled();
     expect(onResult).toHaveBeenCalledWith("what time is it");
+    expect(result.current.isConversingRef.current).toBe(false);
   });
 
   test("reports microphone permission errors", () => {

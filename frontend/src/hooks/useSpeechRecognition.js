@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { playListeningStart, playListeningStop } from "../utils/sound";
 import { logger } from "../utils/logger";
+import { getBrowserSpeechRecognition } from "../utils/speechSupport";
 
 const WAKE_VARIANTS = [
   "hey meero", "hey miro", "a meero", "hey mirror", "hey nero",
@@ -9,11 +10,6 @@ const WAKE_VARIANTS = [
 
 const clean = (text) =>
   text.toLowerCase().replace(/[.,!?;:'"]/g, "").replace(/\s+/g, " ").trim();
-
-const getSpeechAPI = () => {
-  if (typeof window === "undefined") return null;
-  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-};
 
 const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = null) => {
   const recRef = useRef(null);
@@ -35,6 +31,12 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
   useEffect(() => { cbRef.current = onResult; }, [onResult]);
   const interruptRef = useRef(onInterrupt);
   useEffect(() => { interruptRef.current = onInterrupt; }, [onInterrupt]);
+
+  const finalizeRecognition = useCallback((nextState, command) => {
+    try { recRef.current?.abort(); } catch { /* */ }
+    if (nextState) setState(nextState);
+    if (command !== undefined) cbRef.current(command);
+  }, [setState]);
 
   // ── Restart Helper ─────────────────────────────────────────────
   const restartWake = useCallback((ms = 150) => {
@@ -59,7 +61,7 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
 
   // ── Init Recognition ───────────────────────────────────────────
   useEffect(() => {
-    const SpeechAPI = getSpeechAPI();
+    const SpeechAPI = getBrowserSpeechRecognition();
     if (!SpeechAPI) return;
     if (!recRef.current) recRef.current = new SpeechAPI();
     const rec = recRef.current;
@@ -86,8 +88,10 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
       // MANUAL
       if (manualRef.current) {
         manualRef.current = false;
+        setIsConversing(false);
+        isConversingRef.current = false;
         playListeningStop();
-        cbRef.current(text);
+        finalizeRecognition("processing", text);
         return;
       }
 
@@ -104,8 +108,7 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
             playListeningStart();
             playListeningStop();
             if (interruptRef.current) interruptRef.current();
-            setState("processing");
-            cbRef.current(cmd);
+            finalizeRecognition("processing", cmd);
           } else {
             // "Hey Meero" -> Switch to Active
             wakeActiveRef.current = true;
@@ -121,14 +124,13 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
       if (wakeRef.current && wakeActiveRef.current) {
         wakeActiveRef.current = false; // Reset active flag on success
         playListeningStop();
-        setState("processing");
-        cbRef.current(text);
+        finalizeRecognition("processing", text);
         return;
       }
 
       // Fallback
       playListeningStop();
-      cbRef.current(text);
+      finalizeRecognition("processing", text);
     };
 
     rec.onerror = (e) => {

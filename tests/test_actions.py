@@ -143,6 +143,19 @@ class TestProcessCommand:
         call_url = mock_browser.open.call_args[0][0]
         assert "google.com/search?q=" in call_url
 
+    @patch("core.actions.webbrowser")
+    @patch("core.actions.pyautogui")
+    def test_open_new_tab_and_search(self, mock_gui, mock_browser, actions):
+        act, engine = actions
+
+        act.process_command("open new tab and search for amazon", input_func=lambda: "None")
+
+        response = engine.get_response().lower()
+        assert "searching for amazon" in response
+        mock_browser.open.assert_called_once()
+        mock_gui.hotkey.assert_not_called()
+        assert "google.com/search?q=amazon" in mock_browser.open.call_args[0][0]
+
     def test_exit_command_calls_exit_func(self, actions):
         act, _ = actions
         exit_called = []

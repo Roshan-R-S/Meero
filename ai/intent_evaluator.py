@@ -8,6 +8,7 @@ from pathlib import Path
 from core.actions import Actions
 from core.actions_routing import COMMAND_ROUTE_SPECS
 from core.mock_engine import MockSpeechEngine
+from nlu.intent_router import prepare_routing_text
 
 
 @dataclass(frozen=True)
@@ -23,7 +24,7 @@ def load_cases(path: str | Path) -> list[IntentCase]:
 
 def classify_action_intent(query: str) -> str:
     actions = Actions(MockSpeechEngine())
-    normalized = query.strip().lower()
+    normalized = prepare_routing_text(query)
     for idx, (matcher, _handler) in enumerate(actions._command_routes):
         if matcher(normalized):
             if idx < len(COMMAND_ROUTE_SPECS):

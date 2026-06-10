@@ -11,7 +11,7 @@ def test_model_evaluation_report_is_well_formed():
     model_path = os.path.join(os.path.dirname(__file__), os.pardir, "models", "chat_model.h5")
     tokenizer_path = os.path.join(os.path.dirname(__file__), os.pardir, "models", "tokenizer.pkl")
     label_path = os.path.join(os.path.dirname(__file__), os.pardir, "models", "label_encoder.pkl")
-    intents_path = os.path.join(os.path.dirname(__file__), os.pardir, "intents.json")
+    intents_path = os.path.join(os.path.dirname(__file__), os.pardir, "data", "intents.json")
     model_path = os.path.normpath(model_path)
     tokenizer_path = os.path.normpath(tokenizer_path)
     label_path = os.path.normpath(label_path)

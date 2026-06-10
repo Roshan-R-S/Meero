@@ -1,0 +1,13 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+COPY requirements.txt requirements-base.txt requirements-ai.txt requirements-desktop.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . /app
+
+ENV PYTHONUNBUFFERED=1
+ENV LOCAL_DESKTOP_MODE=false
+ENV WEB_SAFE_MODE=true
+
+EXPOSE 8000
+CMD ["uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]
