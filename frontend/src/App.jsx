@@ -1,8 +1,9 @@
-import { Settings } from "lucide-react";
+import { MessagesSquare, Settings } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getModelStatus, sendCommand } from "./api";
 import AssistantOrb from "./components/AssistantOrb";
 import Background from "./components/Background";
+import ConfirmationCard from "./components/ConfirmationCard";
 import HistoryPanel from "./components/HistoryPanel";
 import HologramOverlay from "./components/HologramOverlay";
 import SettingsPanel from "./components/SettingsPanel";
@@ -21,14 +22,18 @@ function App() {
   const [state, setState] = useState("idle"); // idle, listening, processing, speaking
   const [sentiment, setSentiment] = useState("neutral"); // neutral, positive, negative
   const [pendingConfirmationCommand, setPendingConfirmationCommand] = useState(null);
+  const [confirmationSubmitting, setConfirmationSubmitting] = useState(false);
   const [typedCommand, setTypedCommand] = useState("");
   const [statusNotice, setStatusNotice] = useState("");
   const statusNoticeTimerRef = useRef(null);
   const { messages, addMessages, clearMessages } = useMessages();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyMobileOpen, setHistoryMobileOpen] = useState(false);
 
   // -- BOOT SEQUENCE STATE --
   const [booting, setBooting] = useState(true);
+  const [bootError, setBootError] = useState(false);
+  const [bootRetryKey, setBootRetryKey] = useState(0);
   const [loadingText, setLoadingText] = useState("INITIALIZING SYSTEM CORE...");
   const [serverReachable, setServerReachable] = useState(true);
   const [ggufMissing, setGgufMissing] = useState(false);
@@ -54,15 +59,19 @@ function App() {
 
   useEffect(() => {
     let polling = true;
+    let failedChecks = 0;
     
     const checkStatus = async () => {
       const status = await getModelStatus();
       if (!polling) return;
 
       if (!status) {
-        // If API fails, just retry next cycle
+        failedChecks += 1;
+        if (failedChecks >= 3) setBootError(true);
         return;
       }
+      failedChecks = 0;
+      setBootError(false);
       setModelStatus(status);
       
       const nnLoaded = !status.neural_net?.enabled || status.neural_net?.loaded;
@@ -101,7 +110,7 @@ function App() {
       polling = false;
       clearInterval(interval);
     };
-  }, []);
+  }, [bootRetryKey]);
 
   // -- SPEECH HOOKS --
   // Refs to break circular dependency: handleCommand → speak → recognition
@@ -222,23 +231,26 @@ function App() {
 
     if (pendingConfirmationCommand) {
       if (yesWords.has(normalized)) {
+        if (confirmationSubmitting) return;
+        setConfirmationSubmitting(true);
         setState("processing");
         playProcessing();
-        const confirmedCommand = pendingConfirmationCommand;
         const confirmData = await sendCommand(pendingConfirmationCommand, {
           confirm: true,
           pendingCommand: pendingConfirmationCommand,
         });
+        setConfirmationSubmitting(false);
         setPendingConfirmationCommand(null);
         if (confirmData.sentiment) setSentiment(confirmData.sentiment);
         if (["blocked", "error", "rate_limited"].includes(confirmData.action_status)) {
           setStatusNotice(confirmData.response);
+        } else {
+          showTransientStatusNotice("Action confirmed.");
         }
         addMessages([
           { role: "user", text: normalized },
           { role: "assistant", text: confirmData.response },
         ]);
-        setStatusNotice(confirmedCommand ? "Action confirmed." : "");
         speakRef.current(confirmData.response);
         return;
       }
@@ -271,7 +283,7 @@ function App() {
       { role: "assistant", text: data.response },
     ]);
     speakRef.current(data.response);
-  }, [addMessages, pendingConfirmationCommand, textOutputEnabled]);
+  }, [addMessages, confirmationSubmitting, pendingConfirmationCommand, showTransientStatusNotice]);
 
   const handleLocalVoiceResult = useCallback(async (data) => {
     if (data.action_status === "confirmation_required" && data.pending_command) {
@@ -289,7 +301,7 @@ function App() {
     ];
     addMessages(nextMessages);
     setState(data.audio_base64 ? "speaking" : "idle");
-  }, [addMessages, textOutputEnabled]);
+  }, [addMessages]);
 
   const {
     recording: localRecording,
@@ -318,6 +330,20 @@ function App() {
     setTypedCommand("");
     handleCommand(command);
   }, [typedCommand, handleCommand]);
+
+  const handleConfirmation = useCallback((confirmed) => {
+    handleCommand(confirmed ? "yes" : "no");
+  }, [handleCommand]);
+
+  const handleClearMessages = useCallback(() => {
+    setHistoryMobileOpen(false);
+    clearMessages();
+  }, [clearMessages]);
+
+  const handleShowHistoryChange = useCallback((show) => {
+    setShowHistory(show);
+    if (!show) setHistoryMobileOpen(false);
+  }, [setShowHistory]);
 
   // Keep refs in sync (must be in effect, not during render)
   const [ariaResponse, setAriaResponse] = useState("");
@@ -358,6 +384,34 @@ function App() {
         <div className="font-rajdhani text-sm text-cyan-800 tracking-widest mt-2 animate-bounce">
           {loadingText}
         </div>
+        {bootError && (
+          <div className="mt-8 w-[min(28rem,calc(100vw-2rem))] rounded-2xl border border-red-400/35 bg-red-950/25 p-5 text-center shadow-[0_0_32px_rgba(239,68,68,0.16)]">
+            <p className="text-sm font-semibold text-red-300">Meero cannot reach the local server.</p>
+            <p className="mt-2 text-xs leading-relaxed text-cyan-50/60">
+              You can retry the connection or open the interface in limited mode.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setBooting(false)}
+                className="rounded-lg border border-cyan-300/25 px-3 py-2 text-xs text-cyan-50 transition hover:bg-cyan-900/35"
+              >
+                Limited mode
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setBootError(false);
+                  setLoadingText("RECONNECTING TO LOCAL SERVER...");
+                  setBootRetryKey((value) => value + 1);
+                }}
+                className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-semibold text-black transition hover:bg-cyan-400"
+              >
+                Retry connection
+              </button>
+            </div>
+          </div>
+        )}
         {ggufMissing && (
           <div className="mt-8 flex flex-col items-center gap-4 animate-in fade-in zoom-in duration-500">
             <div className="text-red-500 text-sm tracking-widest">
@@ -399,7 +453,25 @@ function App() {
       )}
 
       {showHistory && (
-        <HistoryPanel messages={messages} onClear={clearMessages} onCopy={copyMessage} />
+        <HistoryPanel
+          messages={messages}
+          mobileOpen={historyMobileOpen}
+          onClear={handleClearMessages}
+          onCopy={copyMessage}
+          onMobileClose={() => setHistoryMobileOpen(false)}
+        />
+      )}
+
+      {showHistory && messages.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setHistoryMobileOpen(true)}
+          aria-label="Open conversation history"
+          title="Open conversation history"
+          className="absolute left-4 top-4 z-30 grid h-10 w-10 place-items-center rounded-full border border-cyan-400/25 bg-black/45 text-cyan-100 backdrop-blur transition hover:bg-cyan-900/40 md:hidden"
+        >
+          <MessagesSquare size={18} />
+        </button>
       )}
 
       <button
@@ -423,7 +495,7 @@ function App() {
           setWakeWordEnabled={setWakeWordEnabled}
           setMicEnabled={setMicEnabled}
           setTextOutputEnabled={setTextOutputEnabled}
-          setShowHistory={setShowHistory}
+          setShowHistory={handleShowHistoryChange}
           setTextInputEnabled={setTextInputEnabled}
           voicePitch={voicePitch}
           voiceRate={voiceRate}
@@ -438,6 +510,13 @@ function App() {
           setBrowserSpeechFallbackEnabled={setBrowserSpeechFallbackEnabled}
         />
       )}
+
+      <ConfirmationCard
+        command={pendingConfirmationCommand}
+        disabled={confirmationSubmitting}
+        onCancel={() => handleConfirmation(false)}
+        onConfirm={() => handleConfirmation(true)}
+      />
 
       {/* Tactical Center */}
       <div className="w-full max-w-lg h-auto aspect-square flex flex-col items-center justify-center p-8 relative z-10">
