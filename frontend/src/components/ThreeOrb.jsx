@@ -18,7 +18,7 @@ const AnimatedCore = ({ state, sentiment }) => {
         // Sentiment based coloring
         let color = "#10b981"; // Default Green
         if (sentiment === "negative") color = "#ef4444"; // Red
-        if (sentiment === "neutral") color = "#3b82f6"; // Blue
+        if (sentiment === "neutral") color = "#f59e0b"; // Amber
 
         return { color, speed: 1.5, distort: 0.5, scale: 2.4 };
       }

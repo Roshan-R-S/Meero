@@ -32,6 +32,12 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
   const interruptRef = useRef(onInterrupt);
   useEffect(() => { interruptRef.current = onInterrupt; }, [onInterrupt]);
 
+  const finalizeRecognition = useCallback((nextState, command) => {
+    try { recRef.current?.abort(); } catch { /* */ }
+    if (nextState) setState(nextState);
+    if (command !== undefined) cbRef.current(command);
+  }, [setState]);
+
   // ── Restart Helper ─────────────────────────────────────────────
   const restartWake = useCallback((ms = 150) => {
     clearTimeout(timerRef.current);
@@ -82,8 +88,10 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
       // MANUAL
       if (manualRef.current) {
         manualRef.current = false;
+        setIsConversing(false);
+        isConversingRef.current = false;
         playListeningStop();
-        cbRef.current(text);
+        finalizeRecognition("processing", text);
         return;
       }
 
@@ -100,8 +108,7 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
             playListeningStart();
             playListeningStop();
             if (interruptRef.current) interruptRef.current();
-            setState("processing");
-            cbRef.current(cmd);
+            finalizeRecognition("processing", cmd);
           } else {
             // "Hey Meero" -> Switch to Active
             wakeActiveRef.current = true;
@@ -117,14 +124,13 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
       if (wakeRef.current && wakeActiveRef.current) {
         wakeActiveRef.current = false; // Reset active flag on success
         playListeningStop();
-        setState("processing");
-        cbRef.current(text);
+        finalizeRecognition("processing", text);
         return;
       }
 
       // Fallback
       playListeningStop();
-      cbRef.current(text);
+      finalizeRecognition("processing", text);
     };
 
     rec.onerror = (e) => {

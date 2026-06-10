@@ -14,7 +14,7 @@ const playBase64Wav = (audioBase64, mimeType = "audio/wav") =>
     audio.play().catch(resolve);
   });
 
-export default function useVoicePipeline({ onResult, pendingCommand }) {
+export default function useVoicePipeline({ onResult, pendingCommand, setState }) {
   const recorder = useAudioRecorder();
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState("");
@@ -23,24 +23,40 @@ export default function useVoicePipeline({ onResult, pendingCommand }) {
     resultRef.current = onResult;
   }, [onResult]);
 
+  const submitAudio = useCallback(async (audio) => {
+    const result = await sendVoiceCommand(audio, { pendingCommand });
+    await resultRef.current?.(result);
+    if (result.audio_base64) {
+      setState?.("speaking");
+      void playBase64Wav(result.audio_base64, result.audio_mime_type).finally(() => {
+        setState?.("idle");
+      });
+    }
+  }, [pendingCommand, setState]);
+
   const toggleRecording = useCallback(async () => {
     setError("");
     try {
       if (!recorder.recording) {
-        await recorder.startRecording();
+        await recorder.startRecording({ onStop: async (audio) => {
+          setProcessing(true);
+          try {
+            await submitAudio(audio);
+          } finally {
+            setProcessing(false);
+          }
+        } });
         return;
       }
       setProcessing(true);
       const audio = await recorder.stopRecording();
-      const result = await sendVoiceCommand(audio, { pendingCommand });
-      await resultRef.current?.(result);
-      await playBase64Wav(result.audio_base64, result.audio_mime_type);
+      await submitAudio(audio);
     } catch (voiceError) {
       setError(voiceError?.message || "Local voice processing failed.");
     } finally {
       setProcessing(false);
     }
-  }, [pendingCommand, recorder]);
+  }, [pendingCommand, recorder, submitAudio]);
 
   return { ...recorder, processing, error, toggleRecording };
 }

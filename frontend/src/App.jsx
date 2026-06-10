@@ -23,6 +23,7 @@ function App() {
   const [pendingConfirmationCommand, setPendingConfirmationCommand] = useState(null);
   const [typedCommand, setTypedCommand] = useState("");
   const [statusNotice, setStatusNotice] = useState("");
+  const statusNoticeTimerRef = useRef(null);
   const { messages, addMessages, clearMessages } = useMessages();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -175,6 +176,15 @@ function App() {
     }
   }, []);
 
+  const showTransientStatusNotice = useCallback((message) => {
+    clearTimeout(statusNoticeTimerRef.current);
+    setStatusNotice(message);
+    if (!message) return;
+    statusNoticeTimerRef.current = setTimeout(() => {
+      setStatusNotice("");
+    }, 5000);
+  }, []);
+
   const { speak, cancel: cancelSpeech } = useSpeechSynthesis(
     setState,
     useCallback(() => {
@@ -224,14 +234,10 @@ function App() {
         if (["blocked", "error", "rate_limited"].includes(confirmData.action_status)) {
           setStatusNotice(confirmData.response);
         }
-        if (textOutputEnabled) {
-          addMessages([
-            { role: "user", text: normalized },
-            { role: "assistant", text: confirmData.response },
-          ]);
-        } else {
-          addMessages([{ role: "user", text: normalized }]);
-        }
+        addMessages([
+          { role: "user", text: normalized },
+          { role: "assistant", text: confirmData.response },
+        ]);
         setStatusNotice(confirmedCommand ? "Action confirmed." : "");
         speakRef.current(confirmData.response);
         return;
@@ -260,14 +266,10 @@ function App() {
     if (["blocked", "error", "rate_limited"].includes(data.action_status)) {
       setStatusNotice(data.response);
     }
-    if (textOutputEnabled) {
-      addMessages([
-        { role: "user", text: userText },
-        { role: "assistant", text: data.response },
-      ]);
-    } else {
-      addMessages([{ role: "user", text: userText }]);
-    }
+    addMessages([
+      { role: "user", text: userText },
+      { role: "assistant", text: data.response },
+    ]);
     speakRef.current(data.response);
   }, [addMessages, pendingConfirmationCommand, textOutputEnabled]);
 
@@ -281,10 +283,12 @@ function App() {
     if (["blocked", "error", "rate_limited", "cancelled"].includes(data.action_status)) {
       setStatusNotice(data.response);
     }
-    const nextMessages = [{ role: "user", text: data.transcript || "Voice command" }];
-    if (textOutputEnabled) nextMessages.push({ role: "assistant", text: data.response });
+    const nextMessages = [
+      { role: "user", text: data.transcript || "Voice command" },
+      { role: "assistant", text: data.response },
+    ];
     addMessages(nextMessages);
-    setState("idle");
+    setState(data.audio_base64 ? "speaking" : "idle");
   }, [addMessages, textOutputEnabled]);
 
   const {
@@ -296,6 +300,7 @@ function App() {
   } = useVoicePipeline({
     onResult: handleLocalVoiceResult,
     pendingCommand: pendingConfirmationCommand,
+    setState,
   });
   const localVoiceAvailable = Boolean(
     localVoiceEnabled && modelStatus?.voice?.stt?.available && localCaptureSupported,
@@ -331,10 +336,18 @@ function App() {
     handleCommandRef.current = handleCommand;
   }, [speak, cancelSpeech, handleCommand]);
 
+  useEffect(() => {
+    return () => clearTimeout(statusNoticeTimerRef.current);
+  }, []);
+
   const handleSettingsSave = useCallback(async () => {
     const result = await saveAssistantSettings();
-    setStatusNotice(result.status === "ok" ? "Settings saved." : "Could not save settings.");
-  }, [saveAssistantSettings]);
+    if (result.status === "ok") {
+      showTransientStatusNotice("Settings saved.");
+    } else {
+      setStatusNotice("Could not save settings.");
+    }
+  }, [saveAssistantSettings, showTransientStatusNotice]);
 
   if (booting) {
     return (

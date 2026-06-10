@@ -1,6 +1,9 @@
 import { useCallback, useRef, useState } from "react";
 import { localAudioCaptureSupported } from "../utils/speechSupport";
 
+const SILENCE_THRESHOLD = 0.012;
+const SILENCE_TIMEOUT_MS = 1200;
+
 const writeString = (view, offset, value) => {
   for (let index = 0; index < value.length; index += 1) {
     view.setUint8(offset + index, value.charCodeAt(index));
@@ -50,37 +53,12 @@ export default function useAudioRecorder() {
   const processorRef = useRef(null);
   const streamRef = useRef(null);
   const chunksRef = useRef([]);
+  const onStopRef = useRef(null);
+  const hasVoiceRef = useRef(false);
+  const lastVoiceAtRef = useRef(0);
+  const stoppingRef = useRef(false);
 
-  const cleanup = useCallback(async () => {
-    processorRef.current?.disconnect();
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    await contextRef.current?.close?.();
-    processorRef.current = null;
-    streamRef.current = null;
-    contextRef.current = null;
-    setRecording(false);
-  }, []);
-
-  const startRecording = useCallback(async () => {
-    if (!localAudioCaptureSupported()) throw new Error("Local audio capture is unavailable.");
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    const context = new AudioContext({ sampleRate: 16000 });
-    const source = context.createMediaStreamSource(stream);
-    const processor = context.createScriptProcessor(4096, 1, 1);
-    chunksRef.current = [];
-    processor.onaudioprocess = (event) => {
-      chunksRef.current.push(new Float32Array(event.inputBuffer.getChannelData(0)));
-    };
-    source.connect(processor);
-    processor.connect(context.destination);
-    contextRef.current = context;
-    processorRef.current = processor;
-    streamRef.current = stream;
-    setRecording(true);
-  }, []);
-
-  const stopRecording = useCallback(async () => {
+  const finalizeRecording = useCallback(async () => {
     const sampleRate = contextRef.current?.sampleRate || 16000;
     const length = chunksRef.current.reduce((total, chunk) => total + chunk.length, 0);
     const samples = new Float32Array(length);
@@ -92,7 +70,73 @@ export default function useAudioRecorder() {
     await cleanup();
     if (!samples.length) throw new Error("No audio was captured.");
     return encodeWav(resample(samples, sampleRate), 16000);
-  }, [cleanup]);
+  }, []);
+
+  const cleanup = useCallback(async () => {
+    processorRef.current?.disconnect();
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    await contextRef.current?.close?.();
+    processorRef.current = null;
+    streamRef.current = null;
+    contextRef.current = null;
+    onStopRef.current = null;
+    hasVoiceRef.current = false;
+    lastVoiceAtRef.current = 0;
+    stoppingRef.current = false;
+    setRecording(false);
+  }, []);
+
+  const stopRecording = useCallback(async () => {
+    if (!recording) throw new Error("Recorder is not active.");
+    return finalizeRecording();
+  }, [finalizeRecording, recording]);
+
+  const startRecording = useCallback(async ({ onStop } = {}) => {
+    if (!localAudioCaptureSupported()) throw new Error("Local audio capture is unavailable.");
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const context = new AudioContext({ sampleRate: 16000 });
+    const source = context.createMediaStreamSource(stream);
+    const processor = context.createScriptProcessor(4096, 1, 1);
+    chunksRef.current = [];
+    onStopRef.current = onStop || null;
+    hasVoiceRef.current = false;
+    lastVoiceAtRef.current = 0;
+    stoppingRef.current = false;
+    processor.onaudioprocess = (event) => {
+      const input = event.inputBuffer.getChannelData(0);
+      chunksRef.current.push(new Float32Array(input));
+      let sumSquares = 0;
+      for (let index = 0; index < input.length; index += 1) {
+        sumSquares += input[index] * input[index];
+      }
+      const rms = Math.sqrt(sumSquares / Math.max(1, input.length));
+      const now = Date.now();
+
+      if (rms >= SILENCE_THRESHOLD) {
+        hasVoiceRef.current = true;
+        lastVoiceAtRef.current = now;
+        return;
+      }
+
+      if (!hasVoiceRef.current || stoppingRef.current) return;
+      if (now - lastVoiceAtRef.current < SILENCE_TIMEOUT_MS) return;
+
+      stoppingRef.current = true;
+      const autoStop = onStopRef.current;
+      void finalizeRecording()
+        .then((audio) => autoStop?.(audio))
+        .catch(() => {
+          /* Auto-stop failures are handled by the manual stop path. */
+        });
+    };
+    source.connect(processor);
+    processor.connect(context.destination);
+    contextRef.current = context;
+    processorRef.current = processor;
+    streamRef.current = stream;
+    setRecording(true);
+  }, []);
 
   const cancelRecording = useCallback(async () => {
     chunksRef.current = [];
