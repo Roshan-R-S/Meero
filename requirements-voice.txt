@@ -1,5 +1,3 @@
--r requirements-base.txt
-
 # Local-only speech providers. Models are downloaded separately.
 vosk==0.3.45
 faster-whisper==1.2.1

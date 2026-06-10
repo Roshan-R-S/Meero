@@ -10,6 +10,7 @@ from typing import Optional
 class DecisionStep:
     stage: str
     status: str
+    provider: Optional[str] = None
     reason: Optional[str] = None
     intent: Optional[str] = None
     confidence: Optional[float] = None
@@ -24,7 +25,8 @@ class DecisionTrace:
         allowed = {
             key: value
             for key, value in details.items()
-            if key in {"reason", "intent", "confidence", "latency_ms"} and value is not None
+            if key in {"provider", "reason", "intent", "confidence", "latency_ms"}
+            and value is not None
         }
         self.steps.append(DecisionStep(stage=stage, status=status, **allowed))
 

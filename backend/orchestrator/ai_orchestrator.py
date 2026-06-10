@@ -8,8 +8,8 @@ from typing import Callable, Optional
 
 from backend.schemas import CommandOutcome
 from backend.telemetry import log_audit_event
-from core.actions import Actions
-from core.mock_engine import MockSpeechEngine
+from core.actions import ACTION_TIMEOUT_RESULT, Actions
+from core.response_collector import ResponseCollector
 
 from .decision_trace import DecisionTrace
 from .execution_context import ExecutionContext
@@ -27,10 +27,14 @@ class AIOrchestrator:
         safety_policy: Optional[SafetyPolicy] = None,
         fallback_policy: Optional[FallbackPolicy] = None,
         outcome_builder: Optional[OutcomeBuilder] = None,
+        response_collector_factory: Callable[[], ResponseCollector] = ResponseCollector,
+        actions_factory: Callable[[ResponseCollector], Actions] = Actions,
     ):
         self.safety_policy = safety_policy or SafetyPolicy()
         self.fallback_policy = fallback_policy or FallbackPolicy()
         self.outcome_builder = outcome_builder or OutcomeBuilder()
+        self.response_collector_factory = response_collector_factory
+        self.actions_factory = actions_factory
 
     def execute(
         self,
@@ -60,8 +64,8 @@ class AIOrchestrator:
         outcome: Optional[CommandOutcome] = None
 
         try:
-            engine = MockSpeechEngine()
-            actions = Actions(engine)
+            response_collector = self.response_collector_factory()
+            actions = self.actions_factory(response_collector)
             safety = self.safety_policy.evaluate(context, actions)
             if not safety.allowed:
                 trace.add("safety", safety.action_status, reason=safety.reason)
@@ -79,8 +83,18 @@ class AIOrchestrator:
             result = actions.process_command(
                 context.routing_text,
                 input_func=(lambda: "yes") if context.confirm else (lambda: "None"),
-                exit_func=lambda: engine.speak("Disconnecting..."),
+                exit_func=lambda: response_collector.speak("Disconnecting..."),
             )
+            if result == ACTION_TIMEOUT_RESULT:
+                trace.add("actions", "failed", reason=ACTION_TIMEOUT_RESULT)
+                outcome = self.outcome_builder.build(
+                    response_collector.get_response() or "The desktop action timed out.",
+                    "error",
+                    sentiment="negative",
+                    metadata={"engine": "actions", "fallback_reason": ACTION_TIMEOUT_RESULT},
+                    trace=trace,
+                )
+                return outcome
             if result == "neural_net_fallback":
                 metadata = {"engine": "fallback", "fallback_reason": "actions_unhandled"}
                 trace.add("actions", "unhandled", reason="actions_unhandled")
@@ -99,11 +113,11 @@ class AIOrchestrator:
                     response_text = "I am unable to process that request."
                     metadata.update(engine="none", fallback_reason="all_engines_failed")
                     trace.add("fallback", "failed", reason="all_engines_failed")
-                engine.speak(response_text)
+                response_collector.speak(response_text)
             else:
                 trace.add("actions", "selected")
 
-            final_response = engine.get_response() or "Done."
+            final_response = response_collector.get_response() or "Done."
             self._append_conversation(append_conversation_fn, context.raw_text, final_response)
             sentiment = analyze_sentiment_fn(final_response) if analyze_sentiment_fn else "neutral"
             outcome = self.outcome_builder.build(

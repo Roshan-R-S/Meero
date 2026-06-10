@@ -16,6 +16,8 @@ from .actions_routing import COMMAND_ROUTE_SPECS, match_any_phrase, match_regex
 
 logger = logging.getLogger(__name__)
 
+ACTION_TIMEOUT_RESULT = "desktop_subprocess_timeout"
+
 
 class _UnavailablePyAutoGUI:
     def __getattr__(self, name):
@@ -358,6 +360,8 @@ class Actions:
 
         success, message = app_launcher.close_app_by_name(app_name)
         self.speak(message)
+        if not success and message == "Closing the application timed out.":
+            return ACTION_TIMEOUT_RESULT
 
     def browse(self, query, input_func):
         search_term = query.replace("open google", "").replace("google search", "").replace("google", "").replace("search for", "").replace("search", "").replace("browse", "").strip()

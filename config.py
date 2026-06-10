@@ -162,9 +162,6 @@ NEURAL_NET_MAXLEN = 20
 NEURAL_NET_VOCAB_SIZE = 1000
 NEURAL_NET_EMBEDDING_DIM = 16
 
-# LLM generation timeout (seconds) — used by async or guarded calls.
-LLM_MAX_GENERATION_TIME = 10
-
 # Debug flag — when True, unhandled exception responses include the error
 # detail string.  Keep False in production to avoid leaking internals.
 DEBUG_ERRORS = _env_bool("DEBUG_ERRORS", False)
@@ -185,3 +182,7 @@ PIPER_MODEL_PATH = os.environ.get("PIPER_MODEL_PATH", os.path.join(LOCAL_TTS_DIR
 PIPER_EXECUTABLE = os.environ.get("PIPER_EXECUTABLE", "piper")
 VOICE_MAX_UPLOAD_BYTES = int(os.environ.get("VOICE_MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
 VOICE_MAX_DURATION_SECONDS = float(os.environ.get("VOICE_MAX_DURATION_SECONDS", "30"))
+VOICE_TTS_TIMEOUT_SECONDS = float(os.environ.get("VOICE_TTS_TIMEOUT_SECONDS", "10"))
+DESKTOP_SUBPROCESS_TIMEOUT_SECONDS = float(
+    os.environ.get("DESKTOP_SUBPROCESS_TIMEOUT_SECONDS", "5")
+)

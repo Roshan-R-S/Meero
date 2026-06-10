@@ -8,8 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy runtime requirements
-COPY requirements.txt ./requirements.txt
+# Copy full local runtime requirements and every referenced profile.
+COPY requirements.txt requirements-base.txt requirements-ai.txt requirements-actions.txt requirements-desktop.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy app

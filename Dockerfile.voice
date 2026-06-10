@@ -2,8 +2,8 @@ FROM python:3.10-slim
 
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends espeak-ng libsndfile1 && rm -rf /var/lib/apt/lists/*
-COPY requirements.txt requirements-base.txt requirements-ai.txt requirements-desktop.txt requirements-voice.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-voice.txt
+COPY requirements-websafe.txt requirements-base.txt requirements-ai.txt requirements-actions.txt requirements-voice.txt ./
+RUN pip install --no-cache-dir -r requirements-websafe.txt -r requirements-voice.txt
 COPY . /app
 
 ENV PYTHONUNBUFFERED=1

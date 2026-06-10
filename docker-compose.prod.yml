@@ -8,6 +8,9 @@ services:
         required: false
     ports:
       - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models:ro
     environment:
       - PYTHONUNBUFFERED=1
       - REDIS_URL=redis://redis:6379/0
@@ -19,6 +22,8 @@ services:
       - PROTECT_METRICS=true
       - MEERO_API_KEY=${MEERO_API_KEY}
       - AUDIT_LOG_COMMAND_TEXT=false
+      - VOICE_TTS_TIMEOUT_SECONDS=${VOICE_TTS_TIMEOUT_SECONDS:-10}
+      - DESKTOP_SUBPROCESS_TIMEOUT_SECONDS=${DESKTOP_SUBPROCESS_TIMEOUT_SECONDS:-5}
     depends_on:
       - redis
 
