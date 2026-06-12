@@ -26,6 +26,7 @@ ready = False
 
 async def initialize() -> None:
     global ready
+    ready = False
     if FastAPILimiter is None or redis is None:
         logger.info("Rate limiter libraries not available; skipping init")
         return
@@ -43,15 +44,21 @@ async def initialize() -> None:
         logger.warning("Redis unavailable at %s; disabling distributed rate limiting", redis_url)
 
 
+def _handle_unavailable() -> None:
+    if getattr(config, "RATE_LIMIT_FAIL_OPEN", True):
+        return
+    raise HTTPException(status_code=503, detail="Rate limiter unavailable")
+
+
 async def check(request: Request) -> None:
     if RateLimiter is None or FastAPILimiter is None or not ready:
-        return
+        return _handle_unavailable()
     if not getattr(FastAPILimiter, "redis", None):
-        return
+        return _handle_unavailable()
     try:
         await RateLimiter(times=10, seconds=60)(request)
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("Rate limiter check failed")
-        if getattr(config, "RATE_LIMIT_FAIL_OPEN", True):
-            return
-        raise HTTPException(status_code=503, detail="Rate limiter unavailable")
+        return _handle_unavailable()

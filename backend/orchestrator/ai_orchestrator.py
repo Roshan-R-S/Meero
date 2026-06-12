@@ -80,13 +80,20 @@ class AIOrchestrator:
                 return outcome
 
             trace.add("safety", "allowed")
+            actions_started = time.perf_counter()
             result = actions.process_command(
                 context.routing_text,
                 input_func=(lambda: "yes") if context.confirm else (lambda: "None"),
                 exit_func=lambda: response_collector.speak("Disconnecting..."),
             )
+            actions_latency_ms = (time.perf_counter() - actions_started) * 1000
             if result == ACTION_TIMEOUT_RESULT:
-                trace.add("actions", "failed", reason=ACTION_TIMEOUT_RESULT)
+                trace.add(
+                    "actions",
+                    "failed",
+                    reason=ACTION_TIMEOUT_RESULT,
+                    latency_ms=actions_latency_ms,
+                )
                 outcome = self.outcome_builder.build(
                     response_collector.get_response() or "The desktop action timed out.",
                     "error",
@@ -97,7 +104,12 @@ class AIOrchestrator:
                 return outcome
             if result == "neural_net_fallback":
                 metadata = {"engine": "fallback", "fallback_reason": "actions_unhandled"}
-                trace.add("actions", "unhandled", reason="actions_unhandled")
+                trace.add(
+                    "actions",
+                    "unhandled",
+                    reason="actions_unhandled",
+                    latency_ms=actions_latency_ms,
+                )
                 summary = self._memory_summary(memory_summary_fn)
                 response_text = self.fallback_policy.run(
                     routing_text=context.routing_text,
@@ -115,7 +127,7 @@ class AIOrchestrator:
                     trace.add("fallback", "failed", reason="all_engines_failed")
                 response_collector.speak(response_text)
             else:
-                trace.add("actions", "selected")
+                trace.add("actions", "selected", latency_ms=actions_latency_ms)
 
             final_response = response_collector.get_response() or "Done."
             self._append_conversation(append_conversation_fn, context.raw_text, final_response)

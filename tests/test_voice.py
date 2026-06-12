@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 import backend.app as app_module
 from backend.schemas import CommandOutcome
 from backend.voice.audio_utils import AudioValidationError, validate_wav_bytes
-from backend.voice.stt_service import STTService
+from backend.voice.stt_service import STTService, STTUnavailableError
 from backend.voice.tts_service import TTSService, TTSUnavailableError
 from backend.voice.voice_pipeline import LocalVoicePipeline
 
@@ -91,6 +91,11 @@ class UnavailableTTS(FakeTTS):
 class TimeoutTTS(FakeTTS):
     def synthesize(self, _text):
         raise TTSUnavailableError("Fake provider timed out")
+
+
+class UnavailableSTT(FakeSTT):
+    def transcribe(self, _audio):
+        raise STTUnavailableError("Fake STT is unavailable")
 
 
 def test_voice_pipeline_uses_same_command_gateway():
@@ -189,6 +194,16 @@ def test_voice_trace_marks_disabled_and_unavailable_tts():
         lambda *_args, **_kwargs: CommandOutcome("Done", "success"),
     )
     assert timed_out.outcome.metadata["decision_trace"][-1]["reason"] == "timeout"
+
+
+def test_voice_pipeline_rejects_empty_transcript_before_command_execution():
+    pipeline = LocalVoicePipeline(FakeSTT(""), FakeTTS())
+
+    with pytest.raises(ValueError, match="No speech was recognized"):
+        pipeline.execute(
+            wav_bytes(),
+            lambda *_args, **_kwargs: pytest.fail("command must not execute"),
+        )
 
 
 def _make_vosk_model_dir(tmp_path):
@@ -399,3 +414,98 @@ def test_voice_endpoint_rejects_remote_requests(monkeypatch):
     )
 
     assert response.status_code == 403
+
+
+def test_voice_transcribe_endpoint_returns_safe_unavailable_response(monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "voice_pipeline",
+        LocalVoicePipeline(UnavailableSTT(), FakeTTS()),
+    )
+    monkeypatch.setattr(app_module.config, "MEERO_API_KEY", "")
+    client = TestClient(app_module.app)
+
+    response = client.post(
+        "/voice/transcribe",
+        files={"audio": ("voice.wav", wav_bytes(), "audio/wav")},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Fake STT is unavailable"}
+
+
+def test_voice_command_empty_transcript_returns_stable_validation_error(monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "voice_pipeline",
+        LocalVoicePipeline(FakeSTT(""), FakeTTS()),
+    )
+    monkeypatch.setattr(app_module.config, "MEERO_API_KEY", "")
+    client = TestClient(app_module.app)
+
+    response = client.post(
+        "/voice-command",
+        files={"audio": ("voice.wav", wav_bytes(), "audio/wav")},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "No speech was recognized"}
+
+
+def test_voice_command_preserves_schema_and_returns_text_when_tts_is_unavailable(monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "voice_pipeline",
+        LocalVoicePipeline(FakeSTT("what time is it"), UnavailableTTS()),
+    )
+    monkeypatch.setattr(app_module.config, "MEERO_API_KEY", "")
+    client = TestClient(app_module.app)
+
+    response = client.post(
+        "/voice-command",
+        files={"audio": ("voice.wav", wav_bytes(), "audio/wav")},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert set(payload) == {
+        "transcript",
+        "response",
+        "action_status",
+        "sentiment",
+        "pending_command",
+        "metadata",
+        "audio_base64",
+        "audio_mime_type",
+    }
+    assert payload["transcript"] == "what time is it"
+    assert payload["response"]
+    assert payload["audio_base64"] is None
+    assert payload["audio_mime_type"] is None
+    assert payload["metadata"]["decision_trace"][-1]["status"] == "unavailable"
+
+
+def test_voice_command_synthesize_false_skips_tts(monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "voice_pipeline",
+        LocalVoicePipeline(FakeSTT("what time is it"), FakeTTS()),
+    )
+    monkeypatch.setattr(app_module.config, "MEERO_API_KEY", "")
+    client = TestClient(app_module.app)
+
+    response = client.post(
+        "/voice-command",
+        data={"synthesize": "false"},
+        files={"audio": ("voice.wav", wav_bytes(), "audio/wav")},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["audio_base64"] is None
+    assert payload["metadata"]["decision_trace"][-1] == {
+        "stage": "tts",
+        "status": "skipped",
+        "provider": "fake",
+        "reason": "disabled",
+    }

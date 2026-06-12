@@ -69,6 +69,32 @@ describe("api config", () => {
     );
   });
 
+  test("sends local voice audio and options as protected multipart form data", async () => {
+    const post = vi.fn().mockResolvedValue({
+      data: { response: "ok", audio_base64: null },
+    });
+    vi.stubEnv("VITE_MEERO_API_KEY", "voice-key");
+    vi.doMock("axios", () => ({
+      default: { post },
+    }));
+
+    const { sendVoiceCommand } = await import("./api");
+    const audio = new Blob(["wav"], { type: "audio/wav" });
+    await sendVoiceCommand(audio, {
+      synthesize: false,
+      pendingCommand: "close calculator",
+    });
+
+    const [url, form, options] = post.mock.calls[0];
+    expect(url).toBe("http://localhost:8000/voice-command");
+    expect(form).toBeInstanceOf(FormData);
+    expect(form.get("audio")).toBeInstanceOf(File);
+    expect(form.get("audio").name).toBe("command.wav");
+    expect(form.get("synthesize")).toBe("false");
+    expect(form.get("pending_command")).toBe("close calculator");
+    expect(options).toEqual({ headers: { "x-meero-api-key": "voice-key" } });
+  });
+
   test("prefers debug health when available", async () => {
     const get = vi.fn().mockResolvedValue({
       data: { status: "ok", web_safe_mode: true },

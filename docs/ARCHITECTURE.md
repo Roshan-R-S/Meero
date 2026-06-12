@@ -162,7 +162,25 @@ Trace steps may include provider, status, reason, confidence, and latency. They
 never include audio, transcript text, command text, response text, or model
 paths.
 
-## 7. Repository Map
+## 7. Latency Budgets
+
+Decision traces record observed latency for voice stages, deterministic
+actions, neural fallback, and local LLM fallback. These are operational targets,
+not request-cancellation deadlines:
+
+| Stage | Target |
+| --- | ---: |
+| STT | under 3 seconds |
+| Deterministic actions | under 500 ms |
+| Neural fallback | under 1 second |
+| Local LLM | under 10 seconds, observed but not enforced |
+| TTS | under 3 seconds |
+
+Piper, SAPI, and supported desktop subprocesses have enforced timeouts. Vosk,
+faster-whisper, and GPT4All require process isolation before their work can be
+genuinely cancelled.
+
+## 8. Repository Map
 
 ### Backend API And Security
 

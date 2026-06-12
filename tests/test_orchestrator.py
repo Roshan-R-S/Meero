@@ -96,6 +96,7 @@ def test_orchestrator_trace_covers_deterministic_and_failed_fallback(monkeypatch
         "safety",
         "actions",
     ]
+    assert deterministic.metadata["decision_trace"][-1]["latency_ms"] >= 0
 
     monkeypatch.setattr("config.USE_NEURAL_NET", False)
     monkeypatch.setattr("config.USE_LLM", False)
@@ -106,6 +107,23 @@ def test_orchestrator_trace_covers_deterministic_and_failed_fallback(monkeypatch
         "status": "failed",
         "reason": "all_engines_failed",
     }
+
+
+def test_fallback_trace_records_stage_latency_without_private_text(monkeypatch):
+    monkeypatch.setattr("config.USE_NEURAL_NET", False)
+    monkeypatch.setattr("config.USE_LLM", True)
+    private_text = "unhandled private timing phrase"
+
+    outcome = AIOrchestrator().execute(private_text, llm=FakeLLM())
+    timed_stages = {
+        step["stage"]: step
+        for step in outcome.metadata["decision_trace"]
+        if step["stage"] in {"actions", "neural_net", "local_llm"}
+    }
+
+    assert set(timed_stages) == {"actions", "neural_net", "local_llm"}
+    assert all(step["latency_ms"] >= 0 for step in timed_stages.values())
+    assert private_text not in json.dumps(outcome.metadata)
 
 
 def test_orchestrator_factory_failure_returns_safe_error():
@@ -134,9 +152,9 @@ def test_desktop_subprocess_timeout_returns_safe_error_trace(monkeypatch):
     assert outcome.response.endswith("Closing the application timed out.")
     assert "private-app" not in outcome.response
     assert outcome.metadata["fallback_reason"] == "desktop_subprocess_timeout"
-    assert outcome.metadata["decision_trace"][-1] == {
-        "stage": "actions",
-        "status": "failed",
-        "reason": "desktop_subprocess_timeout",
-    }
+    action_step = outcome.metadata["decision_trace"][-1]
+    assert action_step["stage"] == "actions"
+    assert action_step["status"] == "failed"
+    assert action_step["reason"] == "desktop_subprocess_timeout"
+    assert action_step["latency_ms"] >= 0
     assert "private-app" not in json.dumps(outcome.metadata)

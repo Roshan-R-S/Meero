@@ -38,6 +38,7 @@ function App() {
   const [serverReachable, setServerReachable] = useState(true);
   const [ggufMissing, setGgufMissing] = useState(false);
   const [modelStatus, setModelStatus] = useState(null);
+  const bootPollingPausedRef = useRef(false);
 
   useEffect(() => {
     const storage = typeof window !== "undefined" ? window.localStorage : null;
@@ -60,17 +61,21 @@ function App() {
   useEffect(() => {
     let polling = true;
     let failedChecks = 0;
+    bootPollingPausedRef.current = false;
     
     const checkStatus = async () => {
+      if (bootPollingPausedRef.current) return;
       const status = await getModelStatus();
       if (!polling) return;
 
       if (!status) {
         failedChecks += 1;
         if (failedChecks >= 3) setBootError(true);
+        if (failedChecks >= 3) bootPollingPausedRef.current = true;
         return;
       }
       failedChecks = 0;
+      bootPollingPausedRef.current = false;
       setBootError(false);
       setModelStatus(status);
       
@@ -402,6 +407,7 @@ function App() {
                 type="button"
                 onClick={() => {
                   setBootError(false);
+                  bootPollingPausedRef.current = false;
                   setLoadingText("RECONNECTING TO LOCAL SERVER...");
                   setBootRetryKey((value) => value + 1);
                 }}

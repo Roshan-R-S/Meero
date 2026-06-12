@@ -172,11 +172,15 @@ to specific files or restarting manually when model-loading changes are made.
 
 
 Development compose runs the backend, Vite dev server, and Redis with bind
-mounts:
+mounts. It is web-safe by default unless explicitly overridden:
 
 ```powershell
 docker compose up --build
 ```
+
+To exercise real Windows desktop automation, run the backend directly on the
+trusted Windows host and explicitly enable local desktop mode. A Linux
+container cannot reliably control the Windows desktop.
 
 Production-style compose builds static frontend assets with nginx and keeps
 desktop automation disabled:
