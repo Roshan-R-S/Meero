@@ -6,6 +6,19 @@ export const AUTH_VALUE = import.meta.env.VITE_MEERO_API_KEY || '';
 
 const authHeaders = AUTH_VALUE ? { 'x-meero-api-key': AUTH_VALUE } : {};
 
+const isBackendUnavailableError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  const code = String(error?.code || '').toLowerCase();
+  return (
+    message.includes('network error') ||
+    message.includes('connection refused') ||
+    message.includes('connection reset') ||
+    code === 'err_network' ||
+    code === 'econnrefused' ||
+    code === 'econnreset'
+  );
+};
+
 const notifyServerReachable = (reachable) => {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent('meero:server-reachable', { detail: { reachable } }));
@@ -51,13 +64,17 @@ export const getHealth = async () => {
     notifyServerReachable(true);
     return { ...response.data, detailed: true };
   } catch (debugError) {
-    logger.log("Debug health unavailable; falling back to public health.", debugError);
+    if (!isBackendUnavailableError(debugError)) {
+      logger.log("Debug health unavailable; falling back to public health.", debugError);
+    }
     try {
       const response = await axios.get(`${API_URL}/health`);
       notifyServerReachable(true);
       return { ...response.data, detailed: false };
     } catch (error) {
-      logger.error("Health API Error:", error);
+      if (!isBackendUnavailableError(error)) {
+        logger.error("Health API Error:", error);
+      }
       notifyServerReachable(false);
       return null;
     }
@@ -70,7 +87,9 @@ export const getSettings = async () => {
     notifyServerReachable(true);
     return response.data;
   } catch (error) {
-    logger.error("Settings API Error:", error);
+    if (!isBackendUnavailableError(error)) {
+      logger.error("Settings API Error:", error);
+    }
     notifyServerReachable(false);
     return {};
   }
@@ -82,7 +101,9 @@ export const getModelStatus = async () => {
     notifyServerReachable(true);
     return response.data;
   } catch (error) {
-    logger.error("Model status API Error:", error);
+    if (!isBackendUnavailableError(error)) {
+      logger.error("Model status API Error:", error);
+    }
     notifyServerReachable(false);
     return null;
   }
@@ -94,7 +115,9 @@ export const saveSettings = async (settings) => {
     notifyServerReachable(true);
     return response.data;
   } catch (error) {
-    logger.error("Save settings API Error:", error);
+    if (!isBackendUnavailableError(error)) {
+      logger.error("Save settings API Error:", error);
+    }
     notifyServerReachable(false);
     return { status: "error" };
   }

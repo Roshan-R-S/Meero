@@ -217,3 +217,102 @@ class TestSensitiveCommandConfirmation:
         assert result is None
         assert "opening settings" in response
         mock_open.assert_called_once()
+
+
+class TestMediaControl:
+    @patch("core.media_control._send_media_key_windows", return_value=True)
+    def test_pause_command(self, mock_send, actions):
+        act, engine = actions
+        act.process_command("pause")
+        response = engine.get_response().lower()
+        assert "toggled media playback" in response
+        mock_send.assert_called_once()
+
+    @patch("core.media_control._send_media_key_windows", return_value=True)
+    def test_next_track_command(self, mock_send, actions):
+        act, engine = actions
+        act.process_command("next track")
+        response = engine.get_response().lower()
+        assert "next track" in response
+        mock_send.assert_called_once()
+
+    @patch("core.media_control._send_media_key_windows", return_value=True)
+    def test_previous_track_command(self, mock_send, actions):
+        act, engine = actions
+        act.process_command("previous track")
+        response = engine.get_response().lower()
+        assert "previous track" in response
+        mock_send.assert_called_once()
+
+
+class TestReminderCommand:
+    def test_schedule_reminder(self, actions, tmp_path, monkeypatch):
+        act, engine = actions
+        from core.reminder_service import ReminderService
+        test_srv = ReminderService(db_path=tmp_path / "test_rem.db")
+        monkeypatch.setattr("core.reminder_service.get_reminder_service", lambda: test_srv)
+
+        act.process_command("remind me in 10 minutes to drink water")
+        response = engine.get_response().lower()
+        assert "remind you to drink water in 10 minutes" in response
+        assert len(test_srv.list_pending()) == 1
+
+    def test_cancel_reminder(self, actions, tmp_path, monkeypatch):
+        act, engine = actions
+        from core.reminder_service import ReminderService
+        test_srv = ReminderService(db_path=tmp_path / "test_rem.db")
+        test_srv.schedule("drink water", 600)
+        monkeypatch.setattr("core.reminder_service.get_reminder_service", lambda: test_srv)
+
+        act.process_command("cancel reminder")
+        response = engine.get_response().lower()
+        assert "cancelled reminder: drink water" in response
+        assert len(test_srv.list_pending()) == 0
+
+
+class TestWindowManagement:
+    @patch("core.window_manager._use_pyautogui_hotkey", return_value=True)
+    def test_minimize_all(self, mock_hotkey, actions):
+        act, engine = actions
+        act.process_command("minimize all")
+        response = engine.get_response().lower()
+        assert "showing desktop" in response
+        mock_hotkey.assert_called_with("win", "d")
+
+    @patch("core.window_manager._use_pyautogui_hotkey", return_value=True)
+    def test_snap_window_left(self, mock_hotkey, actions):
+        act, engine = actions
+        act.process_command("snap window left")
+        response = engine.get_response().lower()
+        assert "snapped window to the left" in response
+        mock_hotkey.assert_called_with("win", "left")
+
+
+class TestFolderShortcuts:
+    @patch("core.window_manager.open_folder_shortcut", return_value=(True, "Opening Downloads folder."))
+    def test_open_downloads(self, mock_open_folder, actions):
+        act, engine = actions
+        act.process_command("open downloads")
+        response = engine.get_response().lower()
+        assert "opening downloads folder" in response
+        mock_open_folder.assert_called_once()
+
+
+class TestQuickSystem:
+    @patch("core.window_manager.lock_screen", return_value="Screen locked.")
+    def test_lock_screen(self, mock_lock, actions):
+        act, engine = actions
+        act.process_command("lock screen")
+        response = engine.get_response().lower()
+        assert "screen locked" in response
+        mock_lock.assert_called_once()
+
+    @patch("core.window_manager.empty_recycle_bin", return_value="Recycle Bin emptied.")
+    def test_empty_recycle_bin_with_confirmation(self, mock_empty, actions):
+        act, engine = actions
+        result = act.process_command("empty recycle bin", input_func=lambda: "yes")
+        response = engine.get_response().lower()
+        assert result is None
+        assert "recycle bin emptied" in response
+        mock_empty.assert_called_once()
+

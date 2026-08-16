@@ -12,6 +12,9 @@ import config
 import pyjokes
 import psutil
 import wikipedia
+from . import media_control
+from . import reminder_service
+from . import window_manager
 from .actions_routing import COMMAND_ROUTE_SPECS, match_any_phrase, match_regex
 
 logger = logging.getLogger(__name__)
@@ -105,6 +108,11 @@ class Actions:
             "open_app": lambda q: self.open_app(q),
             "close_app": lambda q: self.close_app(q),
             "search_wikipedia": lambda q: self.search_wikipedia(q),
+            "handle_media_control": lambda q: self.handle_media_control(q),
+            "handle_reminder": lambda q: self.handle_reminder(q),
+            "handle_window_management": lambda q: self.handle_window_management(q),
+            "handle_folder_shortcut": lambda q: self.handle_folder_shortcut(q),
+            "handle_quick_system": lambda q: self.handle_quick_system(q),
         }
 
         routes = []
@@ -218,6 +226,50 @@ class Actions:
                 r"\bclose(?: this)?(?: browser)? tab\b",
                 r"\b(?:next|previous|switch)(?: browser)? tab\b",
             )
+        )
+
+    @staticmethod
+    def _match_media_control(q):
+        if "on youtube" in q or "in youtube" in q:
+            return False
+        return (
+            Actions._match_regex(q, r"\b(pause|resume|next track|next song|previous track|prev track|prev song|previous song|stop music|stop playback|play music|media play|media pause)\b")
+            or Actions._match_regex(q, r"^(pause|resume|next|previous)$")
+        )
+
+    @staticmethod
+    def _match_reminder(q):
+        return Actions._match_regex(q, r"\b(remind me|set (a )?reminder|set (a )?timer|timer for|cancel reminder|cancel timer)\b")
+
+    @staticmethod
+    def _match_window_management(q):
+        return Actions._match_any_phrase(
+            q,
+            (
+                "minimize all",
+                "show desktop",
+                "maximize window",
+                "minimize window",
+                "snap window left",
+                "snap left",
+                "snap window right",
+                "snap right",
+                "switch window",
+                "next window",
+            ),
+        )
+
+    @staticmethod
+    def _match_folder_shortcut(q):
+        has_open = any(v in q for v in ("open", "show", "explore"))
+        has_folder = any(f in q for f in ("downloads", "download", "documents", "document", "desktop folder", "pictures", "photos", "videos", "music folder"))
+        return has_open and has_folder and not any(site in q for site in _WEBSITES)
+
+    @staticmethod
+    def _match_quick_system(q):
+        return Actions._match_any_phrase(
+            q,
+            ("lock screen", "lock workstation", "lock computer", "lock pc", "empty recycle bin", "empty the recycle bin", "clear recycle bin"),
         )
 
     def cal_day(self):
@@ -458,11 +510,84 @@ class Actions:
         else:
             os._exit(0)
 
+    def handle_media_control(self, command):
+        q = command.lower()
+        if "next" in q:
+            msg = media_control.next_track()
+        elif "previous" in q or "prev" in q:
+            msg = media_control.previous_track()
+        elif "stop" in q:
+            msg = media_control.stop_media()
+        else:
+            msg = media_control.play_pause_media()
+        self.speak(msg)
+
+    def handle_reminder(self, command):
+        q = command.lower()
+        if "cancel" in q:
+            service = reminder_service.get_reminder_service()
+            cancelled = service.cancel_latest()
+            if cancelled:
+                self.speak(f"Cancelled reminder: {cancelled.message}")
+            else:
+                self.speak("No pending reminders to cancel.")
+            return
+
+        parsed = reminder_service.parse_reminder_query(command)
+        if parsed:
+            message, delay = parsed
+            service = reminder_service.get_reminder_service()
+            service.schedule(message, delay)
+            if delay < 60:
+                time_str = f"{int(delay)} seconds"
+            elif delay < 3600:
+                mins = int(delay // 60)
+                time_str = f"{mins} minute{'s' if mins != 1 else ''}"
+            else:
+                hrs = delay / 3600
+                time_str = f"{hrs:.1f} hours" if not hrs.is_integer() else f"{int(hrs)} hours"
+            self.speak(f"I will remind you to {message} in {time_str}.")
+        else:
+            self.speak("I couldn't understand the time for that reminder. Try saying 'remind me in 10 minutes to drink water'.")
+
+    def handle_window_management(self, command):
+        q = command.lower()
+        if "minimize all" in q or "show desktop" in q:
+            msg = window_manager.minimize_all_windows()
+        elif "maximize" in q:
+            msg = window_manager.maximize_window()
+        elif "minimize" in q:
+            msg = window_manager.minimize_window()
+        elif "snap" in q and "left" in q:
+            msg = window_manager.snap_window_left()
+        elif "snap" in q and "right" in q:
+            msg = window_manager.snap_window_right()
+        elif "switch" in q or "next window" in q:
+            msg = window_manager.switch_window()
+        else:
+            msg = "Window management command not recognized."
+        self.speak(msg)
+
+    def handle_folder_shortcut(self, command):
+        success, msg = window_manager.open_folder_shortcut(command)
+        self.speak(msg)
+
+    def handle_quick_system(self, command):
+        q = command.lower()
+        if "lock" in q:
+            msg = window_manager.lock_screen()
+        elif "recycle bin" in q:
+            msg = window_manager.empty_recycle_bin()
+        else:
+            msg = "System action not recognized."
+        self.speak(msg)
+
     def _requires_confirmation(self, query):
         q = query.lower().strip()
         destructive_keywords = (
             "delete", "remove", "format", "wipe", "reset",
-            "uninstall", "shutdown", "restart", "registry"
+            "uninstall", "shutdown", "restart", "registry",
+            "empty recycle bin", "empty the recycle bin", "clear recycle bin"
         )
         is_destructive = any(k in q for k in destructive_keywords)
         is_settings_change = "settings" in q

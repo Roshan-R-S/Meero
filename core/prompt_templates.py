@@ -1,8 +1,9 @@
-"""Prompt builders for Meero's LLM fallback path."""
+"""Prompt builders for Meero's LLM fallback path with tool calling support."""
 from __future__ import annotations
 
+import json
 import re
-from typing import Iterable
+from typing import Any, Iterable
 
 SYSTEM_PROMPT = """You are Meero, a local AI assistant for Roshan.
 
@@ -12,6 +13,12 @@ Rules:
 - If the user asks for dangerous system actions, ask for confirmation.
 - Use memory summary only as context, not as guaranteed truth.
 - If unsure, say so clearly."""
+
+TOOL_INSTRUCTIONS = """You have access to desktop tools to execute user requests.
+If the user wants you to perform actions, output ONLY a JSON object:
+{"tool_calls": [{"tool": "tool_name", "args": {"param": "value"}}]}
+Multiple actions can be chained in the "tool_calls" list.
+If no action is needed, output normal conversational text without JSON."""
 
 ASSISTANT_HEADER = "<|start_header_id|>assistant<|end_header_id|>"
 BEGIN_TEXT = "<|begin_of_text|>"
@@ -28,10 +35,15 @@ def build_llama3_prompt(
     history: Iterable[tuple[str, str]] | None = None,
     memory_summary: str | None = None,
     max_history: int = 5,
+    include_tools: bool = True,
 ) -> str:
     """Build a stable Llama-3 style prompt for local GGUF/GPT4All models."""
+    from .tool_registry import format_tools_for_prompt
+
     turns = list(history or [])[-max_history:]
     system_text = SYSTEM_PROMPT
+    if include_tools:
+        system_text += f"\n\n{TOOL_INSTRUCTIONS}\n\n{format_tools_for_prompt()}"
     if memory_summary:
         system_text += f"\n\nMemory summary:\n{memory_summary}"
 
@@ -50,10 +62,15 @@ def build_mistral_prompt(
     history: Iterable[tuple[str, str]] | None = None,
     memory_summary: str | None = None,
     max_history: int = 5,
+    include_tools: bool = True,
 ) -> str:
     """Build a Mistral Instruct style prompt for local GGUF/GPT4All models."""
+    from .tool_registry import format_tools_for_prompt
+
     turns = list(history or [])[-max_history:]
     system_text = SYSTEM_PROMPT
+    if include_tools:
+        system_text += f"\n\n{TOOL_INSTRUCTIONS}\n\n{format_tools_for_prompt()}"
     if memory_summary:
         system_text += f"\n\nMemory summary:\n{memory_summary}"
 
@@ -74,12 +91,13 @@ def build_local_prompt(
     user_input: str,
     history: Iterable[tuple[str, str]] | None = None,
     memory_summary: str | None = None,
+    include_tools: bool = True,
 ) -> str:
     """Choose a prompt format based on the local GGUF model filename."""
     normalized_name = (model_name or "").lower()
     if "mistral" in normalized_name or "mixtral" in normalized_name:
-        return build_mistral_prompt(user_input, history, memory_summary=memory_summary)
-    return build_llama3_prompt(user_input, history, memory_summary=memory_summary)
+        return build_mistral_prompt(user_input, history, memory_summary=memory_summary, include_tools=include_tools)
+    return build_llama3_prompt(user_input, history, memory_summary=memory_summary, include_tools=include_tools)
 
 
 def build_external_payload(
@@ -125,3 +143,45 @@ def clean_llm_response(text: str | None) -> str:
         cleaned = cleaned.split("User:")[-1].strip()
 
     return " ".join(cleaned.split())
+
+
+def extract_tool_calls(text: str | None) -> list[dict[str, Any]] | None:
+    """
+    Robustly extract and validate JSON tool calls from LLM output.
+    Returns a list of dicts: [{"tool": str, "args": dict}] or None if text is conversational.
+    """
+    if not text:
+        return None
+
+    cleaned = text.strip()
+    
+    # 1. Check for markdown code blocks ```json ... ``` or ``` ... ```
+    code_block_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.DOTALL)
+    candidate_json = code_block_match.group(1) if code_block_match else None
+
+    # 2. If no code block, look for bare JSON object containing tool_calls
+    if not candidate_json:
+        json_obj_match = re.search(r"(\{.*\"tool_calls\"\s*:\s*\[.*\]\s*\})", cleaned, re.DOTALL)
+        if json_obj_match:
+            candidate_json = json_obj_match.group(1)
+
+    if not candidate_json and cleaned.startswith("{") and cleaned.endswith("}"):
+        candidate_json = cleaned
+
+    if candidate_json:
+        try:
+            data = json.loads(candidate_json)
+            if isinstance(data, dict) and "tool_calls" in data and isinstance(data["tool_calls"], list):
+                valid_calls = []
+                for item in data["tool_calls"]:
+                    if isinstance(item, dict) and "tool" in item:
+                        valid_calls.append({
+                            "tool": str(item["tool"]),
+                            "args": item.get("args", {}) if isinstance(item.get("args"), dict) else {},
+                        })
+                if valid_calls:
+                    return valid_calls
+        except Exception:
+            pass
+
+    return None

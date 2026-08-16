@@ -38,6 +38,7 @@ function App() {
   const [serverReachable, setServerReachable] = useState(true);
   const [ggufMissing, setGgufMissing] = useState(false);
   const [modelStatus, setModelStatus] = useState(null);
+  const bootPollingPausedRef = useRef(false);
 
   useEffect(() => {
     const storage = typeof window !== "undefined" ? window.localStorage : null;
@@ -60,17 +61,21 @@ function App() {
   useEffect(() => {
     let polling = true;
     let failedChecks = 0;
+    bootPollingPausedRef.current = false;
     
     const checkStatus = async () => {
+      if (bootPollingPausedRef.current) return;
       const status = await getModelStatus();
       if (!polling) return;
 
       if (!status) {
         failedChecks += 1;
         if (failedChecks >= 3) setBootError(true);
+        if (failedChecks >= 3) bootPollingPausedRef.current = true;
         return;
       }
       failedChecks = 0;
+      bootPollingPausedRef.current = false;
       setBootError(false);
       setModelStatus(status);
       
@@ -309,6 +314,8 @@ function App() {
     error: localVoiceError,
     supported: localCaptureSupported,
     toggleRecording: toggleLocalRecording,
+    micEnergyLevel,
+    vadReady,
   } = useVoicePipeline({
     onResult: handleLocalVoiceResult,
     pendingCommand: pendingConfirmationCommand,
@@ -402,6 +409,7 @@ function App() {
                 type="button"
                 onClick={() => {
                   setBootError(false);
+                  bootPollingPausedRef.current = false;
                   setLoadingText("RECONNECTING TO LOCAL SERVER...");
                   setBootRetryKey((value) => value + 1);
                 }}
@@ -529,10 +537,10 @@ function App() {
 
         {/* Visualizer - Center Stage */}
         <div className="flex-1 flex items-center justify-center w-full h-full relative z-20">
-          <AssistantOrb state={state} sentiment={sentiment} />
+          <AssistantOrb state={state} sentiment={sentiment} micEnergyLevel={micEnergyLevel} />
         </div>
 
-        <VoiceControls
+          <VoiceControls
           browserFallbackEnabled={browserSpeechFallbackEnabled}
           browserSpeechSupported={speechSupported}
           localVoiceAvailable={localVoiceAvailable}
@@ -547,6 +555,7 @@ function App() {
           state={state}
           textInputEnabled={textInputEnabled}
           typedCommand={typedCommand}
+          vadReady={vadReady}
           wakeWordEnabled={wakeWordEnabled}
           setWakeWordEnabled={setWakeWordEnabled}
         />

@@ -3,3 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.voice
+    environment:
+      - VOICE_STT_PROVIDER=${VOICE_STT_PROVIDER:-vosk}
+      - VOICE_TTS_PROVIDER=${VOICE_TTS_PROVIDER:-piper}
+      - VOSK_MODEL_PATH=${VOSK_MODEL_PATH:-models/local-stt/vosk-en-us}
+      - WHISPER_MODEL_PATH=${WHISPER_MODEL_PATH:-models/local-stt/whisper}
+      - PIPER_MODEL_PATH=${PIPER_MODEL_PATH:-models/local-tts/voice.onnx}

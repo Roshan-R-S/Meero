@@ -20,6 +20,12 @@
   review.
 - Introduce process isolation before enforcing hard cancellation deadlines for
   Vosk, faster-whisper, or GPT4All.
+- Replace base64 voice response audio with streaming or a separate synthesis
+  request only when response sizes justify the added complexity.
+- Consider Compose profiles only if the current explicit development,
+  production, and voice-overlay commands become difficult to operate.
+- Consider a dedicated voice orchestrator only if voice-specific policy grows
+  beyond the current thin local pipeline around the command orchestrator.
 - Establish signed model manifests and release provenance.
 
 ## v0.1.0-local

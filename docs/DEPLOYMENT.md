@@ -24,6 +24,10 @@ matching `VITE_MEERO_API_KEY` if another browser or device can reach the backend
 Launch and close operations remain blocked until their explicit allowlists are
 configured.
 
+Run the backend directly on the trusted Windows host for real desktop
+automation. Docker is appropriate for API, frontend, Redis, and local voice
+testing, but a Linux container cannot reliably control the Windows desktop.
+
 ## Private Or VPN Hosted Assistant
 
 Use this when Meero is reachable through a private network such as Tailscale,
@@ -76,6 +80,11 @@ Development:
 docker compose up --build
 ```
 
+Development Compose defaults to `LOCAL_DESKTOP_MODE=false` and
+`WEB_SAFE_MODE=true`. Override those flags only for an explicitly trusted
+environment, understanding that containerized desktop automation remains
+limited.
+
 Production-style:
 
 ```powershell
@@ -94,6 +103,10 @@ mounts:
 docker compose -f docker-compose.prod.yml -f docker-compose.voice.yml up --build
 ```
 
+The voice overlay inherits production data/model mounts and safety settings. It
+only selects the voice image and supplies overridable local voice provider and
+model-path defaults.
+
 Before publishing, verify the resolved configuration:
 
 ```powershell
@@ -107,6 +120,11 @@ timeouts configured by `VOICE_TTS_TIMEOUT_SECONDS` and
 `DESKTOP_SUBPROCESS_TIMEOUT_SECONDS`. Vosk, faster-whisper, and GPT4All remain
 synchronous in-process providers; hard cancellation for those providers is
 deferred until process isolation is introduced.
+
+Backend and Redis services have healthchecks, and backend startup waits for a
+healthy Redis service. Production Compose sets `RATE_LIMIT_FAIL_OPEN=false`;
+rate-limited endpoints return HTTP `503` if Redis or limiter initialization is
+unavailable.
 
 For local desktop mode, set `APP_LAUNCH_ALLOWLIST` and `APP_CLOSE_ALLOWLIST` to
 the approved application names. Both operations fail closed when their
