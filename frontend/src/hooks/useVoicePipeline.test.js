@@ -7,9 +7,16 @@ const mocks = vi.hoisted(() => ({
   recorder: {
     supported: true,
     recording: false,
+    micEnergyLevel: 0,
     startRecording: vi.fn(),
     stopRecording: vi.fn(),
     cancelRecording: vi.fn(),
+  },
+  vad: {
+    vadReady: true,
+    startVAD: vi.fn().mockResolvedValue(undefined),
+    stopVAD: vi.fn(),
+    processAudioChunk: vi.fn().mockResolvedValue(0.8),
   },
 }));
 
@@ -19,6 +26,10 @@ vi.mock("../api", () => ({
 
 vi.mock("./useAudioRecorder", () => ({
   default: () => mocks.recorder,
+}));
+
+vi.mock("./useVAD", () => ({
+  default: () => mocks.vad,
 }));
 
 let audioInstances;
@@ -38,9 +49,13 @@ describe("useVoicePipeline", () => {
     globalThis.Audio = MockAudio;
     audioInstances = [];
     mocks.recorder.recording = false;
+    mocks.recorder.micEnergyLevel = 0;
     mocks.recorder.startRecording.mockReset();
     mocks.recorder.stopRecording.mockReset();
     mocks.recorder.cancelRecording.mockReset();
+    mocks.vad.startVAD.mockReset().mockResolvedValue(undefined);
+    mocks.vad.stopVAD.mockReset();
+    mocks.vad.processAudioChunk.mockReset().mockResolvedValue(0.8);
     mocks.sendVoiceCommand.mockReset();
   });
 
@@ -90,6 +105,46 @@ describe("useVoicePipeline", () => {
     expect(setState).toHaveBeenLastCalledWith("idle");
   });
 
+  test("starts VAD session before starting the recorder when vadReady", async () => {
+    mocks.recorder.startRecording.mockResolvedValue(undefined);
+    const { result } = renderHook(() =>
+      useVoicePipeline({ onResult: vi.fn(), setState: vi.fn() }),
+    );
+
+    await act(async () => {
+      await result.current.toggleRecording();
+    });
+
+    expect(mocks.vad.startVAD).toHaveBeenCalledOnce();
+    expect(mocks.recorder.startRecording).toHaveBeenCalledWith(
+      expect.objectContaining({
+        processAudioChunk: mocks.vad.processAudioChunk,
+      }),
+    );
+  });
+
+  test("passes undefined processAudioChunk to recorder when VAD is not ready", async () => {
+    // Override VAD to be not ready for this test
+    mocks.vad.vadReady = false;
+    mocks.recorder.startRecording.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useVoicePipeline({ onResult: vi.fn(), setState: vi.fn() }),
+    );
+
+    await act(async () => {
+      await result.current.toggleRecording();
+    });
+
+    // recorder should be called without VAD integration
+    const callArgs = mocks.recorder.startRecording.mock.calls[0][0];
+    expect(callArgs.processAudioChunk).toBeUndefined();
+    expect(callArgs.onVADFrame).toBeUndefined();
+
+    // Restore for other tests
+    mocks.vad.vadReady = true;
+  });
+
   test("submits manually stopped audio without entering speaking state when audio is absent", async () => {
     const audio = new Blob(["wav"], { type: "audio/wav" });
     const setState = vi.fn();
@@ -110,6 +165,13 @@ describe("useVoicePipeline", () => {
     });
     expect(setState).not.toHaveBeenCalled();
     expect(result.current.processing).toBe(false);
+  });
+
+  test("exposes vadReady from the VAD hook", () => {
+    const { result } = renderHook(() =>
+      useVoicePipeline({ onResult: vi.fn(), setState: vi.fn() }),
+    );
+    expect(result.current.vadReady).toBe(true);
   });
 
   test("exposes a stable local voice error", async () => {

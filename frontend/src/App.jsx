@@ -314,6 +314,8 @@ function App() {
     error: localVoiceError,
     supported: localCaptureSupported,
     toggleRecording: toggleLocalRecording,
+    micEnergyLevel,
+    vadReady,
   } = useVoicePipeline({
     onResult: handleLocalVoiceResult,
     pendingCommand: pendingConfirmationCommand,
@@ -535,10 +537,10 @@ function App() {
 
         {/* Visualizer - Center Stage */}
         <div className="flex-1 flex items-center justify-center w-full h-full relative z-20">
-          <AssistantOrb state={state} sentiment={sentiment} />
+          <AssistantOrb state={state} sentiment={sentiment} micEnergyLevel={micEnergyLevel} />
         </div>
 
-        <VoiceControls
+          <VoiceControls
           browserFallbackEnabled={browserSpeechFallbackEnabled}
           browserSpeechSupported={speechSupported}
           localVoiceAvailable={localVoiceAvailable}
@@ -553,6 +555,7 @@ function App() {
           state={state}
           textInputEnabled={textInputEnabled}
           typedCommand={typedCommand}
+          vadReady={vadReady}
           wakeWordEnabled={wakeWordEnabled}
           setWakeWordEnabled={setWakeWordEnabled}
         />

@@ -66,11 +66,16 @@ if _sentiment_available and SentimentIntensityAnalyzer is not None:
 else:
     _sentiment_analyzer = None
 
+from core.reminder_service import get_reminder_service
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     threading.Thread(target=_load_llm_background, daemon=True).start()
+    reminder_srv = get_reminder_service()
+    reminder_srv.start_daemon()
     await startup_rate_limiter()
     yield
+    reminder_srv.stop_daemon()
 
 
 app = FastAPI(title="Meero Backend", lifespan=lifespan)

@@ -120,6 +120,7 @@ class AIOrchestrator:
                     memory_summary=summary,
                     metadata=metadata,
                     trace=trace,
+                    actions=actions,
                 )
                 if not response_text:
                     response_text = "I am unable to process that request."

@@ -1,18 +1,19 @@
 import logging
 import os
+from typing import Any, Optional
 
 try:
     from gpt4all import GPT4All
 except ImportError:
     GPT4All = None
 
-from core.prompt_templates import build_local_prompt, clean_llm_response
+from core.prompt_templates import build_local_prompt, clean_llm_response, extract_tool_calls
 
 logger = logging.getLogger(__name__)
 
 
 class LLMEngine:
-    def __init__(self, model_path):
+    def __init__(self, model_path: str):
         logger.info("Loading LLM from: %s...", model_path)
 
         if GPT4All is None:
@@ -28,7 +29,8 @@ class LLMEngine:
         self.llm = GPT4All(model_name=model_filename, model_path=model_dir, allow_download=False)
         logger.info("LLM Loaded successfully.")
 
-    def generate_response(self, user_input, history=None, memory_summary=None):
+    def generate_response(self, user_input: str, history=None, memory_summary=None) -> str:
+        """Generate a standard text response."""
         if history is None:
             history = []
         try:
@@ -37,10 +39,22 @@ class LLMEngine:
                 user_input,
                 history,
                 memory_summary=memory_summary,
+                include_tools=True,
             )
-            response = self.llm.generate(prompt, max_tokens=100, temp=0.7)
+            response = self.llm.generate(prompt, max_tokens=150, temp=0.7)
             return clean_llm_response(response)
-
         except Exception:
             logger.exception("GPT4All generation error")
             return "I am having trouble accessing my higher brain functions."
+
+    def generate_with_tools(
+        self, user_input: str, history=None, memory_summary=None
+    ) -> tuple[Optional[list[dict[str, Any]]], str]:
+        """
+        Generate response with structured tool call parsing.
+        Returns (tool_calls, raw_text).
+        If tool calls were detected, tool_calls is a list of dicts, otherwise None.
+        """
+        raw_output = self.generate_response(user_input, history=history, memory_summary=memory_summary)
+        tool_calls = extract_tool_calls(raw_output)
+        return tool_calls, raw_output

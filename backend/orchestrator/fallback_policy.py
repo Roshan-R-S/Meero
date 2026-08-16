@@ -1,4 +1,4 @@
-"""Neural then local-LLM fallback policy."""
+"""Neural then local-LLM fallback policy with agentic tool calling."""
 
 from __future__ import annotations
 
@@ -7,7 +7,8 @@ import time
 from typing import Any, Optional
 
 import config
-from core.prompt_templates import clean_llm_response
+from core.prompt_templates import clean_llm_response, extract_tool_calls
+from core.tool_registry import execute_tool
 
 from .decision_trace import DecisionTrace
 
@@ -33,11 +34,12 @@ class FallbackPolicy:
         memory_summary: str,
         metadata: dict[str, Any],
         trace: DecisionTrace,
+        actions=None,
     ) -> Optional[str]:
         response_text = self._run_neural(routing_text, brain, metadata, trace)
         if response_text:
             return response_text
-        return self._run_llm(raw_text, llm, history, memory_summary, metadata, trace)
+        return self._run_llm(raw_text, llm, history, memory_summary, metadata, trace, actions=actions)
 
     @staticmethod
     def _run_neural(query, brain, metadata, trace) -> Optional[str]:
@@ -99,7 +101,7 @@ class FallbackPolicy:
         return None
 
     @staticmethod
-    def _run_llm(raw_text, llm, history, memory_summary, metadata, trace) -> Optional[str]:
+    def _run_llm(raw_text, llm, history, memory_summary, metadata, trace, actions=None) -> Optional[str]:
         started = time.perf_counter()
         if not getattr(config, "USE_LLM", True):
             metadata["fallback_reason"] = "llm_disabled"
@@ -121,9 +123,35 @@ class FallbackPolicy:
             return None
 
         try:
-            response = clean_llm_response(
-                llm.generate_response(raw_text, history=history, memory_summary=memory_summary)
-            )
+            raw_output = llm.generate_response(raw_text, history=history, memory_summary=memory_summary)
+            tool_calls = extract_tool_calls(raw_output)
+
+            # If the model requested tool calls and we have an actions executor:
+            if tool_calls and actions is not None:
+                tool_results = []
+                for call in tool_calls:
+                    tool_name = call.get("tool")
+                    args = call.get("args", {})
+                    try:
+                        res = execute_tool(tool_name, args, actions)
+                        if res:
+                            tool_results.append(res)
+                    except Exception as exc:
+                        logger.warning("Failed executing tool call %s: %s", tool_name, exc)
+
+                if tool_results:
+                    composite_response = " ".join(tool_results)
+                    metadata["engine"] = "local_llm_tool_call"
+                    metadata["tool_calls"] = [c.get("tool") for c in tool_calls]
+                    trace.add(
+                        "local_llm_tool_call",
+                        "executed",
+                        tools=[c.get("tool") for c in tool_calls],
+                        latency_ms=FallbackPolicy._elapsed_ms(started),
+                    )
+                    return composite_response
+
+            response = clean_llm_response(raw_output)
             if response:
                 metadata["engine"] = "local_llm"
                 trace.add(

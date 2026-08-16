@@ -20,6 +20,11 @@ def match_regex(query: str, pattern: str) -> bool:
 
 COMMAND_ROUTE_SPECS = (
     CommandRouteSpec(name="greeting", handler="greet", patterns=(r"^(hi|hello|hey|yo|good morning|good afternoon|good evening)(\s+meero)?[.!?]*$",)),
+    CommandRouteSpec(name="media_control", handler="handle_media_control", matcher="_match_media_control"),
+    CommandRouteSpec(name="reminder", handler="handle_reminder", matcher="_match_reminder"),
+    CommandRouteSpec(name="window_management", handler="handle_window_management", matcher="_match_window_management"),
+    CommandRouteSpec(name="folder_shortcut", handler="handle_folder_shortcut", matcher="_match_folder_shortcut"),
+    CommandRouteSpec(name="quick_system", handler="handle_quick_system", matcher="_match_quick_system"),
     CommandRouteSpec(name="play_youtube", handler="play_youtube", matcher="_match_play_youtube"),
     CommandRouteSpec(name="social_media", handler="open_social_media", matcher="_match_social_media"),
     CommandRouteSpec(name="schedule", handler="schedule", patterns=(r"\b(university time table|schedule)\b",)),

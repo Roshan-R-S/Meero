@@ -17,6 +17,10 @@ DESKTOP_COMMAND_MATCHERS = (
     "_match_open_app",
     "_match_close_app",
     "_match_screenshot",
+    "_match_media_control",
+    "_match_window_management",
+    "_match_folder_shortcut",
+    "_match_quick_system",
 )
 
 

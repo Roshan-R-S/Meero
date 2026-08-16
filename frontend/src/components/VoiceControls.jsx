@@ -1,4 +1,4 @@
-import { Mic, Radio, StopCircle } from "lucide-react";
+import { Activity, Mic, Radio, StopCircle } from "lucide-react";
 import CommandInput from "./CommandInput";
 
 export default function VoiceControls({
@@ -16,6 +16,7 @@ export default function VoiceControls({
   state,
   textInputEnabled,
   typedCommand,
+  vadReady,
   wakeWordEnabled,
   setWakeWordEnabled,
 }) {
@@ -35,6 +36,16 @@ export default function VoiceControls({
         >
           <Radio size={18} />
         </button>
+      )}
+      {/* VAD status badge — shown when local voice is active and model is ready */}
+      {useLocalVoice && vadReady && (
+        <div
+          title="Silero VAD active — auto end-of-speech detection enabled"
+          className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-widest bg-emerald-500/20 border border-emerald-400/40 text-emerald-300"
+        >
+          <Activity size={10} className="animate-pulse" />
+          VAD
+        </div>
       )}
       <button
         onClick={voiceEnabled ? onClick : undefined}

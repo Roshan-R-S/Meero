@@ -158,3 +158,26 @@ def test_desktop_subprocess_timeout_returns_safe_error_trace(monkeypatch):
     assert action_step["reason"] == "desktop_subprocess_timeout"
     assert action_step["latency_ms"] >= 0
     assert "private-app" not in json.dumps(outcome.metadata)
+
+
+class ToolCallingLLM:
+    def __init__(self, response_text):
+        self.response_text = response_text
+
+    def generate_response(self, query, **_kwargs):
+        return self.response_text
+
+
+def test_orchestrator_executes_llm_tool_calls(monkeypatch):
+    monkeypatch.setattr("config.USE_NEURAL_NET", False)
+    monkeypatch.setattr("config.USE_LLM", True)
+
+    llm = ToolCallingLLM('{"tool_calls": [{"tool": "tell_joke", "args": {}}]}')
+    outcome = execute_command("unhandled query requiring tool execution", llm=llm)
+
+    assert outcome.action_status == "success"
+    assert outcome.metadata["engine"] == "local_llm_tool_call"
+    assert "tell_joke" in outcome.metadata["tool_calls"]
+    stages = [step["stage"] for step in outcome.metadata["decision_trace"]]
+    assert "local_llm_tool_call" in stages
+
