@@ -1,31 +1,6 @@
 import { Copy, Trash2, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { formatTime } from "../utils/formatTime";
-
-function Typewriter({ text, speed = 18 }) {
-  const [displayed, setDisplayed] = useState("");
-  const [prevText, setPrevText] = useState(text);
-
-  if (text !== prevText) {
-    setPrevText(text);
-    setDisplayed("");
-  }
-
-  useEffect(() => {
-    let i = 0;
-    const interval = setInterval(() => {
-      if (i < text.length) {
-        setDisplayed((prev) => prev + text.charAt(i));
-        i++;
-      } else {
-        clearInterval(interval);
-      }
-    }, speed);
-    return () => clearInterval(interval);
-  }, [text, speed]);
-
-  return <span>{displayed}</span>;
-}
 
 export default function HistoryPanel({ messages, mobileOpen, onClear, onCopy, onMobileClose }) {
   const bottomRef = useRef(null);
@@ -82,7 +57,6 @@ export default function HistoryPanel({ messages, mobileOpen, onClear, onCopy, on
         <div className="min-h-0 flex-1 overflow-y-auto space-y-3 font-mono text-[11px] scrollbar-hide">
           {messages.map((msg, index) => {
             const key = msg.id || `${msg.role}-${msg.createdAt || index}-${index}`;
-            const isLatestAssistant = msg.role === "assistant" && index === messages.length - 1;
 
             return (
               <div key={key} className="flex items-start gap-2">
@@ -96,11 +70,7 @@ export default function HistoryPanel({ messages, mobileOpen, onClear, onCopy, on
                     )}
                   </div>
                   <div className="break-words leading-relaxed text-neutral-200">
-                    {isLatestAssistant ? (
-                      <Typewriter text={msg.text} />
-                    ) : (
-                      <span>{msg.text}</span>
-                    )}
+                    <span>{msg.text}</span>
                   </div>
                 </div>
                 <button
