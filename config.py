@@ -158,7 +158,9 @@ WEB_SAFE_MODE = _env_bool("WEB_SAFE_MODE", True)
 CORS_ORIGINS = _env_list("CORS_ORIGINS", ["http://localhost:5173"])
 RATE_LIMIT_COOLDOWN = float(os.environ.get("RATE_LIMIT_COOLDOWN", "1.0"))
 MEERO_API_KEY = os.environ.get("MEERO_API_KEY", "")
-REQUIRE_API_KEY = _env_bool("REQUIRE_API_KEY", True)
+# API key requirement: False by default for local desktop / test environments.
+# In networked or production deployments (see docker-compose.prod.yml), set to True.
+REQUIRE_API_KEY = _env_bool("REQUIRE_API_KEY", False)
 
 # In LOCAL_DESKTOP_MODE, reject non-localhost CORS origins at startup to prevent
 # remote sites from accessing desktop automation endpoints.
@@ -196,10 +198,11 @@ NEURAL_NET_EMBEDDING_DIM = 16
 # detail string.  Keep False in production to avoid leaking internals.
 DEBUG_ERRORS = _env_bool("DEBUG_ERRORS", False)
 
-# Rate-limiter resilience — when True, a Redis/rate-limiter failure allows the
-# request through.  Defaults to False (fail-closed) for security.  Set to True
-# only in development or when Redis is intentionally absent.
-RATE_LIMIT_FAIL_OPEN = _env_bool("RATE_LIMIT_FAIL_OPEN", False)
+# Rate-limiter resilience — when True (default), a Redis/rate-limiter failure allows
+# the request through so local desktop runs without requiring a Redis daemon.
+# In production Compose/networked deployments (see docker-compose.prod.yml),
+# set RATE_LIMIT_FAIL_OPEN=false to fail closed.
+RATE_LIMIT_FAIL_OPEN = _env_bool("RATE_LIMIT_FAIL_OPEN", True)
 
 # Audit privacy — command and response text remain excluded unless explicitly enabled.
 AUDIT_LOG_COMMAND_TEXT = _env_bool("AUDIT_LOG_COMMAND_TEXT", False)

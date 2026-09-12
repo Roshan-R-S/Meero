@@ -245,6 +245,9 @@ def close_app_by_name(app_name):
             text=True,
             timeout=getattr(config, "DESKTOP_SUBPROCESS_TIMEOUT_SECONDS", 5),
         )
+    except FileNotFoundError:
+        logger.warning("taskkill command not found on this platform")
+        return False, "Process termination utility not found on this system."
     except subprocess.TimeoutExpired:
         logger.warning("taskkill timed out for an allowed application")
         return False, "Closing the application timed out."

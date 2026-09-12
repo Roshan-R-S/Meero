@@ -8,7 +8,8 @@ DB_PATH = os.path.abspath(DB_PATH)
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 _thread_local = threading.local()
-_schema_initialized = threading.Event()
+_initialized_dbs = set()
+_init_lock = threading.Lock()
 
 _SCHEMA_SQL = (
     """CREATE TABLE IF NOT EXISTS history (
@@ -29,33 +30,34 @@ _SCHEMA_SQL = (
 def _get_conn():
     """Return a per-thread reusable connection.
 
-    SQLite connections are cheap to create, but re-running CREATE TABLE on
-    every call was wasteful.  We now reuse connections via threading.local()
-    and only run the schema DDL once per process lifetime.
+    Reuses connections via threading.local() as long as DB_PATH matches,
+    and runs the schema DDL once per distinct database file path.
     """
     conn = getattr(_thread_local, "conn", None)
-    if conn is not None:
+    cached_path = getattr(_thread_local, "db_path", None)
+    if conn is not None and cached_path == DB_PATH:
         try:
             conn.execute("SELECT 1")
             return conn
         except Exception:
-            # Connection went stale — recreate below.
             pass
 
     conn = sqlite3.connect(DB_PATH)
 
-    if not _schema_initialized.is_set():
-        for stmt in _SCHEMA_SQL:
-            conn.execute(stmt)
-        # Migrate older databases that lack the session_id column.
-        try:
-            conn.execute("SELECT session_id FROM history LIMIT 1")
-        except sqlite3.OperationalError:
-            conn.execute("ALTER TABLE history ADD COLUMN session_id TEXT NOT NULL DEFAULT 'default'")
-        conn.commit()
-        _schema_initialized.set()
+    with _init_lock:
+        if DB_PATH not in _initialized_dbs:
+            for stmt in _SCHEMA_SQL:
+                conn.execute(stmt)
+            # Migrate older databases that lack the session_id column.
+            try:
+                conn.execute("SELECT session_id FROM history LIMIT 1")
+            except sqlite3.OperationalError:
+                conn.execute("ALTER TABLE history ADD COLUMN session_id TEXT NOT NULL DEFAULT 'default'")
+            conn.commit()
+            _initialized_dbs.add(DB_PATH)
 
     _thread_local.conn = conn
+    _thread_local.db_path = DB_PATH
     return conn
 
 

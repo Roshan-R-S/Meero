@@ -1,6 +1,7 @@
 # Meero Python 2.0
 
 [![CI](https://github.com/Roshan-R-S/Meero/actions/workflows/ci.yml/badge.svg)](https://github.com/Roshan-R-S/Meero/actions/workflows/ci.yml)
+[![GitLab CI](https://gitlab.com/nil-group2811337/Meero/badges/main/pipeline.svg)](https://gitlab.com/nil-group2811337/Meero/-/pipelines)
 [![Playwright E2E](https://github.com/Roshan-R-S/Meero/actions/workflows/playwright.yml/badge.svg)](https://github.com/Roshan-R-S/Meero/actions/workflows/playwright.yml)
 [![Model Evaluation](https://github.com/Roshan-R-S/Meero/actions/workflows/eval-on-main.yml/badge.svg)](https://github.com/Roshan-R-S/Meero/actions/workflows/eval-on-main.yml)
 
@@ -21,6 +22,7 @@
 ### ⚡ 2. Deterministic-First Command Engine (<2ms)
 * **Instant Action Routing**: Common queries bypass heavy neural models entirely, executing in under 2ms via optimized regex and token pattern matchers.
 * **Conversational Courtesies**: Deterministic handlers for greetings (*"hello"*, *"good morning"*), wellbeing (*"how are you"*, *"how's it going"*), gratitude (*"thank you"*, *"thanks"*), compliments (*"you're awesome"*, *"great job"*), identity (*"who are you"*), and farewells (*"see you later"*, *"good night"*).
+* **Voice Reminders & Scheduling**: Persistent SQLite-backed reminder scheduler with targeted cancellation by keyword (*"cancel my water reminder"*).
 * **Live Weather Integration**: Instant weather reports (*"what is the weather in Chennai?"*, temperature, humidity, wind speed, condition summaries) via OpenWeatherMap.
 * **Desktop Automation**: Launch and close desktop applications, manage window states, adjust master volume, mute/unmute, toggle media playback, capture screenshots, and perform web searches.
 
@@ -72,6 +74,9 @@ Meero is built on a **private-by-default, fail-closed** security model:
 | `APP_CLOSE_ALLOWLIST` | *empty* | Comma-separated allowlist of permitted terminable binaries | Fail-closed app termination security |
 | `APP_FORCE_CLOSE_ALLOWLIST` | *empty* | Binaries allowed to be terminated via force kill | Restrictive force-close permissions |
 | `MEERO_API_KEY` | *unset* | Bearer token / X-API-Key requirement for all `/command` endpoints | Multi-user or networked setups |
+| `REQUIRE_API_KEY` | `false` | Enforce API key requirement; fails closed if set true without key | Production Compose / networked setups |
+| `RATE_LIMIT_FAIL_OPEN` | `true` | Allows requests if Redis is unreachable; set `false` in prod to fail closed | Standalone desktop (`true`), Prod (`false`) |
+| `MEERO_USER_NAME` | `User` | Assistant owner's name, customized via environment variable | Personalization without hardcoding |
 | `AUDIT_LOG_COMMAND_TEXT` | `false` | Keeps spoken voice and response text out of audit logs | Standard privacy compliance |
 
 ---
@@ -188,7 +193,7 @@ Meero Python 2.0/
 │   ├── evaluate.py             # Model accuracy & intent evaluation script
 │   ├── secret_scan.py          # Security verification script
 │   └── train_and_package.py    # Training pipeline for neural intent model
-├── tests/                      # Pytest suite (184 unit & integration tests)
+├── tests/                      # Pytest suite (198 unit & integration tests)
 ├── AGENTS.md                   # Agent guidelines & repository invariants
 └── verify_changes.py           # Quick sanity verification runner
 ```
@@ -204,7 +209,7 @@ Run the comprehensive test suite before submitting changes:
 # Quick sanity check
 .\.venv\Scripts\python.exe verify_changes.py
 
-# Full pytest suite (184 tests)
+# Full pytest suite (198 tests)
 .\.venv\Scripts\python.exe -m pytest -q
 
 # Security and secret scan

@@ -70,10 +70,12 @@ class TestCloseAppAllowlistGuard:
         assert "not in the known process list" in message or "not allowed" in message
 
     def test_known_app_allowed_in_desktop_mode(self, monkeypatch):
+        from unittest.mock import MagicMock, patch
         import app_launcher
         monkeypatch.setattr(config, "LOCAL_DESKTOP_MODE", True)
         monkeypatch.setattr(config, "APP_CLOSE_ALLOWLIST", ("notepad",))
         # notepad is both in the allowlist AND in the process_map
-        success, message = app_launcher.close_app_by_name("notepad")
-        # It might fail to actually close (not running), but it should not be blocked
+        with patch("app_launcher.subprocess.run", return_value=MagicMock(returncode=0, stderr="")):
+            success, message = app_launcher.close_app_by_name("notepad")
+        assert success is True
         assert "not in the known process list" not in message
