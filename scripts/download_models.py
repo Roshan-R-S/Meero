@@ -7,9 +7,11 @@ Supported model targets
   whisper     Download a faster-whisper model directory
   silero-vad  Download the Silero VAD ONNX model for browser-side VAD
               (placed in frontend/public/ so Vite serves it at /silero_vad.onnx)
+  xtts        Download and initialize the Coqui XTTS v2 model
 
 Usage examples:
   python scripts/download_models.py --model silero-vad
+  python scripts/download_models.py --model xtts
   python scripts/download_models.py --url <url> --dest <path> --sha256 <hash>
 """
 
@@ -29,14 +31,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 # ── Silero VAD ONNX ──────────────────────────────────────────────────────────
 # Silero VAD v5 ONNX model — served at /silero_vad.onnx in the frontend.
 # Source: https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.onnx
-# SHA-256 is computed from the official model file. Update when a new version is released.
 SILERO_VAD_URL = (
     "https://github.com/snakers4/silero-vad/raw/master/src/silero_vad/data/silero_vad.onnx"
 )
-# NOTE: run `sha256sum silero_vad.onnx` or use Python after downloading to get this.
-# The value below is a placeholder — replace with the verified hash of the downloaded file.
 SILERO_VAD_SHA256 = "1a153a22f4509e292a94e67d6f9b85e8deb25b4988682b7e174c65279d8788e3"
-
 SILERO_VAD_DEST = PROJECT_ROOT / "frontend" / "public" / "silero_vad.onnx"
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -68,7 +66,6 @@ def download(url: str, destination: Path, expected_sha256: str, extract_zip: boo
         urllib.request.urlretrieve(url, downloaded)
         actual = sha256_file(downloaded)
 
-        # If expected hash is the placeholder, print the real hash and continue.
         if expected_sha256 == "REPLACE_WITH_ACTUAL_SHA256_AFTER_FIRST_DOWNLOAD":
             print(f"SHA-256 of downloaded file: {actual}")
             print("Update SILERO_VAD_SHA256 in scripts/download_models.py with the above hash.")
@@ -100,9 +97,21 @@ def download_silero_vad() -> None:
     download(SILERO_VAD_URL, SILERO_VAD_DEST, SILERO_VAD_SHA256, extract_zip=False)
 
 
+def download_xtts() -> None:
+    """Download and cache the official XTTS v2 model weights."""
+    try:
+        from TTS.api import TTS
+        print("Downloading and initializing Coqui XTTS v2 model...")
+        TTS("tts_models/multilingual/multi-dataset/xtts_v2", gpu=False)
+        print("XTTS v2 model initialized and verified successfully.")
+    except ImportError:
+        print("Coqui TTS is not installed in this environment. Run: pip install -r requirements-voice.txt", file=sys.stderr)
+        raise
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--model", choices=["silero-vad"], help="Named model shortcut to download")
+    parser.add_argument("--model", choices=["silero-vad", "xtts"], help="Named model shortcut to download")
     parser.add_argument("--url", help="Direct download URL (use with --dest and --sha256)")
     parser.add_argument("--dest", type=Path, help="Destination path for the downloaded file")
     parser.add_argument("--sha256", help="Expected SHA-256 checksum of the downloaded file")
@@ -112,12 +121,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.model == "silero-vad":
             download_silero_vad()
+        elif args.model == "xtts":
+            download_xtts()
         elif args.url and args.dest and args.sha256:
             download(args.url, args.dest, args.sha256, args.extract_zip)
         else:
             parser.print_help()
             print("\nAvailable named models:")
             print("  silero-vad  Silero VAD ONNX model for browser-side auto end-of-speech detection")
+            print("  xtts        Coqui XTTS v2 multilingual voice cloning model")
             return 1
         return 0
     except Exception as exc:

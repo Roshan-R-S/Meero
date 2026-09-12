@@ -94,10 +94,13 @@ def _load_teacher_model(model_path: Path):
     except Exception:
         GPT4All = None
 
-    if GPT4All is not None:
+    use_llama_cpp_first = ("mistral" in model_name.lower() or "qwen" in model_name.lower() or "phi" in model_name.lower())
+
+    if not use_llama_cpp_first and GPT4All is not None:
         try:
-            logger.info("Trying GPT4All for teacher model: %s", model_path)
-            g = GPT4All(model_name=model_name, model_path=model_dir, allow_download=False)
+            device = os.environ.get("LLM_DEVICE", "gpu")
+            logger.info("Trying GPT4All for teacher model: %s on %s", model_path, device)
+            g = GPT4All(model_name=model_name, model_path=model_dir, allow_download=False, device=device)
 
             class _G4W:
                 def __init__(self, impl):
@@ -120,8 +123,10 @@ def _load_teacher_model(model_path: Path):
     except Exception as exc:
         raise RuntimeError("Neither gpt4all nor llama_cpp are available to run teacher models") from exc
 
-    logger.info("Loading GGUF teacher model via llama_cpp: %s", model_path)
-    llm = Llama(model_path=str(model_path))
+    device = os.environ.get("LLM_DEVICE", "gpu")
+    n_gpu = -1 if device == "gpu" else 0
+    logger.info("Loading GGUF teacher model via llama_cpp: %s (GPU layers: %s)", model_path, n_gpu)
+    llm = Llama(model_path=str(model_path), n_gpu_layers=n_gpu, verbose=False)
 
     class _LlamaW:
         def __init__(self, impl):

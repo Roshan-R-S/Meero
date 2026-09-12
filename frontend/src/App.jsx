@@ -102,13 +102,15 @@ function App() {
       // The bypass sets ggufLoaded artificially or disables it.
       if (nnLoaded && ggufLoaded) {
         setBooting(false);
+        polling = false;
+        clearInterval(interval);
       }
     };
 
     // Initial check
     checkStatus();
 
-    // Poll every 2 seconds
+    // Poll every 2 seconds during boot only
     const interval = setInterval(checkStatus, 2000);
 
     return () => {
@@ -223,6 +225,7 @@ function App() {
       recognitionRef,
     ]),
     { rate: voiceRate, pitch: voicePitch },
+    localVoiceEnabled,
   );
 
   const handleCommand = useCallback(async (text) => {
@@ -299,14 +302,18 @@ function App() {
     if (data.sentiment) setSentiment(data.sentiment);
     if (["blocked", "error", "rate_limited", "cancelled"].includes(data.action_status)) {
       setStatusNotice(data.response);
+    } else if (data.response) {
+      showTransientStatusNotice(data.response);
     }
     const nextMessages = [
       { role: "user", text: data.transcript || "Voice command" },
       { role: "assistant", text: data.response },
     ];
     addMessages(nextMessages);
-    setState(data.audio_base64 ? "speaking" : "idle");
-  }, [addMessages]);
+    if (!data.streaming) {
+      setState(data.audio_base64 ? "speaking" : "idle");
+    }
+  }, [addMessages, showTransientStatusNotice]);
 
   const {
     recording: localRecording,

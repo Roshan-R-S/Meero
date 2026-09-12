@@ -1,10 +1,12 @@
 import datetime
+import json
 import logging
 import os
 import re
 import subprocess
 import time
 import urllib.parse
+import urllib.request
 import webbrowser
 
 import app_launcher
@@ -47,7 +49,7 @@ _OPEN_VERBS = ("open", "launch", "start", "run")
 _CLOSE_VERBS = ("close", "kill", "stop", "quit", "exit")
 _CONFIRM_YES = ("yes", "y", "ok", "okay", "confirm", "proceed", "do it")
 _GREETING_RE = re.compile(
-    r"^(hi|hello|hey|yo|good morning|good afternoon|good evening)(\s+meero)?[.!?]*$",
+    r"^(hi+|hey+|hello+|yo+|hiya|what'?s up|sup|good morning|good afternoon|good evening)(\s+meero)?[.!?]*$",
     re.IGNORECASE,
 )
 
@@ -93,6 +95,11 @@ class Actions:
     def _build_command_routes(self):
         no_arg_handlers = {
             "greet": lambda q: self.greet(),
+            "respond_how_are_you": lambda q: self.respond_how_are_you(),
+            "respond_thanks": lambda q: self.respond_thanks(),
+            "respond_compliment": lambda q: self.respond_compliment(),
+            "respond_farewell": lambda q: self.respond_farewell(),
+            "respond_identity": lambda q: self.respond_identity(),
             "schedule": lambda q: self.schedule(),
             "system_condition": lambda q: self.system_condition(),
             "take_screenshot": lambda q: self.take_screenshot(),
@@ -107,6 +114,7 @@ class Actions:
             "open_website": lambda q: self.open_website(q),
             "open_app": lambda q: self.open_app(q),
             "close_app": lambda q: self.close_app(q),
+            "get_weather": lambda q: self.get_weather(q),
             "search_wikipedia": lambda q: self.search_wikipedia(q),
             "handle_media_control": lambda q: self.handle_media_control(q),
             "handle_reminder": lambda q: self.handle_reminder(q),
@@ -187,6 +195,10 @@ class Actions:
     @staticmethod
     def _match_system(q):
         return Actions._match_any_phrase(q, ("system condition", "condition of the system"))
+
+    @staticmethod
+    def _match_weather(q):
+        return Actions._match_regex(q, r"\b(weather|temperature|forecast|climate|rain|raining|humidity|how hot|how cold)\b")
 
     @staticmethod
     def _match_wikipedia(q):
@@ -486,6 +498,21 @@ class Actions:
     def greet(self):
         self.speak("I'm here to help. What can I assist you with today?")
 
+    def respond_how_are_you(self):
+        self.speak("I'm doing great, thank you for asking! How can I help you?")
+
+    def respond_thanks(self):
+        self.speak("You're welcome! Let me know if there's anything else.")
+
+    def respond_compliment(self):
+        self.speak("Thank you! I appreciate the kind words. What can I do for you?")
+
+    def respond_farewell(self):
+        self.speak("Take care! I'll be here whenever you need me.")
+
+    def respond_identity(self):
+        self.speak("I'm Meero, your personal desktop assistant. I can help you with tasks, answer questions, and manage your computer.")
+
     def tell_time(self, query):
         now = datetime.datetime.now()
         if "time" in query:
@@ -581,6 +608,64 @@ class Actions:
         else:
             msg = "System action not recognized."
         self.speak(msg)
+
+    def get_weather(self, query):
+        """Fetch live weather from OpenWeatherMap."""
+        api_key = getattr(config, "OPENWEATHERMAP_API_KEY", "") or os.environ.get("OPENWEATHERMAP_API_KEY", "")
+        default_city = getattr(config, "OPENWEATHERMAP_DEFAULT_CITY", "Chennai") or os.environ.get("OPENWEATHERMAP_DEFAULT_CITY", "Chennai")
+        units = getattr(config, "OPENWEATHERMAP_UNITS", "metric") or os.environ.get("OPENWEATHERMAP_UNITS", "metric")
+
+        if not api_key:
+            msg = "OpenWeatherMap API key is not configured. Please add your key to the .env file."
+            self.speak(msg)
+            return msg
+
+        # Extract city from query
+        q = query.strip().lower()
+        m = re.search(r"(?:weather|temperature|forecast|climate|rain|raining|snow|humidity|conditions?)\s+(?:in|at|for|of)\s+([a-zA-Z\s,]+)", q)
+        city = None
+        if m:
+            city_candidate = m.group(1).strip().rstrip("?.!")
+            city_candidate = re.sub(r"\b(today|tomorrow|now|right now|currently|please|meero)\b", "", city_candidate).strip()
+            if city_candidate:
+                city = city_candidate
+
+        if not city:
+            city = default_city
+
+        try:
+            encoded_city = urllib.parse.quote(city)
+            url = f"https://api.openweathermap.org/data/2.5/weather?q={encoded_city}&appid={api_key}&units={units}"
+            req = urllib.request.Request(url, headers={"User-Agent": "Meero-AI/2.0"})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode("utf-8"))
+
+            main = data.get("main", {})
+            weather_list = data.get("weather", [{}])
+            weather_desc = weather_list[0].get("description", "clear")
+            temp = round(main.get("temp", 0))
+            feels_like = round(main.get("feels_like", temp))
+            humidity = main.get("humidity", 0)
+            city_name = data.get("name", city.title())
+            unit_str = "degrees Celsius" if units == "metric" else "degrees Fahrenheit"
+
+            msg = f"The current weather in {city_name} is {temp} {unit_str} with {weather_desc}. It feels like {feels_like} {unit_str} with {humidity} percent humidity."
+            self.speak(msg)
+            return msg
+        except urllib.error.HTTPError as err:
+            if err.code == 404:
+                msg = f"Sorry, I could not find weather information for {city}."
+            elif err.code == 401:
+                msg = "The OpenWeatherMap API key provided in the .env file is invalid."
+            else:
+                msg = f"Weather service returned an error with status code {err.code}."
+            self.speak(msg)
+            return msg
+        except Exception:
+            logger.exception("Failed fetching weather from OpenWeatherMap")
+            msg = f"I was unable to retrieve the weather for {city} right now."
+            self.speak(msg)
+            return msg
 
     def _requires_confirmation(self, query):
         q = query.lower().strip()

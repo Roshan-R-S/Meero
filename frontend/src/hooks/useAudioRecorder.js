@@ -2,12 +2,12 @@ import { useCallback, useRef, useState } from "react";
 import { localAudioCaptureSupported } from "../utils/speechSupport";
 
 // ── RMS fallback thresholds (used when VAD ONNX model is not available) ────
-const RMS_SILENCE_THRESHOLD = 0.012;
-const RMS_SILENCE_TIMEOUT_MS = 1200;
+const RMS_SILENCE_THRESHOLD = 0.006;
+const RMS_SILENCE_TIMEOUT_MS = 1000;
 
 // ── VAD-based end-of-speech thresholds ──────────────────────────────────────
-// Tighter window because VAD probability is more accurate than raw RMS energy.
-const VAD_SILENCE_TIMEOUT_MS = 700;
+// Generous window so brief pauses between words don't prematurely end speech.
+const VAD_SILENCE_TIMEOUT_MS = 650;
 const VAD_SPEECH_PROB_THRESHOLD = 0.5;
 const VAD_SILENCE_PROB_THRESHOLD = 0.35;
 
@@ -129,6 +129,9 @@ export default function useAudioRecorder() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } });
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     const context = new AudioContext({ sampleRate: 16000 });
+    if (context.state === "suspended") {
+      await context.resume();
+    }
     const source = context.createMediaStreamSource(stream);
     const processor = context.createScriptProcessor(4096, 1, 1);
 
@@ -161,7 +164,24 @@ export default function useAudioRecorder() {
         // Run async but don't await (fire-and-forget); we use the callback
         // to update state. stoppingRef guards against double-stop.
         processAudioChunkRef.current?.(new Float32Array(input)).then((avgProb) => {
-          if (avgProb === null || stoppingRef.current) return;
+          if (stoppingRef.current) return;
+
+          if (avgProb === null) {
+            // VAD model not ready or inference unavailable -> graceful RMS fallback
+            if (rms >= RMS_SILENCE_THRESHOLD) {
+              hasVoiceRef.current = true;
+              lastVoiceAtRef.current = now;
+              return;
+            }
+            if (hasVoiceRef.current && now - lastVoiceAtRef.current >= RMS_SILENCE_TIMEOUT_MS) {
+              stoppingRef.current = true;
+              const autoStop = onStopRef.current;
+              void finalizeRecording()
+                .then((audio) => autoStop?.(audio))
+                .catch(() => {});
+            }
+            return;
+          }
 
           // Notify visualizer
           onVADFrameRef.current?.(avgProb);

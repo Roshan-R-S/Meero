@@ -35,11 +35,12 @@ class FallbackPolicy:
         metadata: dict[str, Any],
         trace: DecisionTrace,
         actions=None,
+        mode: str = "voice",
     ) -> Optional[str]:
         response_text = self._run_neural(routing_text, brain, metadata, trace)
         if response_text:
             return response_text
-        return self._run_llm(raw_text, llm, history, memory_summary, metadata, trace, actions=actions)
+        return self._run_llm(raw_text, llm, history, memory_summary, metadata, trace, actions=actions, mode=mode)
 
     @staticmethod
     def _run_neural(query, brain, metadata, trace) -> Optional[str]:
@@ -101,7 +102,7 @@ class FallbackPolicy:
         return None
 
     @staticmethod
-    def _run_llm(raw_text, llm, history, memory_summary, metadata, trace, actions=None) -> Optional[str]:
+    def _run_llm(raw_text, llm, history, memory_summary, metadata, trace, actions=None, mode="voice") -> Optional[str]:
         started = time.perf_counter()
         if not getattr(config, "USE_LLM", True):
             metadata["fallback_reason"] = "llm_disabled"
@@ -123,7 +124,9 @@ class FallbackPolicy:
             return None
 
         try:
-            raw_output = llm.generate_response(raw_text, history=history, memory_summary=memory_summary)
+            # Cap token generation for voice mode to keep spoken responses short
+            max_tokens = getattr(config, "VOICE_LLM_MAX_TOKENS", 96) if mode == "local_voice" else 150
+            raw_output = llm.generate_response(raw_text, history=history, memory_summary=memory_summary, max_tokens=max_tokens)
             tool_calls = extract_tool_calls(raw_output)
 
             # If the model requested tool calls and we have an actions executor:

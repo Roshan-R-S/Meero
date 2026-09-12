@@ -4,149 +4,136 @@
 [![Playwright E2E](https://github.com/Roshan-R-S/Meero/actions/workflows/playwright.yml/badge.svg)](https://github.com/Roshan-R-S/Meero/actions/workflows/playwright.yml)
 [![Model Evaluation](https://github.com/Roshan-R-S/Meero/actions/workflows/eval-on-main.yml/badge.svg)](https://github.com/Roshan-R-S/Meero/actions/workflows/eval-on-main.yml)
 
-Meero is a local-first AI desktop assistant with a FastAPI backend and a
-React + Vite frontend. The browser UI handles speech recognition, typed
-commands, and speech synthesis. The backend routes commands through deterministic
-actions, neural intent fallback, optional local GGUF LLM fallback, memory,
-metrics, and safety checks.
+**Meero** is a high-performance, local-first, privacy-focused voice desktop AI assistant. Built with a **FastAPI** backend and a cyberpunk **React + Vite** frontend, Meero delivers near-instant voice interactions with custom cloned voices, real-time live desktop controls, deterministic-first command routing (<2ms), neural intent classification, and offline GGUF LLM reasoning—without relying on any external cloud inference providers.
 
-## Preview
+---
 
-![Meero home screen](docs/screenshots/home.png)
+## 🌟 Key Features & Capabilities
 
-![Meero settings panel](docs/screenshots/settings.png)
+### 🎙️ 1. Ultra-Low-Latency Local Voice Pipeline
+* **Coqui XTTS v2 Voice Cloning**: Expressive cloned female voice generated directly from local reference samples (`reference.wav`, `reference1.wav`).
+* **GPU Hardware Acceleration & Smart CPU Fallback**: Native **NVIDIA CUDA 12.1** support for RTX GPUs with intelligent auto-detection (`XTTS_USE_GPU=auto`). Automatically falls back to **Piper TTS** or **Windows SAPI** on CPU environments to prevent synthesis blocking.
+* **Speaker Latents Caching & Background Pre-Warming**: Pre-computes and caches speaker conditioning latents during server startup in a non-blocking worker thread, eliminating first-utterance lag.
+* **Streaming Audio Pipeline**: End-to-end NDJSON streaming (`/voice-command/stream`) with sentence-boundary chunking and parallel TTS synthesis, delivering fast time-to-first-audio (TTFA).
+* **Client-Side Silero VAD (Voice Activity Detection)**: WebAssembly-powered Silero VAD model in the browser for voice start/end detection with zero server roundtrips and graceful RMS fallback.
+* **Multi-Tiered TTS Failover**: Seamless automatic cascade from **XTTS v2** $\rightarrow$ **Piper TTS** $\rightarrow$ **Windows SAPI** $\rightarrow$ **Browser Web Speech API**.
 
-## Local-First Safety
+### ⚡ 2. Deterministic-First Command Engine (<2ms)
+* **Instant Action Routing**: Common queries bypass heavy neural models entirely, executing in under 2ms via optimized regex and token pattern matchers.
+* **Conversational Courtesies**: Deterministic handlers for greetings (*"hello"*, *"good morning"*), wellbeing (*"how are you"*, *"how's it going"*), gratitude (*"thank you"*, *"thanks"*), compliments (*"you're awesome"*, *"great job"*), identity (*"who are you"*), and farewells (*"see you later"*, *"good night"*).
+* **Live Weather Integration**: Instant weather reports (*"what is the weather in Chennai?"*, temperature, humidity, wind speed, condition summaries) via OpenWeatherMap.
+* **Desktop Automation**: Launch and close desktop applications, manage window states, adjust master volume, mute/unmute, toggle media playback, capture screenshots, and perform web searches.
 
-Meero can control local desktop features such as apps, tabs, scrolling, volume,
-and screenshots. Treat it as a local assistant unless you add stronger
-authentication and deployment controls.
-
-For deployment modes and the production safety checklist, see
-[docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md).
-
-Desktop automation is guarded by environment flags:
-
-- `LOCAL_DESKTOP_MODE=true` enables desktop-control commands.
-- `WEB_SAFE_MODE=true` blocks desktop-control commands even when local mode is
-  configured.
-- `/settings` is local-only and accepts only validated settings keys.
-- Optional API-key auth protects `/command` and `/settings` when
-  `MEERO_API_KEY` is configured.
-- Production-style deployments should set `REQUIRE_API_KEY=true` so a missing
-  API key fails closed instead of disabling auth.
-- Local desktop mode fails closed for app launch and close commands until their
-  explicit allowlists are configured.
-- Audit logs omit spoken command and response text by default.
-
-## Safety Modes
-
-| Mode | Description |
-|---|---|
-| `WEB_SAFE_MODE=true` | Blocks desktop/system control |
-| `LOCAL_DESKTOP_MODE=true` | Allows local desktop automation for local requests |
-
-For public or production-style deployment:
-
-```env
-WEB_SAFE_MODE=true
-LOCAL_DESKTOP_MODE=false
+### 🧠 3. Hybrid 3-Tier AI Architecture
 ```
-
-For local assistant use:
-
-```env
-WEB_SAFE_MODE=false
-LOCAL_DESKTOP_MODE=true
-APP_LAUNCH_ALLOWLIST=notepad,calculator,paint,vscode
-APP_CLOSE_ALLOWLIST=notepad,calculator,paint,vscode
-APP_FORCE_CLOSE_ALLOWLIST=notepad
+User Spoken / Text Input
+          │
+          ▼
+┌─────────────────────────────────┐
+│ Tier 1: Deterministic Router    │ ── Match ──► [Instant Response <2ms]
+│ (Regex & Token Pattern Specs)   │
+└─────────────────────────────────┘
+          │ (No Match)
+          ▼
+┌─────────────────────────────────┐
+│ Tier 2: Local Neural Net        │ ── High Conf ──► [Structured Action]
+│ (TensorFlow Intent Classifier)  │
+└─────────────────────────────────┘
+          │ (Low Conf / Fallback)
+          ▼
+┌─────────────────────────────────┐
+│ Tier 3: Local Offline LLM       │ ── Stream ──► [Synthesized Answer]
+│ (GPT4All / GGUF with Token Cap) │
+└─────────────────────────────────┘
 ```
+* **Tier 1 — Deterministic Routing**: Pre-compiled regex patterns for zero-latency execution.
+* **Tier 2 — Neural Classifier**: Fast local TensorFlow model trained on canonical user intents (`data/intents.json`).
+* **Tier 3 — Local LLM Fallback**: Offline GGUF models (e.g. Llama-3.2-1B-Instruct) running via GPT4All with Windows memory-lock protections and voice-mode token caps (96 tokens for voice mode to ensure rapid conversational turnaround).
+* **SQLite Conversation Memory**: Thread-safe persistent conversational context with sliding window summarization.
 
-## Features
+### 💻 4. Modern Cyberpunk UI & Dual-Mode Voice UX
+* **Neon Cyberpunk Aesthetic**: High-contrast dark theme, animated neon visualizer rings, dynamic status chips, and custom cyan scrollbars.
+* **Dual-Mode Voice Recognition**:
+  * **Continuous Wake-Word Mode**: Hands-free listening for wake words (*"hey meero"*, *"hey miro"*, *"hey nero"*, *"hey mirror"*) with inline command execution.
+  * **Push-to-Talk Mode**: Dedicated interactive mic button with Silero VAD automated endpointing.
+* **Real-Time Latency Telemetry**: Live instrumentation showing time-to-first-audio, synthesis duration, STT processing time, and pipeline breakdown.
 
-- React + Vite assistant interface with voice and typed command input
-- Browser Speech Recognition and SpeechSynthesis support
-- Preferred local push-to-talk voice through Vosk and Piper/SAPI
-- FastAPI command API with confirmation for sensitive actions
-- Local desktop action routing guarded by desktop mode
-- Neural intent fallback for trained conversational intents
-- Optional local GPT4All / GGUF LLM fallback
-- SQLite conversation memory
-- Prometheus metrics
-- Optional Redis-backed distributed rate limiting plus per-client local cooldown
+---
 
-![Meero demo](docs/demo.gif)
+## 🔒 Security & Safety Controls
 
-## Requirements
+Meero is built on a **private-by-default, fail-closed** security model:
 
-- Python 3.10+
-- Node.js 20.19+
-- `pnpm`
-- Docker Desktop, optional
-- Redis, optional outside Docker
+| Setting | Default | Description | Recommended Usage |
+|---|---|---|---|
+| `WEB_SAFE_MODE` | `true` | Completely blocks OS automation, system commands, and desktop execution | Cloud, container, or web deployments |
+| `LOCAL_DESKTOP_MODE` | `false` | Enables local desktop automation (apps, volume, window controls) | Trusted personal desktop assistant |
+| `APP_LAUNCH_ALLOWLIST` | *empty* | Comma-separated allowlist of permitted launch binaries | Fail-closed app launch security |
+| `APP_CLOSE_ALLOWLIST` | *empty* | Comma-separated allowlist of permitted terminable binaries | Fail-closed app termination security |
+| `APP_FORCE_CLOSE_ALLOWLIST` | *empty* | Binaries allowed to be terminated via force kill | Restrictive force-close permissions |
+| `MEERO_API_KEY` | *unset* | Bearer token / X-API-Key requirement for all `/command` endpoints | Multi-user or networked setups |
+| `AUDIT_LOG_COMMAND_TEXT` | `false` | Keeps spoken voice and response text out of audit logs | Standard privacy compliance |
 
-## Environment
+---
 
-Copy the examples if you need to customize local defaults:
+## 🚀 Quick Start
 
+### 1. Prerequisites
+* **Python 3.10+** (64-bit recommended)
+* **Node.js 20+** and **pnpm**
+* *(Optional)* NVIDIA GPU with **CUDA 12.1+** for GPU-accelerated XTTS v2 voice cloning
+
+### 2. Environment Setup
+
+Copy example configurations:
 ```powershell
 copy .env.example .env
 copy frontend\.env.example frontend\.env
 ```
 
-Backend variables:
-
+Configure your `.env` for local desktop mode:
 ```env
-PYTHONUNBUFFERED=1
-REDIS_URL=redis://localhost:6379/0
-CORS_ORIGINS=http://localhost:5173
-RATE_LIMIT_COOLDOWN=1.0
-LOCAL_DESKTOP_MODE=false
-WEB_SAFE_MODE=true
-PROTECT_METRICS=false
-APP_LAUNCH_ALLOWLIST=
-APP_CLOSE_ALLOWLIST=
-APP_FORCE_CLOSE_ALLOWLIST=
-MEERO_API_KEY=change-this-local-key
-REQUIRE_API_KEY=false
-DEBUG_ERRORS=false
-RATE_LIMIT_FAIL_OPEN=true
-AUDIT_LOG_COMMAND_TEXT=false
-MEMORY_MAX_INTERACTIONS=20
-MEMORY_SUMMARY_MAX_CHARS=1200
+# Desktop automation & safety
+LOCAL_DESKTOP_MODE=true
+WEB_SAFE_MODE=false
+APP_LAUNCH_ALLOWLIST=notepad,calculator,paint,vscode,chrome,edge
+APP_CLOSE_ALLOWLIST=notepad,calculator,paint,vscode,chrome,edge
+
+# Voice TTS Engine
+VOICE_TTS_PROVIDER=xtts
+XTTS_USE_GPU=auto
+VOICE_CLONE_REFERENCE_AUDIOS=data/voices/reference.wav,data/voices/reference1.wav
+
+# Voice Latency & Streaming Settings
+VOICE_LOW_LATENCY_MODE=true
+VOICE_LLM_MAX_TOKENS=96
+VOICE_STREAM_CHUNK_MIN_CHARS=60
+VOICE_STREAM_CHUNK_MAX_CHARS=180
+
+# Live Weather (Optional)
+OPENWEATHERMAP_API_KEY=your_api_key_here
+OPENWEATHERMAP_DEFAULT_CITY=Chennai
+OPENWEATHERMAP_UNITS=metric
 ```
 
-When `LOCAL_DESKTOP_MODE=true`, empty launch or close allowlists block the
-corresponding operation. `APP_FORCE_CLOSE_ALLOWLIST` only adds force-close
-behavior for apps that are already permitted by `APP_CLOSE_ALLOWLIST`.
-
-Frontend variables:
-
-```env
-VITE_API_URL=http://localhost:8000
-VITE_MEERO_API_KEY=change-this-local-key
-```
-
-If `MEERO_API_KEY` is unset, API-key auth is disabled for local convenience. If
-it is set, the frontend should send the same value through `VITE_MEERO_API_KEY`.
-Do not treat `VITE_MEERO_API_KEY` as a public-web secret: Vite exposes frontend
-environment variables in the browser bundle. Use it only for local/private
-deployments, or put Meero behind real login, reverse-proxy auth, or a private
-network.
-
-## Quick Start
-
-Backend:
+### 3. Backend Setup
 
 ```powershell
+# Create and activate Python virtual environment
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+
+# Install base dependencies
 pip install -r requirements.txt
-python -m uvicorn backend.app:app --reload --host 0.0.0.0 --port 8000
+
+# (Optional: Install PyTorch with CUDA 12.1 for NVIDIA RTX GPU acceleration)
+pip install --force-reinstall torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Start the FastAPI server
+python -m uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Frontend:
+### 4. Frontend Setup
 
 ```powershell
 cd frontend
@@ -154,211 +141,98 @@ pnpm install
 pnpm run dev
 ```
 
-Open `http://localhost:5173`.
+Open `http://localhost:5173` in Google Chrome or Microsoft Edge for native Web Speech API microphone support.
 
-Speech recognition works best in Chrome or Edge. If browser speech recognition
-is unavailable, use the typed command input.
+---
 
-## Docker
+## 📁 Repository Structure
 
-### Development note about reload
+```
+Meero Python 2.0/
+├── ai/
+│   ├── intent_evaluator.py     # Intent evaluation & accuracy benchmarking
+│   ├── llm_engine.py           # Thread-safe local GPT4All/GGUF runner with token budgets
+│   └── neural_net.py           # Local TensorFlow neural intent classifier
+├── backend/
+│   ├── app.py                  # FastAPI application, middleware, endpoints & lifecycle
+│   ├── command_service.py      # Multi-tier intent orchestrator & fallback pipeline
+│   ├── orchestrator/           # Fallback policy & AI orchestration layer
+│   └── voice/
+│       ├── tts_service.py      # XTTS v2, Piper & SAPI TTS engine with GPU auto-detection
+│       ├── voice_pipeline.py   # Streaming voice pipeline & latency telemetry
+│       └── schemas.py          # Voice payload & telemetry data contracts
+├── core/
+│   ├── actions.py              # Deterministic actions (weather, system, apps, volume, media)
+│   ├── actions_routing.py      # Deterministic regex & token route specifications
+│   ├── memory_store.py         # SQLite conversation history & summarizer
+│   └── response_collector.py   # Multi-part action response aggregator
+├── data/
+│   ├── intents.json            # Canonical training dataset for neural classifier
+│   ├── intent_eval_cases.json  # Comprehensive intent regression test suite
+│   ├── voice_eval_cases.json   # Voice command evaluation dataset
+│   └── voices/                 # Reference audio samples for XTTS v2 voice cloning
+├── frontend/                   # Cyberpunk React 18 + Vite client
+│   ├── src/
+│   │   ├── App.jsx             # Main application shell & audio visualizer
+│   │   ├── api.js              # Streaming NDJSON and REST client
+│   │   ├── hooks/
+│   │   │   ├── useAudioRecorder.js    # Audio chunking & recording
+│   │   │   ├── useSpeechRecognition.js# Wake-word & speech recognition
+│   │   │   ├── useSpeechSynthesis.js  # Client TTS synthesis & audio queue
+│   │   │   ├── useVAD.js              # Client Silero VAD with RMS fallback
+│   │   │   └── useVoicePipeline.js    # High-level voice coordination hook
+│   │   └── index.css           # Cyber styling, scrollbars & visualizer tokens
+├── models/                     # Trained neural network weights, vocabularies & models
+├── scripts/
+│   ├── download_models.py      # Automated model downloader (XTTS, Vosk, Piper, GGUF)
+│   ├── evaluate.py             # Model accuracy & intent evaluation script
+│   ├── secret_scan.py          # Security verification script
+│   └── train_and_package.py    # Training pipeline for neural intent model
+├── tests/                      # Pytest suite (184 unit & integration tests)
+├── AGENTS.md                   # Agent guidelines & repository invariants
+└── verify_changes.py           # Quick sanity verification runner
+```
 
-When running the backend with `--reload` during development, the server watches
-for file changes and restarts the worker process automatically. This is
-convenient, but restarting will re-load heavy resources (the neural model and
-local LLM), which can take several seconds. If you are iterating on UI or
-lightweight backend code and want faster feedback, consider limiting reload
-to specific files or restarting manually when model-loading changes are made.
+---
 
+## 🧪 Testing & Quality Assurance
 
-Development compose runs the backend, Vite dev server, and Redis with bind
-mounts. It is web-safe by default unless explicitly overridden:
+Run the comprehensive test suite before submitting changes:
 
+### Backend Validation
 ```powershell
-docker compose up --build
+# Quick sanity check
+.\.venv\Scripts\python.exe verify_changes.py
+
+# Full pytest suite (184 tests)
+.\.venv\Scripts\python.exe -m pytest -q
+
+# Security and secret scan
+.\.venv\Scripts\python.exe scripts\secret_scan.py
 ```
 
-To exercise real Windows desktop automation, run the backend directly on the
-trusted Windows host and explicitly enable local desktop mode. A Linux
-container cannot reliably control the Windows desktop.
-
-Production-style compose builds static frontend assets with nginx and keeps
-desktop automation disabled:
-
-```powershell
-docker compose -f docker-compose.prod.yml up --build
-```
-
-Production-style local voice uses the voice image overlay:
-
-```powershell
-docker compose -f docker-compose.prod.yml -f docker-compose.voice.yml up --build
-```
-
-The production topology mounts `./data` as writable local state and `./models`
-read-only. Models are installed explicitly and are never baked into images.
-
-For production-style runs, set a non-empty `MEERO_API_KEY` and keep:
-
-```env
-WEB_SAFE_MODE=true
-LOCAL_DESKTOP_MODE=false
-REQUIRE_API_KEY=true
-```
-
-See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for supported deployment modes.
-
-## Architecture
-
-```mermaid
-flowchart TD
-  A[React + Vite UI] --> B[FastAPI Backend]
-  B --> C[Command Service]
-  C --> D[Rule-based Actions]
-  C --> E[Neural Intent Model]
-  C --> F[Local GPT4All / GGUF]
-  C --> H[SQLite Memory]
-  B --> I[Prometheus Metrics]
-  B --> J[Redis Rate Limiting]
-```
-
-## Project Structure
-
-- `backend/app.py` - FastAPI application entry point
-- `backend/command_service.py` - command orchestration and fallback flow
-- `core/actions.py` - deterministic action engine
-- `core/actions_routing.py` - command route specifications
-- `core/response_collector.py` - request-scoped action response collection
-- `core/memory_store.py` - SQLite-backed memory
-- `ai/neural_net.py` - neural intent runtime
-- `ai/llm_engine.py` - optional local GPT4All / GGUF fallback
-- `frontend/` - React + Vite UI
-- `scripts/train_and_package.py` - canonical model training/packaging
-- `scripts/evaluate.py` - model evaluation with accuracy gating
-
-See [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) for the runtime flow.
-
-## Checks
-
-Backend:
-
-```powershell
-python -m pytest -q
-python scripts/secret_scan.py
-```
-
-Frontend:
-
+### Frontend Validation
 ```powershell
 cd frontend
-pnpm install --frozen-lockfile
+
+# Run ESLint
 pnpm lint
+
+# Run Vitest suite (44 unit/hook tests)
 pnpm exec vitest run
+
+# Production build test
 pnpm run build
+
+# Playwright E2E tests
 pnpm exec playwright test
 ```
 
-Optional S3 upload dependencies:
+---
 
-```powershell
-pip install -r requirements-cloud.txt
-```
+## 🚢 Architecture & Invariants
 
-`requirements-cloud.txt` is only for publishing model artifacts. Meero does not
-use cloud inference providers.
-
-## CI
-
-This repo's CI workflows run:
-
-- backend pytest
-- secret scan
-- frontend Vitest
-- frontend lint
-- frontend build
-- Playwright E2E
-- model evaluation on main
-
-## Training And Evaluation
-
-Train canonical model artifacts after changing `data/intents.json`:
-
-```powershell
-python scripts/train_and_package.py --epochs 100 --batch 8 --out-dir models
-```
-
-To train with the bundled local GGUF teacher models:
-
-```powershell
-python scripts/train_and_package.py --epochs 100 --batch 8 --use-default-teachers --teacher-examples-per-model 2 --out-dir models
-```
-
-Deterministic runner wrappers set `PYTHONHASHSEED=42`,
-`TF_DETERMINISTIC_OPS=1`, `TF_ENABLE_ONEDNN_OPTS=0`, and
-`OMP_NUM_THREADS=1` before invoking the canonical training script:
-
-```powershell
-.\scripts\run_train.ps1 -InstallRequirements
-```
-
-```bash
-./scripts/run_train.sh --install
-```
-
-Evaluate with the default minimum accuracy gate of `0.85`:
-
-```powershell
-python scripts/evaluate.py --out models/local_eval.json
-```
-
-The evaluation report includes accuracy, confidence stats, latency stats, and a
-per-intent classification report.
-
-Override the gate when needed:
-
-```powershell
-python scripts/evaluate.py --out models/local_eval.json --min-accuracy 0.80
-```
-
-Evaluate deterministic unseen and ASR-style voice routing separately:
-
-```powershell
-python scripts/evaluate_routes.py --eval-cases data/intent_eval_cases.json
-python scripts/evaluate_routes.py --eval-cases data/voice_eval_cases.json
-```
-
-See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for explicit local voice and
-GGUF model setup.
-
-## Known Limitations
-
-- Desktop automation should not be exposed publicly.
-- Speech recognition depends on browser support and microphone permission.
-- Local GPT4All / GGUF fallback requires the configured model file to exist.
-- Production Docker is a starting point, not a complete hosted deployment.
-
-## Roadmap
-
-See [docs/ROADMAP.md](./docs/ROADMAP.md) for release notes and remaining
-production hardening work.
-
-- [x] Voice assistant UI
-- [x] FastAPI command backend
-- [x] Neural intent fallback
-- [x] Local LLM fallback
-- [x] SQLite memory
-- [x] Redis rate limiting
-- [x] Prometheus metrics
-- [x] CI pipeline
-- [x] API-key authentication
-- [x] Production Docker Compose
-- [x] Conversation history UI
-- [x] Better model evaluation reports
-- [x] Demo GIF and screenshots
-- [x] Architecture diagram
-- [x] Voice-specific routing evaluation
-- [x] Fail-closed desktop app allowlists
-- [x] Private-by-default audit logging
-- [x] Local Vosk STT runtime provider
-- [x] Local Piper/SAPI TTS runtime provider
-- [ ] Public deployment hardening
+* **Local-First & Private**: No external inference APIs. All models run entirely on-device.
+* **Deterministic-First**: Queries matching deterministic patterns never touch neural or LLM fallbacks.
+* **Fail-Closed Security**: App launches and terminations enforce strict allowlists in desktop mode.
+* **Thread-Safe Concurrency**: Local LLM and TTS engines manage internal synchronization locks to prevent GPU/CPU memory conflicts.

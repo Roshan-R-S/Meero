@@ -19,7 +19,12 @@ def match_regex(query: str, pattern: str) -> bool:
 
 
 COMMAND_ROUTE_SPECS = (
-    CommandRouteSpec(name="greeting", handler="greet", patterns=(r"^(hi|hello|hey|yo|good morning|good afternoon|good evening)(\s+meero)?[.!?]*$",)),
+    CommandRouteSpec(name="greeting", handler="greet", patterns=(r"^(hi+|hey+|hello+|yo+|hiya|what'?s up|sup|good morning|good afternoon|good evening)(\s+meero)?[.!?]*$",)),
+    CommandRouteSpec(name="how_are_you", handler="respond_how_are_you", patterns=(r"^how (are you|do you do|is it going|are things).*$", r"^how('?s| is) (everything|life).*$")),
+    CommandRouteSpec(name="thanks", handler="respond_thanks", patterns=(r"^(thanks?( you)?|thank you( so much| very much)?|appreciate it|cheers)[\s.!?]*$",)),
+    CommandRouteSpec(name="compliment", handler="respond_compliment", patterns=(r"^(you('?re| are) (great|awesome|the best|amazing|wonderful|helpful)|good (job|work)|well done|nice)[\s.!?]*$",)),
+    CommandRouteSpec(name="farewell", handler="respond_farewell", patterns=(r"^(see you( later)?|take care|have a (good|nice) (day|night|one)|good night|later|peace( out)?)[\s.!?]*$",)),
+    CommandRouteSpec(name="who_are_you", handler="respond_identity", patterns=(r"^(who are you|what are you|what('?s| is) your name|tell me about yourself)[\s.!?]*$",)),
     CommandRouteSpec(name="media_control", handler="handle_media_control", matcher="_match_media_control"),
     CommandRouteSpec(name="reminder", handler="handle_reminder", matcher="_match_reminder"),
     CommandRouteSpec(name="window_management", handler="handle_window_management", matcher="_match_window_management"),
@@ -37,6 +42,7 @@ COMMAND_ROUTE_SPECS = (
     CommandRouteSpec(name="close_app", handler="close_app", matcher="_match_close_app"),
     CommandRouteSpec(name="browse", handler="_handle_browse", matcher="_match_browse"),
     CommandRouteSpec(name="system", handler="system_condition", matcher="_match_system"),
+    CommandRouteSpec(name="weather", handler="get_weather", matcher="_match_weather"),
     CommandRouteSpec(name="wikipedia", handler="search_wikipedia", matcher="_match_wikipedia"),
     CommandRouteSpec(name="screenshot", handler="take_screenshot", matcher="_match_screenshot"),
     CommandRouteSpec(name="joke", handler="tell_joke", matcher="_match_joke"),

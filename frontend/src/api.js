@@ -58,6 +58,103 @@ export const sendVoiceCommand = async (audio, options = {}) => {
   }
 };
 
+export const streamVoiceCommand = async (audio, options = {}, onEvent) => {
+  const form = new FormData();
+  form.append('audio', audio, 'command.wav');
+  form.append('synthesize', String(options.synthesize ?? true));
+  form.append('audio_mode', options.audioMode || 'chunked');
+  if (options.fastAck) form.append('fast_ack', 'true');
+  if (options.pendingCommand) form.append('pending_command', options.pendingCommand);
+
+  const headers = { ...authHeaders };
+
+  const response = await fetch(`${API_URL}/voice-command/stream`, {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+
+  if (!response.ok) {
+    notifyServerReachable(false);
+    throw new Error(`HTTP ${response.status}: Failed to stream voice command`);
+  }
+  notifyServerReachable(true);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const event = JSON.parse(trimmed);
+        onEvent?.(event);
+      } catch (err) {
+        logger.error('[API] Failed parsing NDJSON line:', trimmed, err);
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+    try {
+      const event = JSON.parse(buffer.trim());
+      onEvent?.(event);
+    } catch {
+      // ignore trailing incomplete chunk
+    }
+  }
+};
+
+export const streamVoiceSynthesis = async (text, onEvent, options = {}) => {
+  const response = await fetch(`${API_URL}/voice/synthesize/stream`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders,
+    },
+    body: JSON.stringify({
+      text,
+      audio_mode: options.audioMode || 'chunked',
+      fast_ack: Boolean(options.fastAck),
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: Failed to stream synthesis`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const event = JSON.parse(trimmed);
+        onEvent?.(event);
+      } catch (err) {
+        logger.error('[API] Failed parsing NDJSON line:', trimmed, err);
+      }
+    }
+  }
+};
+
 export const getHealth = async () => {
   try {
     const response = await axios.get(`${API_URL}/debug/health`, { headers: authHeaders });

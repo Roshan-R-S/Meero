@@ -137,6 +137,22 @@ DEFAULT_GGUF_TEACHER_MODEL_PATHS = _resolve_teacher_model_paths()
 # Set to False to disable loading/using the neural net or local LLM fallback
 USE_NEURAL_NET = True
 USE_LLM = True
+
+
+def _default_llm_device() -> str:
+    explicit = os.environ.get("LLM_DEVICE") or os.environ.get("LOCAL_LLM_DEVICE")
+    if explicit:
+        return explicit.strip().lower()
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return "gpu"
+    except Exception:
+        pass
+    return "cpu"
+
+
+LLM_DEVICE = _default_llm_device()
 LOCAL_DESKTOP_MODE = _env_bool("LOCAL_DESKTOP_MODE", False)
 WEB_SAFE_MODE = _env_bool("WEB_SAFE_MODE", True)
 CORS_ORIGINS = _env_list("CORS_ORIGINS", ["http://localhost:5173"])
@@ -174,15 +190,85 @@ RATE_LIMIT_FAIL_OPEN = _env_bool("RATE_LIMIT_FAIL_OPEN", True)
 AUDIT_LOG_COMMAND_TEXT = _env_bool("AUDIT_LOG_COMMAND_TEXT", False)
 
 # Local voice. Models are installed explicitly; application startup never downloads them.
+VOICES_DIR = os.path.join(DATA_DIR, "voices")
+
+
+def _resolve_reference_audios() -> list[str]:
+    env_refs = os.environ.get("VOICE_CLONE_REFERENCE_AUDIOS")
+    if env_refs:
+        paths = [p.strip() for p in env_refs.split(",") if p.strip()]
+        return [p if os.path.isabs(p) else os.path.join(BASE_DIR, p) for p in paths]
+    defaults = [
+        os.path.join(VOICES_DIR, "reference.wav"),
+        os.path.join(VOICES_DIR, "reference1.wav"),
+    ]
+    existing = [p for p in defaults if os.path.exists(p)]
+    if existing:
+        return existing
+    if os.path.isdir(VOICES_DIR):
+        wavs = [os.path.join(VOICES_DIR, f) for f in os.listdir(VOICES_DIR) if f.lower().endswith(".wav")]
+        if wavs:
+            return sorted(wavs)
+    return []
+
+
+VOICE_CLONE_REFERENCE_AUDIOS = _resolve_reference_audios()
 VOICE_STT_PROVIDER = os.environ.get("VOICE_STT_PROVIDER", "vosk").strip().lower()
-VOICE_TTS_PROVIDER = os.environ.get("VOICE_TTS_PROVIDER", "piper").strip().lower()
+
+
+def _default_tts_provider() -> str:
+    """Pick the best TTS provider based on available hardware.
+
+    XTTS produces high-quality voice-cloned audio but is far too slow on CPU
+    (5-15 s per sentence).  Only default to it when a CUDA GPU is available.
+    """
+    explicit = os.environ.get("VOICE_TTS_PROVIDER")
+    if explicit:
+        return explicit.strip().lower()
+
+    if VOICE_CLONE_REFERENCE_AUDIOS:
+        try:
+            import torch
+            if torch.cuda.is_available():
+                return "xtts"
+        except Exception:
+            pass
+
+    # Fast providers: piper (if model present), else Windows SAPI
+    piper_model = os.path.join(LOCAL_TTS_DIR, "voice.onnx")
+    if os.path.exists(piper_model) and shutil.which("piper"):
+        return "piper"
+    if os.name == "nt":
+        return "sapi"
+    return "piper"
+
+
+VOICE_TTS_PROVIDER = _default_tts_provider()
+
 VOSK_MODEL_PATH = os.environ.get("VOSK_MODEL_PATH", os.path.join(LOCAL_STT_DIR, "vosk-en-us"))
 WHISPER_MODEL_PATH = os.environ.get("WHISPER_MODEL_PATH", os.path.join(LOCAL_STT_DIR, "whisper"))
 PIPER_MODEL_PATH = os.environ.get("PIPER_MODEL_PATH", os.path.join(LOCAL_TTS_DIR, "voice.onnx"))
 PIPER_EXECUTABLE = os.environ.get("PIPER_EXECUTABLE", "piper")
+XTTS_MODEL_DIR = os.environ.get("XTTS_MODEL_DIR", os.path.join(LOCAL_TTS_DIR, "xtts_v2"))
+XTTS_LANGUAGE = os.environ.get("XTTS_LANGUAGE", "en").strip().lower()
+XTTS_USE_GPU = os.environ.get("XTTS_USE_GPU", "auto").strip().lower()
 VOICE_MAX_UPLOAD_BYTES = int(os.environ.get("VOICE_MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))
 VOICE_MAX_DURATION_SECONDS = float(os.environ.get("VOICE_MAX_DURATION_SECONDS", "30"))
-VOICE_TTS_TIMEOUT_SECONDS = float(os.environ.get("VOICE_TTS_TIMEOUT_SECONDS", "10"))
+VOICE_TTS_TIMEOUT_SECONDS = float(os.environ.get("VOICE_TTS_TIMEOUT_SECONDS", "15"))
 DESKTOP_SUBPROCESS_TIMEOUT_SECONDS = float(
     os.environ.get("DESKTOP_SUBPROCESS_TIMEOUT_SECONDS", "5")
 )
+
+# Weather API (OpenWeatherMap)
+OPENWEATHERMAP_API_KEY = os.environ.get("OPENWEATHERMAP_API_KEY", "").strip()
+OPENWEATHERMAP_DEFAULT_CITY = os.environ.get("OPENWEATHERMAP_DEFAULT_CITY", "Chennai").strip()
+OPENWEATHERMAP_UNITS = os.environ.get("OPENWEATHERMAP_UNITS", "metric").strip().lower()
+
+# Voice Latency & Streaming Settings
+VOICE_LOW_LATENCY_MODE = _env_bool("VOICE_LOW_LATENCY_MODE", True)
+VOICE_FAST_ACK_ENABLED = _env_bool("VOICE_FAST_ACK_ENABLED", True)
+VOICE_FAST_ACK_PROVIDER = os.environ.get("VOICE_FAST_ACK_PROVIDER", "piper").strip().lower()
+VOICE_LLM_MAX_TOKENS = int(os.environ.get("VOICE_LLM_MAX_TOKENS", "96"))
+VOICE_STREAM_CHUNK_MIN_CHARS = int(os.environ.get("VOICE_STREAM_CHUNK_MIN_CHARS", "60"))
+VOICE_STREAM_CHUNK_MAX_CHARS = int(os.environ.get("VOICE_STREAM_CHUNK_MAX_CHARS", "180"))
+

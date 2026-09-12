@@ -121,6 +121,7 @@ class AIOrchestrator:
                     metadata=metadata,
                     trace=trace,
                     actions=actions,
+                    mode=context.mode,
                 )
                 if not response_text:
                     response_text = "I am unable to process that request."

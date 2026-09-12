@@ -15,7 +15,7 @@ class FakeLLM:
         self.response = response
         self.calls = []
 
-    def generate_response(self, query, history=None, memory_summary=None):
+    def generate_response(self, query, history=None, memory_summary=None, **kwargs):
         self.calls.append(
             {
                 "query": query,

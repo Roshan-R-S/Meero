@@ -161,4 +161,23 @@ describe("useVAD", () => {
     });
     expect(prob).toBeNull();
   });
+
+  test("processAudioChunk returns probability even when startVAD was called without a callback", async () => {
+    const session = makeSession(0.88);
+    mocks.InferenceSession.create.mockResolvedValue(session);
+
+    const { result } = renderHook(() => useVAD());
+
+    await act(async () => {
+      await result.current.startVAD(); // no callback passed
+    });
+
+    let avgProb;
+    await act(async () => {
+      avgProb = await result.current.processAudioChunk(makeSamples(VAD_FRAME_SAMPLES));
+    });
+
+    expect(avgProb).toBeCloseTo(0.88, 2);
+  });
 });
+

@@ -1,0 +1,131 @@
+# Meero GitLab CI/CD Pipeline
+# Automatically mirrors the quality, security, and build checks from GitHub Actions
+
+workflow:
+  rules:
+    # Run on Merge Requests
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    # Prevent duplicate pipelines when MR is open for the branch
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    # Run on branch pushes and manual triggers
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+
+stages:
+  - security-and-lint
+  - test
+  - validate
+  - build
+
+default:
+  interruptible: true
+
+# -------------------------------------------------------------------------
+# Python Backend Tests
+# -------------------------------------------------------------------------
+backend-test:
+  stage: test
+  image: python:3.10
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  cache:
+    key: "python-3.10-pip"
+    paths:
+      - .cache/pip
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+    - python -m pip install --upgrade pip
+    - pip install -r requirements-test.txt
+  script:
+    - python scripts/secret_scan.py
+    - python verify_changes.py
+    - python -m pytest -q
+
+# Full test suite (run on default branch or manual web trigger)
+backend-test-full:
+  stage: test
+  image: python:3.10
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  cache:
+    key: "python-3.10-pip-full"
+    paths:
+      - .cache/pip
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+    - python -m pip install --upgrade pip
+    - pip install -r requirements-test-full.txt
+  script:
+    - python -m pytest -q
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+
+# -------------------------------------------------------------------------
+# Frontend Checks & Tests (Vitest, Lint, Vite Build)
+# -------------------------------------------------------------------------
+frontend-test:
+  stage: test
+  image: node:20
+  variables:
+    PNPM_HOME: "$CI_PROJECT_DIR/.pnpm"
+    VITEST: "true"
+  cache:
+    key:
+      files:
+        - frontend/pnpm-lock.yaml
+    paths:
+      - .pnpm-store
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@latest --activate
+    - pnpm config set store-dir "$CI_PROJECT_DIR/.pnpm-store"
+    - cd frontend
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm exec vitest run
+    - pnpm lint
+    - pnpm run build
+  artifacts:
+    name: "frontend-build-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - frontend/dist/
+    expire_in: 1 week
+
+# -------------------------------------------------------------------------
+# Deployment & Docker Compose Validation
+# -------------------------------------------------------------------------
+validate-docker-compose:
+  stage: validate
+  image: docker:24-cli
+  variables:
+    MEERO_API_KEY: "ci-placeholder-key"
+  before_script:
+    - apk add --no-cache docker-cli-compose
+  script:
+    - docker compose config --quiet
+    - docker compose -f docker-compose.prod.yml config --quiet
+    - docker compose -f docker-compose.prod.yml -f docker-compose.voice.yml config --quiet
+
+# -------------------------------------------------------------------------
+# Docker Image Build Smoke Tests
+# -------------------------------------------------------------------------
+docker-build-smoke:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  parallel:
+    matrix:
+      - DOCKERFILE: Dockerfile
+        IMAGE_NAME: meero-local-ci
+      - DOCKERFILE: Dockerfile.websafe
+        IMAGE_NAME: meero-websafe-ci
+      - DOCKERFILE: Dockerfile.voice
+        IMAGE_NAME: meero-voice-ci
+  script:
+    - docker build --file "$DOCKERFILE" --tag "$IMAGE_NAME" .
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "web"'

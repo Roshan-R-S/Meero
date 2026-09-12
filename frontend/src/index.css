@@ -18,7 +18,7 @@ body {
     inset 0 0 20px rgba(255, 255, 255, 0.02);
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar — hidden */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
@@ -26,4 +26,31 @@ body {
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Custom Scrollbar — project cyan palette */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(8, 145, 178, 0.45);
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(6, 182, 212, 0.75);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(8, 145, 178, 0.45) rgba(0, 0, 0, 0.2);
 }
