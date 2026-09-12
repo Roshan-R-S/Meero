@@ -14,14 +14,12 @@ import hashlib
 import numpy as np
 
 from sklearn.metrics import classification_report, confusion_matrix
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-
 # Ensure project root is on sys.path so we can import config when executed from scripts/
 import pathlib
 import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 import config
-from ai.keras_compat import load_model_compat
+from ai.keras_compat import load_model_compat, pad_sequences
 
 
 def compute_dataset_hash(path):

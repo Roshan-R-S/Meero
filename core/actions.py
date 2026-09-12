@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import subprocess
+import threading
 import time
 import urllib.parse
 import urllib.request
@@ -97,11 +98,27 @@ _COMPILED_ROUTE_PATTERNS = {
 
 
 class Actions:
+    _ROUTE_CACHE = None
+    _ROUTE_CACHE_LOCK = threading.Lock()
+
     def __init__(self, response_engine):
         self.speak = response_engine.speak
         self._command_routes = self._build_command_routes()
 
-    def _build_command_routes(self):
+    @classmethod
+    def _compile_routes(cls):
+        compiled = []
+        for spec in COMMAND_ROUTE_SPECS:
+            if spec.matcher:
+                compiled.append((None, spec.handler, spec.matcher))
+            else:
+                patterns = _COMPILED_ROUTE_PATTERNS.get(spec.handler) or tuple(
+                    re.compile(pattern, re.IGNORECASE) for pattern in spec.patterns
+                )
+                compiled.append((patterns, spec.handler, None))
+        return compiled
+
+    def _bind_cached_routes(self, cached_specs):
         no_arg_handlers = {
             "greet": lambda q: self.greet(),
             "respond_how_are_you": lambda q: self.respond_how_are_you(),
@@ -133,26 +150,31 @@ class Actions:
         }
 
         routes = []
-        for spec in COMMAND_ROUTE_SPECS:
-            if spec.matcher:
-                matcher = getattr(self, spec.matcher)
+        for patterns, handler_name, matcher_name in cached_specs:
+            if matcher_name:
+                matcher = getattr(self, matcher_name)
             else:
-                compiled = _COMPILED_ROUTE_PATTERNS.get(spec.handler) or tuple(
-                    re.compile(pattern, re.IGNORECASE) for pattern in spec.patterns
-                )
+                def matcher(query, _patterns=patterns):
+                    return any(p.search(query) for p in _patterns)
 
-                def matcher(query, _compiled=compiled):
-                    return any(pattern.search(query) for pattern in _compiled)
-
-            if spec.handler in no_arg_handlers:
-                handler = no_arg_handlers[spec.handler]
-            elif spec.handler in query_handlers:
-                handler = query_handlers[spec.handler]
+            if handler_name in no_arg_handlers:
+                handler = no_arg_handlers[handler_name]
+            elif handler_name in query_handlers:
+                handler = query_handlers[handler_name]
             else:
-                handler = getattr(self, spec.handler)
+                handler = getattr(self, handler_name)
 
             routes.append((matcher, handler))
         return routes
+
+    def _build_command_routes(self):
+        if Actions._ROUTE_CACHE is not None:
+            return self._bind_cached_routes(Actions._ROUTE_CACHE)
+
+        with Actions._ROUTE_CACHE_LOCK:
+            if Actions._ROUTE_CACHE is None:
+                Actions._ROUTE_CACHE = self._compile_routes()
+            return self._bind_cached_routes(Actions._ROUTE_CACHE)
 
     @staticmethod
     def _match_any_phrase(q, phrases):

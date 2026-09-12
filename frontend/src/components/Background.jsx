@@ -1,11 +1,15 @@
 import { motion as Motion, useMotionValue, useTransform } from "framer-motion";
 import { useEffect } from "react";
 import useMousePosition from "../hooks/useMousePosition";
+import { usePrefersReducedMotion } from "../hooks/useReducedMotion";
+import { useTheme } from "../hooks/useTheme";
 
 const Background = () => {
   const mouse = useMousePosition();
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
+  const reducedMotion = usePrefersReducedMotion();
+  const { theme } = useTheme();
 
   // Sync shared hook values into motion values
   useEffect(() => {
@@ -24,8 +28,8 @@ const Background = () => {
     <div className="fixed inset-0 z-[-1] overflow-hidden bg-black">
       {/* Deep Space Gradients */}
       <Motion.div
-        style={{ x: x1, y: y1 }}
-        animate={{
+        style={{ x: x1, y: y1, backgroundColor: theme.css["--th-bg-blob1"] }}
+        animate={reducedMotion ? {} : {
           scale: [1, 1.2, 1],
           opacity: [0.5, 0.8, 0.5],
         }}
@@ -33,12 +37,12 @@ const Background = () => {
           scale: { duration: 12, repeat: Infinity, ease: "easeInOut" },
           opacity: { duration: 12, repeat: Infinity, ease: "easeInOut" },
         }}
-        className="absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] rounded-full bg-blue-900/40 blur-[120px]"
+        className="absolute top-[-20%] left-[-10%] w-[70vw] h-[70vw] rounded-full blur-[120px]"
       />
 
       <Motion.div
-        style={{ x: x2, y: y2 }}
-        animate={{
+        style={{ x: x2, y: y2, backgroundColor: theme.css["--th-bg-blob2"] }}
+        animate={reducedMotion ? {} : {
           scale: [1, 1.5, 1],
           opacity: [0.4, 0.7, 0.4],
         }}
@@ -51,18 +55,18 @@ const Background = () => {
             delay: 2,
           },
         }}
-        className="absolute bottom-[-20%] right-[-10%] w-[70vw] h-[70vw] rounded-full bg-cyan-900/30 blur-[120px]"
+        className="absolute bottom-[-20%] right-[-10%] w-[70vw] h-[70vw] rounded-full blur-[120px]"
       />
 
       <Motion.div
-        style={{ x: x1, y: y2 }} // Mixed
-        animate={{
+        style={{ x: x1, y: y2, backgroundColor: theme.css["--th-bg-blob3"] }}
+        animate={reducedMotion ? {} : {
           scale: [1, 1.1, 1],
         }}
         transition={{
           scale: { duration: 20, repeat: Infinity, ease: "easeInOut" },
         }}
-        className="absolute top-[40%] left-[30%] w-[40vw] h-[40vw] rounded-full bg-indigo-900/20 blur-[100px]"
+        className="absolute top-[40%] left-[30%] w-[40vw] h-[40vw] rounded-full blur-[100px]"
       />
     </div>
   );

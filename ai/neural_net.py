@@ -4,10 +4,8 @@ import pickle
 import random
 
 import numpy as np
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-
 import config
-from ai.keras_compat import load_model_compat
+from ai.keras_compat import load_model_compat, pad_sequences
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +16,16 @@ class NeuralNet:
         self.tokenizer = self._load_pickle(config.TOKENIZER_FILE, "tokenizer")
         self.label_encoder = self._load_pickle(config.LABEL_ENCODER_FILE, "label encoder")
         self.intents_data = self._load_intents(config.INTENTS_FILE)
+        self._warmup_model()
+
+    def _warmup_model(self):
+        if self.model:
+            try:
+                dummy = pad_sequences([[0]], maxlen=getattr(config, "NEURAL_NET_MAXLEN", 20))
+                self.model.predict(dummy, verbose=0)
+                logger.info("Neural net graph pre-compiled.")
+            except Exception:
+                pass
 
     @staticmethod
     def _load_model(model_path):

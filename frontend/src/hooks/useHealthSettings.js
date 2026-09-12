@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { getHealth, getSettings, saveSettings } from "../api";
+import { useTheme } from "./useTheme";
 
 export default function useHealthSettings({ wakeWordEnabled, setWakeWordEnabled }) {
+  const { themeName, setTheme } = useTheme();
   const [voiceRate, setVoiceRate] = useState(1);
   const [voicePitch, setVoicePitch] = useState(1);
   const [micEnabled, setMicEnabled] = useState(true);
@@ -30,6 +32,9 @@ export default function useHealthSettings({ wakeWordEnabled, setWakeWordEnabled 
       if (typeof settings.wake_word_enabled === "boolean") {
         setWakeWordEnabled(settings.wake_word_enabled);
       }
+      if (typeof settings.theme === "string") {
+        setTheme(settings.theme);
+      }
       if (typeof settings.voice_rate === "number") setVoiceRate(settings.voice_rate);
       if (typeof settings.voice_pitch === "number") setVoicePitch(settings.voice_pitch);
       if (typeof settings.mic_enabled === "boolean") setMicEnabled(settings.mic_enabled);
@@ -45,9 +50,9 @@ export default function useHealthSettings({ wakeWordEnabled, setWakeWordEnabled 
     return () => {
       cancelled = true;
     };
-  }, [setWakeWordEnabled]);
+  }, [setWakeWordEnabled, setTheme]);
 
-  const saveAssistantSettings = useCallback(async () => {
+  const saveAssistantSettings = useCallback(async (overrides = {}) => {
     const payload = {
       wake_word_enabled: wakeWordEnabled,
       voice_rate: voiceRate,
@@ -58,9 +63,11 @@ export default function useHealthSettings({ wakeWordEnabled, setWakeWordEnabled 
       text_input_enabled: textInputEnabled,
       local_voice_enabled: localVoiceEnabled,
       browser_speech_fallback_enabled: browserSpeechFallbackEnabled,
+      ...(themeName ? { theme: themeName } : {}),
+      ...overrides,
     };
     return saveSettings(payload);
-  }, [wakeWordEnabled, voiceRate, voicePitch, micEnabled, textOutputEnabled, showHistory, textInputEnabled, localVoiceEnabled, browserSpeechFallbackEnabled]);
+  }, [wakeWordEnabled, voiceRate, voicePitch, micEnabled, textOutputEnabled, showHistory, textInputEnabled, localVoiceEnabled, browserSpeechFallbackEnabled, themeName]);
 
   return {
     apiHealth,

@@ -71,8 +71,60 @@ export const playProcessing = () => {
 };
 
 export const playSuccess = () => {
-    // Harmonious chord
-    playTone(440, 'sine', 0.5);
-    playTone(554, 'sine', 0.5); // C#
-    playTone(659, 'sine', 0.5); // E
+  // Harmonious chord
+  playTone(440, 'sine', 0.5);
+  playTone(554, 'sine', 0.5); // C#
+  playTone(659, 'sine', 0.5); // E
+};
+
+export const playConfirmationRequired = () => {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  [440, 554.37].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(freq, now + i * 0.1);
+    gain.gain.setValueAtTime(0.1, now + i * 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.15);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now + i * 0.1);
+    osc.stop(now + i * 0.1 + 0.15);
+  });
+};
+
+export const playError = () => {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(150, now);
+  osc.frequency.exponentialRampToValueAtTime(80, now + 0.2);
+  gain.gain.setValueAtTime(0.12, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.25);
+};
+
+export const playWakeWordDetected = () => {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(880, now);
+  osc.frequency.exponentialRampToValueAtTime(1320, now + 0.08);
+  gain.gain.setValueAtTime(0.08, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(now);
+  osc.stop(now + 0.15);
 };

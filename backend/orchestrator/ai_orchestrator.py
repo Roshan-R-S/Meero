@@ -1,8 +1,8 @@
-"""Main deterministic-first command orchestrator."""
-
 from __future__ import annotations
 
+import concurrent.futures
 import logging
+import os
 import time
 from typing import Callable, Optional
 
@@ -19,6 +19,11 @@ from .outcome_builder import OutcomeBuilder
 from .safety_policy import SafetyPolicy
 
 logger = logging.getLogger(__name__)
+
+_ACTIONS_EXECUTOR = concurrent.futures.ThreadPoolExecutor(
+    max_workers=int(os.environ.get("ACTIONS_WORKERS", "4")),
+    thread_name_prefix="meero-actions",
+)
 
 
 class AIOrchestrator:
@@ -82,17 +87,15 @@ class AIOrchestrator:
 
             trace.add("safety", "allowed")
             actions_started = time.perf_counter()
-            import concurrent.futures
             action_timeout = getattr(config, "ACTIONS_TIMEOUT_SECONDS", 10.0)
             try:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(
-                        actions.process_command,
-                        context.routing_text,
-                        input_func=(lambda: "yes") if context.confirm else (lambda: "None"),
-                        exit_func=lambda: response_collector.speak("Disconnecting..."),
-                    )
-                    result = future.result(timeout=action_timeout)
+                future = _ACTIONS_EXECUTOR.submit(
+                    actions.process_command,
+                    context.routing_text,
+                    input_func=(lambda: "yes") if context.confirm else (lambda: "None"),
+                    exit_func=lambda: response_collector.speak("Disconnecting..."),
+                )
+                result = future.result(timeout=action_timeout)
             except concurrent.futures.TimeoutError:
                 result = ACTION_TIMEOUT_RESULT
             actions_latency_ms = (time.perf_counter() - actions_started) * 1000

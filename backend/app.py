@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import logging
 import os
 import threading
@@ -62,6 +63,10 @@ logger = logging.getLogger(__name__)
 MODEL_PATH = config.LLM_MODEL_PATH
 _state_lock = threading.Lock()
 CONVERSATION_HISTORY = []
+_command_executor = concurrent.futures.ThreadPoolExecutor(
+    max_workers=int(os.environ.get("COMMAND_WORKERS", "4")),
+    thread_name_prefix="meero-cmd",
+)
 _RATE_LIMITER_READY = False
 
 if _sentiment_available and SentimentIntensityAnalyzer is not None:
@@ -273,6 +278,7 @@ class SettingsPayload(BaseModel):
     text_input_enabled: Optional[bool] = None
     local_voice_enabled: Optional[bool] = None
     browser_speech_fallback_enabled: Optional[bool] = None
+    theme: Optional[str] = Field(default=None, pattern="^(meero|edith|ultron)$")
 
 
 LOCAL_HOSTS = auth_middleware.LOCAL_HOSTS
@@ -366,9 +372,14 @@ def metrics():
     dependencies=[Depends(distributed_rate_limit), Depends(require_api_key)],
 )
 async def process_command(payload: CommandRequest, http_request: Request):
+    current_time = time.time()
+    client_key = _client_host(http_request)
+
     with _state_lock:
-        current_time = time.time()
-        client_key = _client_host(http_request)
+        stale = [k for k, v in CLIENT_COMMAND_TIMES.items() if current_time - v > RATE_LIMIT_COOLDOWN * 60]
+        for k in stale:
+            del CLIENT_COMMAND_TIMES[k]
+
         last_command_time = CLIENT_COMMAND_TIMES.get(client_key, 0)
         if not payload.confirm and current_time - last_command_time < RATE_LIMIT_COOLDOWN:
             return CommandResponse(
@@ -378,16 +389,13 @@ async def process_command(payload: CommandRequest, http_request: Request):
                 metadata=ResponseMetadata(engine="rate_limiter", fallback_reason="cooldown_active"),
             )
         CLIENT_COMMAND_TIMES[client_key] = current_time
+        history_snapshot = list(CONVERSATION_HISTORY)
 
     try:
         logger.info("Processing command mode=%s", payload.mode)
-
-        with _state_lock:
-            history_snapshot = list(CONVERSATION_HISTORY)
-
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         outcome = await loop.run_in_executor(
-            None,
+            _command_executor,
             lambda: execute_command(
                 payload.command,
                 mode=payload.mode,
@@ -397,10 +405,23 @@ async def process_command(payload: CommandRequest, http_request: Request):
                 llm=llm,
                 conversation_history=history_snapshot,
                 memory_summary_fn=_memory_summary,
-                append_conversation_fn=_append_conversation,
+                append_conversation_fn=None,
                 analyze_sentiment_fn=analyze_sentiment,
                 client_is_local=_is_local_request(http_request),
             ),
+        )
+
+        with _state_lock:
+            CONVERSATION_HISTORY.append((payload.command, outcome.response))
+            max_interactions = getattr(config, "MEMORY_MAX_INTERACTIONS", 20)
+            while len(CONVERSATION_HISTORY) > max_interactions:
+                CONVERSATION_HISTORY.pop(0)
+
+        memory_store.append(
+            payload.command,
+            outcome.response,
+            max_interactions=getattr(config, "MEMORY_MAX_INTERACTIONS", 20),
+            summarizer=summarize_conversation,
         )
 
         return CommandResponse(
@@ -408,7 +429,14 @@ async def process_command(payload: CommandRequest, http_request: Request):
             action_status=outcome.action_status,
             sentiment=outcome.sentiment,
             pending_command=outcome.pending_command,
-            metadata=ResponseMetadata(**outcome.metadata),
+            metadata=ResponseMetadata(
+                engine=outcome.metadata.get("engine", "unknown"),
+                confidence=outcome.metadata.get("confidence"),
+                fallback_reason=outcome.metadata.get("fallback_reason"),
+                intent=outcome.metadata.get("intent"),
+                latency_ms=outcome.metadata.get("latency_ms"),
+                decision_trace=outcome.metadata.get("decision_trace", []),
+            ),
         )
         
     except Exception as e:

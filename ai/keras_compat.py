@@ -43,3 +43,12 @@ def load_model_compat(model_path):
         )
         _patch_quantization_config_layers()
         return load_model(model_path)
+
+
+try:
+    from keras.utils import pad_sequences
+except ImportError:
+    try:
+        from tensorflow.keras.preprocessing.sequence import pad_sequences
+    except ImportError:
+        from keras.preprocessing.sequence import pad_sequences

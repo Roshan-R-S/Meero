@@ -44,7 +44,12 @@ def _get_conn():
         except Exception:
             pass
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except Exception:
+        pass
 
     with _init_lock:
         if DB_PATH not in _initialized_dbs:

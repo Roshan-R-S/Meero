@@ -4,6 +4,7 @@ import { getModelStatus, sendCommand } from "./api";
 import AssistantOrb from "./components/AssistantOrb";
 import Background from "./components/Background";
 import ConfirmationCard from "./components/ConfirmationCard";
+import ErrorBoundary from "./components/ErrorBoundary";
 import HistoryPanel from "./components/HistoryPanel";
 import HologramOverlay from "./components/HologramOverlay";
 import SettingsPanel from "./components/SettingsPanel";
@@ -13,18 +14,27 @@ import useHealthSettings from "./hooks/useHealthSettings";
 import useMessages from "./hooks/useMessages";
 import useSpeechRecognition from "./hooks/useSpeechRecognition";
 import useSpeechSynthesis from "./hooks/useSpeechSynthesis";
+import { useTheme } from "./hooks/useTheme";
 import useVoicePipeline from "./hooks/useVoicePipeline";
 import "./index.css";
-import { playProcessing, playStartup } from "./utils/sound";
+import {
+  playConfirmationRequired,
+  playError,
+  playProcessing,
+  playStartup,
+  playSuccess,
+} from "./utils/sound";
 import { browserSpeechRecognitionSupported } from "./utils/speechSupport";
 
 function App() {
+  const { theme } = useTheme();
   const [state, setState] = useState("idle"); // idle, listening, processing, speaking
   const [sentiment, setSentiment] = useState("neutral"); // neutral, positive, negative
   const [pendingConfirmationCommand, setPendingConfirmationCommand] = useState(null);
   const [confirmationSubmitting, setConfirmationSubmitting] = useState(false);
   const [typedCommand, setTypedCommand] = useState("");
   const [statusNotice, setStatusNotice] = useState("");
+  const [lastMetadata, setLastMetadata] = useState(null);
   const statusNoticeTimerRef = useRef(null);
   const { messages, addMessages, clearMessages } = useMessages();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -285,13 +295,17 @@ function App() {
     playProcessing();
 
     const data = options ? await sendCommand(userText, options) : await sendCommand(userText);
+    if (data.metadata) setLastMetadata(data.metadata);
     if (data.action_status === "confirmation_required" && data.pending_command) {
       setPendingConfirmationCommand(data.pending_command);
+      playConfirmationRequired();
+    } else if (["blocked", "error", "rate_limited"].includes(data.action_status)) {
+      playError();
+      setStatusNotice(data.response);
+    } else {
+      playSuccess();
     }
     if (data.sentiment) setSentiment(data.sentiment);
-    if (["blocked", "error", "rate_limited"].includes(data.action_status)) {
-      setStatusNotice(data.response);
-    }
     addMessages([
       { role: "user", text: userText },
       { role: "assistant", text: data.response },
@@ -300,15 +314,19 @@ function App() {
   }, [addMessages, confirmationSubmitting, pendingConfirmationCommand, showTransientStatusNotice]);
 
   const handleLocalVoiceResult = useCallback(async (data) => {
+    if (data.metadata) setLastMetadata(data.metadata);
     if (data.action_status === "confirmation_required" && data.pending_command) {
       setPendingConfirmationCommand(data.pending_command);
+      playConfirmationRequired();
     } else if (data.action_status !== "confirmation_required") {
       setPendingConfirmationCommand(null);
     }
     if (data.sentiment) setSentiment(data.sentiment);
     if (["blocked", "error", "rate_limited", "cancelled"].includes(data.action_status)) {
+      playError();
       setStatusNotice(data.response);
     } else if (data.response) {
+      playSuccess();
       showTransientStatusNotice(data.response);
     }
     const nextMessages = [
@@ -373,6 +391,7 @@ function App() {
     speakRef.current = (text) => {
       try {
         setAriaResponse(text);
+        setTimeout(() => setAriaResponse(""), 150);
       } catch {
         // Ignore aria-live update failures.
       }
@@ -395,13 +414,43 @@ function App() {
     }
   }, [saveAssistantSettings, showTransientStatusNotice]);
 
+  const bootProgress = (() => {
+    if (!modelStatus) return 25;
+    let score = 25;
+    if (modelStatus.neural_net?.loaded) score += 35;
+    if (modelStatus.gguf_llm?.loaded || modelStatus.gguf_llm?.status === "missing") score += 40;
+    return score;
+  })();
+
   if (booting) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white font-orbitron overflow-hidden">
-        <div className="text-4xl font-bold tracking-[0.5em] text-cyan-500 animate-pulse border-b-2 border-cyan-500 pb-2 mb-4">
-          MEERO
+      <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white font-orbitron overflow-hidden p-6 text-center">
+        <div
+          className="text-4xl font-bold tracking-[0.4em] animate-pulse border-b-2 pb-2 mb-3"
+          style={{
+            color: "var(--th-primary)",
+            borderColor: "var(--th-primary)",
+            textShadow: "0 0 20px var(--th-primary-glow)",
+          }}
+        >
+          {theme.boot?.title || "MEERO"}
         </div>
-        <div className="font-rajdhani text-sm text-cyan-800 tracking-widest mt-2 animate-bounce">
+        <p className="font-mono text-xs tracking-widest text-neutral-400 mb-6 uppercase">
+          {theme.boot?.subtitle || "NEURAL DESKTOP ASSISTANT"}
+        </p>
+
+        {/* Tactical Boot Progress Bar */}
+        <div className="w-64 h-1.5 bg-neutral-900 border border-neutral-800 rounded-full overflow-hidden mb-4">
+          <div
+            className="h-full transition-all duration-500 rounded-full"
+            style={{ width: `${bootProgress}%`, background: "var(--th-primary)" }}
+          />
+        </div>
+
+        <div
+          className="font-mono text-xs tracking-widest uppercase animate-pulse"
+          style={{ color: "var(--th-text-dim)" }}
+        >
           {loadingText}
         </div>
         {bootError && (
@@ -458,7 +507,7 @@ function App() {
       {/* Screen-reader live region for TTS responses */}
       <div aria-live="polite" aria-atomic="true" className="sr-only" data-testid="aria-response">{ariaResponse}</div>
       <Background />
-      <HologramOverlay />
+      <HologramOverlay state={state} lastMetadata={lastMetadata} />
 
       {!serverReachable && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-60 rounded bg-red-700/90 px-4 py-2 text-sm text-white shadow">
@@ -489,7 +538,8 @@ function App() {
           onClick={() => setHistoryMobileOpen(true)}
           aria-label="Open conversation history"
           title="Open conversation history"
-          className="absolute left-4 top-4 z-30 grid h-10 w-10 place-items-center rounded-full border border-cyan-400/25 bg-black/45 text-cyan-100 backdrop-blur transition hover:bg-cyan-900/40 md:hidden"
+          className="absolute left-4 top-4 z-30 grid h-10 w-10 place-items-center rounded-full border bg-black/45 backdrop-blur transition hover:bg-white/10 md:hidden"
+          style={{ borderColor: "var(--th-border)", color: "var(--th-text)" }}
         >
           <MessagesSquare size={18} />
         </button>
@@ -499,7 +549,8 @@ function App() {
         onClick={() => setSettingsOpen(true)}
         aria-label="Open settings"
         title="Open settings"
-        className="absolute right-4 top-4 z-50 grid h-10 w-10 place-items-center rounded-full border border-cyan-400/25 bg-black/45 text-cyan-100 backdrop-blur transition hover:bg-cyan-900/40"
+        className="absolute right-4 top-4 z-50 grid h-10 w-10 place-items-center rounded-full border bg-black/45 backdrop-blur transition hover:bg-white/10"
+        style={{ borderColor: "var(--th-border)", color: "var(--th-text)" }}
       >
         <Settings size={18} />
       </button>
@@ -543,17 +594,25 @@ function App() {
       <div className="w-full max-w-lg h-auto aspect-square flex flex-col items-center justify-center p-8 relative z-10">
         {/* Header */}
         <div className="text-center z-30 mb-4 transform translate-y-4">
-          <h1 className="text-2xl font-orbitron font-bold tracking-[0.2em] text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
-            MEERO
+          <h1
+            className="text-2xl font-orbitron font-bold tracking-[0.2em] transition-colors"
+            style={{
+              color: "var(--th-primary)",
+              textShadow: "0 0 12px var(--th-primary-glow)",
+            }}
+          >
+            {theme.assistantName || "MEERO"}
           </h1>
         </div>
 
         {/* Visualizer - Center Stage */}
         <div className="flex-1 flex items-center justify-center w-full h-full relative z-20">
-          <AssistantOrb state={state} sentiment={sentiment} micEnergyLevel={micEnergyLevel} />
+          <ErrorBoundary>
+            <AssistantOrb state={state} sentiment={sentiment} micEnergyLevel={micEnergyLevel} />
+          </ErrorBoundary>
         </div>
 
-          <VoiceControls
+        <VoiceControls
           browserFallbackEnabled={browserSpeechFallbackEnabled}
           browserSpeechSupported={speechSupported}
           localVoiceAvailable={localVoiceAvailable}
@@ -571,18 +630,24 @@ function App() {
           vadReady={vadReady}
           wakeWordEnabled={wakeWordEnabled}
           setWakeWordEnabled={setWakeWordEnabled}
+          micEnergyLevel={micEnergyLevel}
         />
       </div>
 
       {/* Minimal State Indicator */}
-      <div className="absolute bottom-10 flex flex-col items-center gap-1 text-xs text-gray-500 tracking-widest uppercase opacity-50">
-        <span>{wakeWordEnabled ? "wake word active" : `${state} Mode`}</span>
+      <div
+        className="absolute bottom-10 flex flex-col items-center gap-1 font-mono text-[10px] tracking-widest uppercase transition-colors"
+        style={{ color: "var(--th-text-dim)" }}
+      >
+        <span>{wakeWordEnabled ? "● WAKE ACTIVE" : `${state.toUpperCase()} MODE`}</span>
         {isConversing && (
-          <span className="text-cyan-500 animate-pulse">● Continuous Loop</span>
+          <span className="animate-pulse" style={{ color: "var(--th-primary)" }}>
+            ● CONTINUOUS LOOP
+          </span>
         )}
         {wakeWordEnabled && (
-          <span className="text-green-400 animate-pulse">
-            ● Listening for "Hey Meero"
+          <span className="text-emerald-400 animate-pulse">
+            ● LISTENING FOR &quot;HEY MEERO&quot;
           </span>
         )}
       </div>

@@ -1,9 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --color-meero-cyan: #06b6d4;
+  --th-primary: #06b6d4;
+  --th-primary-glow: rgba(6, 182, 212, 0.35);
+  --th-primary-subtle: rgba(6, 182, 212, 0.12);
+  --th-border: rgba(6, 182, 212, 0.25);
+  --th-border-bright: rgba(6, 182, 212, 0.60);
+  --th-text: #cffafe;
+  --th-text-dim: rgba(6, 182, 212, 0.60);
+  --th-accent: #6366f1;
+  --th-bg-blob1: #0e2a47;
+  --th-bg-blob2: #1a1040;
+  --th-bg-blob3: #062338;
+
+  --color-meero-cyan: var(--th-primary);
   --color-meero-cyan-dark: #0891b2;
-  --color-meero-cyan-glow: rgba(8, 145, 178, 0.45);
+  --color-meero-cyan-glow: var(--th-primary-glow);
   --color-meero-bg: #000000;
 }
 

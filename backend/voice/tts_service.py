@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import concurrent.futures
 import io
 import logging
 import os
+import pickle
 import shutil
 import subprocess
 import tempfile
@@ -263,12 +266,19 @@ class TTSService:
         chunks = split_text_into_chunks(text, min_chars=min_c, max_chars=max_c)
         if not chunks:
             chunks = [text.strip()]
+        chunks = [c for c in chunks if c.strip()]
         total = len(chunks)
-        for idx, chunk in enumerate(chunks):
-            # If fast_ack is set, only chunk 0 uses fast_ack; remaining chunks can use normal provider
-            is_fast = fast_ack and idx == 0
-            audio, provider = self.synthesize_with_provider(chunk, fast_ack=is_fast)
-            yield idx, total, audio, provider
+        if total == 0:
+            return
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(total, 3)) as pool:
+            futures = [
+                pool.submit(self.synthesize_with_provider, chunk, fast_ack=(fast_ack and i == 0))
+                for i, chunk in enumerate(chunks)
+            ]
+            for idx, future in enumerate(futures):
+                audio, provider = future.result()
+                yield idx, total, audio, provider
 
     def _get_xtts_model(self):
         if self._xtts_model is not None:
@@ -311,15 +321,35 @@ class TTSService:
         if self._xtts_latents is not None and self._xtts_latents_key == key:
             return self._xtts_latents
 
+        latents_cache_path = os.path.join(
+            getattr(config, "LOCAL_TTS_DIR", "models/local-tts"),
+            "latents_cache.pkl",
+        )
+
         with self._model_lock:
             if self._xtts_latents is not None and self._xtts_latents_key == key:
                 return self._xtts_latents
+
+            if os.path.exists(latents_cache_path) and valid_refs:
+                try:
+                    cache_mtime = os.path.getmtime(latents_cache_path)
+                    refs_mtime = max(os.path.getmtime(r) for r in valid_refs if os.path.exists(r))
+                    if cache_mtime > refs_mtime:
+                        with open(latents_cache_path, "rb") as f:
+                            self._xtts_latents = pickle.load(f)
+                            self._xtts_latents_key = key
+                            logger.info("Loaded XTTS latents from disk cache: %s", latents_cache_path)
+                            return self._xtts_latents
+                except Exception as exc:
+                    logger.warning("Failed loading XTTS latents cache: %s", exc)
 
             trimmed_refs = []
             temp_files = []
             for ref_path in valid_refs:
                 try:
-                    data, sr = sf.read(ref_path, stop=int(10 * 48000), dtype="float32")
+                    info = sf.info(ref_path)
+                    stop_sample = int(10 * info.samplerate)
+                    data, sr = sf.read(ref_path, stop=stop_sample, dtype="float32")
                     temp_f = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
                     temp_f.close()
                     sf.write(temp_f.name, data, sr)
@@ -336,6 +366,13 @@ class TTSService:
                         self._xtts_latents = res
                         self._xtts_latents_key = key
                         logger.info("XTTS speaker conditioning latents cached successfully.")
+                        try:
+                            os.makedirs(os.path.dirname(latents_cache_path), exist_ok=True)
+                            with open(latents_cache_path, "wb") as f:
+                                pickle.dump(self._xtts_latents, f)
+                            logger.info("Saved XTTS latents to disk cache: %s", latents_cache_path)
+                        except Exception as exc:
+                            logger.warning("Failed writing XTTS latents cache: %s", exc)
             except Exception:
                 pass
             finally:
@@ -430,16 +467,23 @@ class TTSService:
             raise TTSUnavailableError("Windows SAPI is unavailable on this platform")
         handle, output_name = tempfile.mkstemp(prefix="meero-sapi-", suffix=".wav")
         os.close(handle)
-        escaped_text = text.replace("'", "''")
+        text_handle, text_name = tempfile.mkstemp(prefix="meero-sapi-txt-", suffix=".txt")
+        with os.fdopen(text_handle, "w", encoding="utf-8") as f:
+            f.write(text)
+
         escaped_path = output_name.replace("'", "''")
+        escaped_text_path = text_name.replace("'", "''")
         script = (
             "Add-Type -AssemblyName System.Speech; "
             "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
-            f"$s.SetOutputToWaveFile('{escaped_path}'); $s.Speak('{escaped_text}'); $s.Dispose()"
+            f"$s.SetOutputToWaveFile('{escaped_path}'); "
+            f"$txt = [System.IO.File]::ReadAllText('{escaped_text_path}', [System.Text.Encoding]::UTF8); "
+            "$s.Speak($txt); $s.Dispose();"
         )
+        encoded_script = base64.b64encode(script.encode("utf-16le")).decode("ascii")
         try:
             subprocess.run(
-                ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+                ["powershell", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded_script],
                 check=True,
                 capture_output=True,
                 timeout=getattr(config, "VOICE_TTS_TIMEOUT_SECONDS", 15),
@@ -449,3 +493,4 @@ class TTSService:
             raise TTSUnavailableError("Windows speech synthesis timed out") from exc
         finally:
             Path(output_name).unlink(missing_ok=True)
+            Path(text_name).unlink(missing_ok=True)

@@ -43,7 +43,7 @@ secret-scan:
   script:
     - python scripts/secret_scan.py
 
-lint:
+backend-lint:
   stage: security-and-lint
   image: python:3.10
   variables:
@@ -54,9 +54,9 @@ lint:
       - .cache/pip
   before_script:
     - python -m pip install --upgrade pip
-    - pip install ruff || pip install flake8
+    - pip install flake8 ruff
   script:
-    - ruff check . || flake8
+    - ruff check . || flake8 backend/ core/ ai/ nlu/ --max-line-length=120 --exclude=__pycache__
   allow_failure: true
 
 # -------------------------------------------------------------------------

@@ -3,6 +3,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import useMousePosition from "../hooks/useMousePosition";
+import { useTheme } from "../hooks/useTheme";
 
 const usePrefersReducedMotion = () => {
   const [reduced, setReduced] = useState(() => {
@@ -31,25 +32,25 @@ const usePrefersReducedMotion = () => {
  */
 const AnimatedCore = ({ state, sentiment, micEnergyLevel = 0, reducedMotion = false }) => {
   const mesh = useRef();
+  const { theme } = useTheme();
+  const orbConfig = theme.orb[state] || theme.orb.idle;
 
-  // Base config driven by state
+  // Base config driven by theme & state
   const baseConfig = useMemo(() => {
-    switch (state) {
-      case "listening":
-        return { color: "#ef4444", speed: 2, distort: 0.6, scale: 2.5, emissive: 0.5 }; // Red
-      case "processing":
-        return { color: "#eab308", speed: 4, distort: 0.8, scale: 2.0, emissive: 0.6 }; // Gold
-      case "speaking": {
-        let color = "#10b981"; // Default Green
-        if (sentiment === "negative") color = "#ef4444"; // Red
-        if (sentiment === "neutral") color = "#f59e0b";  // Amber
-        return { color, speed: 1.5, distort: 0.5, scale: 2.4, emissive: 0.5 };
-      }
-      case "idle":
-      default:
-        return { color: "#06b6d4", speed: 1, distort: 0.4, scale: 2.2, emissive: 0.4 }; // Cyan
+    let color = orbConfig.color;
+    if (state === "speaking") {
+      if (sentiment === "negative") color = theme.orb.error?.color || "#ef4444";
+      if (sentiment === "neutral") color = orbConfig.color;
     }
-  }, [state, sentiment]);
+    return {
+      color,
+      emissive: orbConfig.emissive,
+      speed: orbConfig.speed,
+      distort: orbConfig.distort,
+      scale: state === "listening" ? 2.5 : state === "processing" ? 2.0 : 2.2,
+      emissiveIntensity: 0.5,
+    };
+  }, [state, sentiment, orbConfig, theme]);
 
   // Compute mic-reactive overrides (only meaningful while listening)
   const energyBoost = state === "listening" && !reducedMotion ? micEnergyLevel : 0;
@@ -141,8 +142,10 @@ const createSpherePositions = (count, distance = 4.5) => {
  * ParticleRing — ambient particle cloud orbiting the orb.
  * Uses uniform spherical coordinate sampling for true 3D orbital cloud.
  */
-const ParticleRing = ({ count = 1500, color = "#ffffff", energyBoost = 0, reducedMotion = false }) => {
+const ParticleRing = ({ count = 1500, color, energyBoost = 0, reducedMotion = false }) => {
   const points = useRef();
+  const { theme } = useTheme();
+  const particleColor = color || theme.orb.particleColor || "#22d3ee";
 
   const particlesPosition = useMemo(() => {
     return createSpherePositions(count, 4.5);
@@ -167,7 +170,7 @@ const ParticleRing = ({ count = 1500, color = "#ffffff", energyBoost = 0, reduce
       </bufferGeometry>
       <pointsMaterial
         size={0.03}
-        color={color}
+        color={particleColor}
         sizeAttenuation
         transparent
         opacity={0.6 + energyBoost * 0.25}
@@ -215,6 +218,7 @@ const OrbScene = ({ state, sentiment, micEnergyLevel, mouse, reducedMotion }) =>
 const ThreeOrb = ({ state, sentiment, micEnergyLevel = 0 }) => {
   const mouse = useMousePosition();
   const reducedMotion = usePrefersReducedMotion();
+  const { theme } = useTheme();
 
   return (
     <div className="w-full h-full relative">
@@ -224,8 +228,16 @@ const ThreeOrb = ({ state, sentiment, micEnergyLevel = 0 }) => {
         camera={{ position: [0, 0, 8], fov: 75 }}
       >
         <ambientLight intensity={0.5} />
-        <pointLight position={[10, 10, 10]} intensity={1.5} />
-        <pointLight position={[-10, -10, -10]} color="blue" intensity={1} />
+        {theme.lights ? (
+          theme.lights.map((l, i) => (
+            <pointLight key={i} position={l.position} color={l.color} intensity={l.intensity} />
+          ))
+        ) : (
+          <>
+            <pointLight position={[10, 10, 10]} intensity={1.5} />
+            <pointLight position={[-10, -10, -10]} color="blue" intensity={1} />
+          </>
+        )}
 
         <Suspense fallback={null}>
           <OrbScene

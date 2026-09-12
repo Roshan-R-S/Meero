@@ -32,6 +32,10 @@ vi.mock("./components/ThreeOrb", () => ({
 vi.mock("./utils/sound", () => ({
   playProcessing: vi.fn(),
   playStartup: vi.fn(),
+  playSuccess: vi.fn(),
+  playConfirmationRequired: vi.fn(),
+  playError: vi.fn(),
+  playWakeWordDetected: vi.fn(),
 }));
 
 vi.mock("./hooks/useSpeechRecognition", () => ({
@@ -290,6 +294,7 @@ describe("App typed fallback", () => {
       text_input_enabled: true,
       local_voice_enabled: true,
       browser_speech_fallback_enabled: false,
+      theme: "meero",
     });
   });
 

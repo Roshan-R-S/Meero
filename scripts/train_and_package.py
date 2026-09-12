@@ -95,7 +95,7 @@ def build_and_train(intents_path, epochs=100, batch_size=8):
 
     # Lazy import of Keras/TensorFlow-specific modules to allow dry-run without TF
     from tensorflow.keras.preprocessing.text import Tokenizer
-    from tensorflow.keras.preprocessing.sequence import pad_sequences
+    from ai.keras_compat import pad_sequences
     from tensorflow.keras.models import Sequential
     from tensorflow.keras.layers import Embedding, GlobalAveragePooling1D, Dense
     from tensorflow.keras.utils import to_categorical
