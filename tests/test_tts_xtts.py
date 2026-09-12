@@ -50,9 +50,10 @@ def test_xtts_synthesis_with_mock(monkeypatch, tmp_path):
 
 
 def test_xtts_fallback_to_sapi_when_model_unavailable(monkeypatch):
-    """Verify that if XTTS fails, it falls back to SAPI on Windows."""
+    """Verify that if XTTS fails, it falls back to SAPI when SAPI is available."""
     service = TTSService(provider="xtts")
     monkeypatch.setattr(service, "_xtts_dependency_available", lambda: False)
+    monkeypatch.setattr(TTSService, "_sapi_supported", staticmethod(lambda: True))
     monkeypatch.setattr(TTSService, "_sapi", staticmethod(lambda text: b"RIFF_SAPI_DUMMY"))
 
     audio_bytes, provider = service.synthesize_with_provider("Fallback test")
