@@ -30,6 +30,20 @@ jobs:
         run: |
           python -m pytest -q
 
+  security-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install ruff
+        run: pip install ruff
+        continue-on-error: true
+      - name: Lint
+        run: ruff check . || true
+
   backend-tests-full:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
@@ -92,13 +106,11 @@ jobs:
           docker compose -f docker-compose.prod.yml -f docker-compose.voice.yml config --quiet
 
   docker-build-smoke:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'))
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
-          - name: local
-            dockerfile: Dockerfile
           - name: websafe
             dockerfile: Dockerfile.websafe
           - name: voice

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import threading
@@ -72,6 +73,7 @@ from core.reminder_service import get_reminder_service
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    threading.Thread(target=_load_brain_background, daemon=True).start()
     threading.Thread(target=_load_llm_background, daemon=True).start()
     threading.Thread(target=_load_tts_background, daemon=True).start()
     threading.Thread(target=_load_vosk_background, daemon=True).start()
@@ -146,15 +148,27 @@ async def distributed_rate_limit(request: Request):
     await rate_limit_middleware.check(request)
 
 
-if getattr(config, "USE_NEURAL_NET", True) and NeuralNet is not None:
+brain = None
+_brain_status = {"loading": False, "ready": False, "error": None}
+
+
+def _load_brain_background():
+    """Load NeuralNet in a background thread to reduce startup latency."""
+    global brain
+    if not getattr(config, "USE_NEURAL_NET", True) or NeuralNet is None:
+        _brain_status["error"] = "NeuralNet disabled or not installed"
+        return
+    _brain_status["loading"] = True
     try:
         brain = NeuralNet()
-        logger.info("NeuralNet initialized successfully.")
+        _brain_status["ready"] = True
+        logger.info("NeuralNet initialized successfully (background).")
     except Exception as e:
         logger.error("Error loading NeuralNet: %s", e)
-        brain = None
-else:
-    brain = None
+        _brain_status["error"] = str(e)
+    finally:
+        _brain_status["loading"] = False
+
 
 llm = None
 _llm_status = {
@@ -314,9 +328,10 @@ def summarize_conversation(turns, existing_summary=""):
 
 def _append_conversation(query: str, response: str) -> None:
     max_interactions = getattr(config, "MEMORY_MAX_INTERACTIONS", 20)
-    CONVERSATION_HISTORY.append((query, response))
-    while len(CONVERSATION_HISTORY) > max_interactions:
-        CONVERSATION_HISTORY.pop(0)
+    with _state_lock:
+        CONVERSATION_HISTORY.append((query, response))
+        while len(CONVERSATION_HISTORY) > max_interactions:
+            CONVERSATION_HISTORY.pop(0)
     memory_store.append(
         query,
         response,
@@ -350,7 +365,7 @@ def metrics():
     response_model=CommandResponse,
     dependencies=[Depends(distributed_rate_limit), Depends(require_api_key)],
 )
-def process_command(payload: CommandRequest, http_request: Request):
+async def process_command(payload: CommandRequest, http_request: Request):
     with _state_lock:
         current_time = time.time()
         client_key = _client_host(http_request)
@@ -367,18 +382,22 @@ def process_command(payload: CommandRequest, http_request: Request):
     try:
         logger.info("Processing command mode=%s", payload.mode)
 
-        outcome = execute_command(
-            payload.command,
-            mode=payload.mode,
-            confirm=payload.confirm,
-            pending_command=payload.pending_command,
-            brain=brain,
-            llm=llm,
-            conversation_history=CONVERSATION_HISTORY,
-            memory_summary_fn=_memory_summary,
-            append_conversation_fn=_append_conversation,
-            analyze_sentiment_fn=analyze_sentiment,
-            client_is_local=_is_local_request(http_request),
+        loop = asyncio.get_event_loop()
+        outcome = await loop.run_in_executor(
+            None,
+            lambda: execute_command(
+                payload.command,
+                mode=payload.mode,
+                confirm=payload.confirm,
+                pending_command=payload.pending_command,
+                brain=brain,
+                llm=llm,
+                conversation_history=CONVERSATION_HISTORY,
+                memory_summary_fn=_memory_summary,
+                append_conversation_fn=_append_conversation,
+                analyze_sentiment_fn=analyze_sentiment,
+                client_is_local=_is_local_request(http_request),
+            ),
         )
 
         return CommandResponse(
@@ -621,7 +640,7 @@ def _debug_health():
     }
 
 
-@app.get("/debug/health", dependencies=[Depends(require_api_key)])
+@app.get("/debug/health", dependencies=[Depends(require_local_request), Depends(require_api_key)])
 def debug_health():
     return _debug_health()
 

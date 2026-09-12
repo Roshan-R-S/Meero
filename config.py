@@ -51,7 +51,7 @@ def _env_list(name, default):
 
 # Assistant Settings
 ASSISTANT_NAME = "Meero"
-USER_NAME = "Roshan"
+USER_NAME = os.environ.get("MEERO_USER_NAME", "User")
 
 # Paths
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -69,11 +69,11 @@ TOKENIZER_FILE = os.path.join(MODEL_DIR, "tokenizer.pkl")
 LABEL_ENCODER_FILE = os.path.join(MODEL_DIR, "label_encoder.pkl")
 
 
-# Apps (Adjust paths as needed)
-CALCULATOR_PATH = 'C:\\Windows\\System32\\calc.exe'
-NOTEPAD_PATH = 'C:\\Windows\\System32\\notepad.exe'
-PAINT_PATH = 'C:\\Windows\\System32\\mspaint.exe'
-VSCODE_PATH = shutil.which('code') or 'C:\\Windows\\System32\\code.exe'  # Auto-detect from PATH
+# Apps — resolved dynamically so paths work on any Windows install
+CALCULATOR_PATH = shutil.which('calc') or 'C:\\Windows\\System32\\calc.exe'
+NOTEPAD_PATH = shutil.which('notepad') or 'C:\\Windows\\System32\\notepad.exe'
+PAINT_PATH = shutil.which('mspaint') or 'C:\\Windows\\System32\\mspaint.exe'
+VSCODE_PATH = shutil.which('code') or 'C:\\Windows\\System32\\code.exe'
 
 # Social Media URLs
 SOCIAL_MEDIA_URLS = {
@@ -158,7 +158,21 @@ WEB_SAFE_MODE = _env_bool("WEB_SAFE_MODE", True)
 CORS_ORIGINS = _env_list("CORS_ORIGINS", ["http://localhost:5173"])
 RATE_LIMIT_COOLDOWN = float(os.environ.get("RATE_LIMIT_COOLDOWN", "1.0"))
 MEERO_API_KEY = os.environ.get("MEERO_API_KEY", "")
-REQUIRE_API_KEY = _env_bool("REQUIRE_API_KEY", False)
+REQUIRE_API_KEY = _env_bool("REQUIRE_API_KEY", True)
+
+# In LOCAL_DESKTOP_MODE, reject non-localhost CORS origins at startup to prevent
+# remote sites from accessing desktop automation endpoints.
+if LOCAL_DESKTOP_MODE:
+    _LOCAL_ORIGIN_PREFIXES = (
+        "http://localhost", "http://127.0.0.1",
+        "https://localhost", "https://127.0.0.1",
+    )
+    for _origin in CORS_ORIGINS:
+        if not any(_origin.startswith(_p) for _p in _LOCAL_ORIGIN_PREFIXES):
+            raise RuntimeError(
+                f"CORS origin '{_origin}' is not localhost but LOCAL_DESKTOP_MODE=true. "
+                "Remove the non-local origin or set LOCAL_DESKTOP_MODE=false."
+            )
 PROTECT_METRICS = _env_bool("PROTECT_METRICS", False)
 APP_LAUNCH_ALLOWLIST = tuple(_env_list("APP_LAUNCH_ALLOWLIST", []))
 APP_CLOSE_ALLOWLIST = tuple(_env_list("APP_CLOSE_ALLOWLIST", []))
@@ -182,9 +196,10 @@ NEURAL_NET_EMBEDDING_DIM = 16
 # detail string.  Keep False in production to avoid leaking internals.
 DEBUG_ERRORS = _env_bool("DEBUG_ERRORS", False)
 
-# Rate-limiter resilience — when True (default), a Redis/rate-limiter failure
-# allows the request through.  Set to False in production to fail closed.
-RATE_LIMIT_FAIL_OPEN = _env_bool("RATE_LIMIT_FAIL_OPEN", True)
+# Rate-limiter resilience — when True, a Redis/rate-limiter failure allows the
+# request through.  Defaults to False (fail-closed) for security.  Set to True
+# only in development or when Redis is intentionally absent.
+RATE_LIMIT_FAIL_OPEN = _env_bool("RATE_LIMIT_FAIL_OPEN", False)
 
 # Audit privacy — command and response text remain excluded unless explicitly enabled.
 AUDIT_LOG_COMMAND_TEXT = _env_bool("AUDIT_LOG_COMMAND_TEXT", False)

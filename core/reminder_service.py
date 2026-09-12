@@ -126,6 +126,26 @@ class ReminderService:
             conn.commit()
             return Reminder(id=row[0], message=row[1], due_at=row[2], created_at=row[3], status="cancelled")
 
+    def cancel_by_message(self, keyword: str) -> Optional[Reminder]:
+        """Cancel the most recent pending reminder whose message contains the keyword.
+
+        Falls back to cancel_latest() if no match is found.
+        """
+        keyword_lower = keyword.strip().lower()
+        if not keyword_lower:
+            return self.cancel_latest()
+        pending = self.list_pending()
+        # Search most recent first
+        for reminder in reversed(pending):
+            if keyword_lower in reminder.message.lower():
+                self.cancel(reminder.id)
+                return Reminder(
+                    id=reminder.id, message=reminder.message,
+                    due_at=reminder.due_at, created_at=reminder.created_at,
+                    status="cancelled",
+                )
+        return self.cancel_latest()
+
     def _mark_completed(self, reminder_id: int) -> None:
         with self._lock, sqlite3.connect(self.db_path) as conn:
             conn.execute(

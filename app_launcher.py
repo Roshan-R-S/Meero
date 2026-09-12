@@ -11,13 +11,16 @@ import glob
 import shutil
 import subprocess
 import logging
+import time
 
 import config
 
 logger = logging.getLogger(__name__)
 
-# Cache Start Menu shortcuts on first use
+# Cache Start Menu shortcuts with TTL-based invalidation
 _start_menu_cache = None
+_start_menu_cache_time = 0.0
+_START_MENU_CACHE_TTL = 3600  # 1 hour
 
 
 def _normalized_allowlist(config_name):
@@ -57,8 +60,8 @@ def _blocked_message(app_name, action, config_name):
 
 def _build_start_menu_cache():
     """Scan Start Menu folders for .lnk shortcut files."""
-    global _start_menu_cache
-    if _start_menu_cache is not None:
+    global _start_menu_cache, _start_menu_cache_time
+    if _start_menu_cache is not None and (time.time() - _start_menu_cache_time) < _START_MENU_CACHE_TTL:
         return _start_menu_cache
 
     _start_menu_cache = {}
@@ -78,6 +81,7 @@ def _build_start_menu_cache():
             _start_menu_cache[name] = lnk_file
 
     logger.info("Start Menu cache built: %d shortcuts found", len(_start_menu_cache))
+    _start_menu_cache_time = time.time()
     return _start_menu_cache
 
 
@@ -217,8 +221,15 @@ def close_app_by_name(app_name):
     process_name = process_map.get(app_lower)
     
     if not process_name:
-        # Try appending .exe and using it directly
+        # In LOCAL_DESKTOP_MODE, block arbitrary process names from voice input
+        # UNLESS the app is explicitly present in APP_CLOSE_ALLOWLIST.
+        explicitly_allowlisted = app_lower in _normalized_allowlist("APP_CLOSE_ALLOWLIST")
+        if getattr(config, "LOCAL_DESKTOP_MODE", False) and not explicitly_allowlisted:
+            return False, f"Closing {app_name} is not in the known process list."
+        # Fall back to constructing the process name (either allowlisted or non-desktop mode)
         process_name = app_lower if app_lower.endswith(".exe") else f"{app_lower}.exe"
+        if not explicitly_allowlisted:
+            logger.warning("Using unverified process name '%s' from user input", process_name)
 
     force_close = app_lower in _normalized_allowlist("APP_FORCE_CLOSE_ALLOWLIST")
     

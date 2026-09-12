@@ -47,6 +47,8 @@ def start_file(path):
 
 _OPEN_VERBS = ("open", "launch", "start", "run")
 _CLOSE_VERBS = ("close", "kill", "stop", "quit", "exit")
+_OPEN_VERBS_RE = re.compile(r'\b(open|launch|start|run)\b', re.IGNORECASE)
+_CLOSE_VERBS_RE = re.compile(r'\b(close|kill|stop)\b', re.IGNORECASE)
 _CONFIRM_YES = ("yes", "y", "ok", "okay", "confirm", "proceed", "do it")
 _GREETING_RE = re.compile(
     r"^(hi+|hey+|hello+|yo+|hiya|what'?s up|sup|good morning|good afternoon|good evening)(\s+meero)?[.!?]*$",
@@ -179,12 +181,12 @@ class Actions:
 
     @staticmethod
     def _match_open_app(q):
-        return any(v in q for v in _OPEN_VERBS) and not any(s in q for s in ('google', 'youtube', 'facebook', 'whatsapp', 'discord', 'instagram'))
+        return bool(_OPEN_VERBS_RE.search(q)) and not any(s in q for s in ('google', 'youtube', 'facebook', 'whatsapp', 'discord', 'instagram'))
 
     @staticmethod
     def _match_close_app(q):
         words = q.split()
-        has_close_verb = any(v in q for v in ("close", "kill", "stop"))
+        has_close_verb = bool(_CLOSE_VERBS_RE.search(q))
         has_target = len(words) >= 2
         return has_close_verb and has_target
 
@@ -515,15 +517,14 @@ class Actions:
 
     def tell_time(self, query):
         now = datetime.datetime.now()
+        parts = []
         if "time" in query:
-            t = now.strftime("%I:%M %p")
-            self.speak(f"The time is {t}")
+            parts.append(f"The time is {now.strftime('%I:%M %p')}")
         if "date" in query:
-            d = now.strftime("%B %d, %Y")
-            self.speak(f"Today's date is {d}")
-        if "month" in query:
-            m = now.strftime("%B")
-            self.speak(f"It is {m}")
+            parts.append(f"Today's date is {now.strftime('%B %d, %Y')}")
+        if "month" in query and "date" not in query:
+            parts.append(f"It is {now.strftime('%B')}")
+        self.speak(". ".join(parts) if parts else f"The time is {now.strftime('%I:%M %p')}")
 
     def play_youtube(self, query):
         song = query.replace("play", "").replace("on youtube", "").strip()
@@ -552,8 +553,13 @@ class Actions:
     def handle_reminder(self, command):
         q = command.lower()
         if "cancel" in q:
+            # Extract subject: "cancel my water reminder" → "water"
+            subject = re.sub(r'\b(cancel|my|the|a|reminder|timer)\b', '', q).strip()
             service = reminder_service.get_reminder_service()
-            cancelled = service.cancel_latest()
+            if subject:
+                cancelled = service.cancel_by_message(subject)
+            else:
+                cancelled = service.cancel_latest()
             if cancelled:
                 self.speak(f"Cancelled reminder: {cancelled.message}")
             else:
@@ -576,7 +582,6 @@ class Actions:
             self.speak(f"I will remind you to {message} in {time_str}.")
         else:
             self.speak("I couldn't understand the time for that reminder. Try saying 'remind me in 10 minutes to drink water'.")
-
     def handle_window_management(self, command):
         q = command.lower()
         if "minimize all" in q or "show desktop" in q:

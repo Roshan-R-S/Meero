@@ -1,26 +1,61 @@
 import os
 import sqlite3
+import threading
 from typing import List, Tuple
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "conversation.db")
 DB_PATH = os.path.abspath(DB_PATH)
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
+_thread_local = threading.local()
+_schema_initialized = threading.Event()
 
-def _get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""CREATE TABLE IF NOT EXISTS history (
+_SCHEMA_SQL = (
+    """CREATE TABLE IF NOT EXISTS history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL DEFAULT 'default',
         query TEXT,
         response TEXT,
         ts DATETIME DEFAULT CURRENT_TIMESTAMP
-    )""")
-    conn.execute("""CREATE TABLE IF NOT EXISTS memory_summary (
+    )""",
+    """CREATE TABLE IF NOT EXISTS memory_summary (
         id INTEGER PRIMARY KEY CHECK (id = 1),
         summary TEXT NOT NULL,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )""")
-    conn.commit()
+    )""",
+)
+
+
+def _get_conn():
+    """Return a per-thread reusable connection.
+
+    SQLite connections are cheap to create, but re-running CREATE TABLE on
+    every call was wasteful.  We now reuse connections via threading.local()
+    and only run the schema DDL once per process lifetime.
+    """
+    conn = getattr(_thread_local, "conn", None)
+    if conn is not None:
+        try:
+            conn.execute("SELECT 1")
+            return conn
+        except Exception:
+            # Connection went stale — recreate below.
+            pass
+
+    conn = sqlite3.connect(DB_PATH)
+
+    if not _schema_initialized.is_set():
+        for stmt in _SCHEMA_SQL:
+            conn.execute(stmt)
+        # Migrate older databases that lack the session_id column.
+        try:
+            conn.execute("SELECT session_id FROM history LIMIT 1")
+        except sqlite3.OperationalError:
+            conn.execute("ALTER TABLE history ADD COLUMN session_id TEXT NOT NULL DEFAULT 'default'")
+        conn.commit()
+        _schema_initialized.set()
+
+    _thread_local.conn = conn
     return conn
 
 
@@ -31,7 +66,6 @@ def append(query: str, response: str, max_interactions: int | None = None, summa
     conn.commit()
     if max_interactions is not None:
         _prune_conn(conn, max_interactions=max_interactions, summarizer=summarizer)
-    conn.close()
 
 
 def last(n: int = 10) -> List[Tuple[str, str]]:
@@ -39,7 +73,6 @@ def last(n: int = 10) -> List[Tuple[str, str]]:
     cur = conn.cursor()
     cur.execute("SELECT query, response FROM history ORDER BY id DESC LIMIT ?", (n,))
     rows = cur.fetchall()
-    conn.close()
     return list(reversed(rows))
 
 
@@ -48,7 +81,6 @@ def get_summary() -> str:
     cur = conn.cursor()
     cur.execute("SELECT summary FROM memory_summary WHERE id = 1")
     row = cur.fetchone()
-    conn.close()
     return row[0] if row else ""
 
 
@@ -64,8 +96,6 @@ def update_summary(summary: str, conn=None) -> None:
         (summary,),
     )
     conn.commit()
-    if owns_conn:
-        conn.close()
 
 
 def summarize_turns(
@@ -73,22 +103,29 @@ def summarize_turns(
     existing_summary: str = "",
     max_chars: int = 1200,
 ) -> str:
-    """Create a compact local summary without calling an external model."""
+    """Create a compact local summary without calling an external model.
+
+    Uses sentence-boundary truncation instead of naive character slicing to
+    avoid cutting context mid-sentence.
+    """
     fragments = [existing_summary.strip()] if existing_summary.strip() else []
     for query, response in turns:
         fragments.append(f"User: {query} | Meero: {response}")
     summary = " ".join(fragments)
     if len(summary) <= max_chars:
         return summary
-    return summary[-max_chars:].lstrip()
+    # Take a slightly wider window and find the first sentence boundary.
+    truncated = summary[-(max_chars + 100):]
+    for sep in (". ", "! ", "? ", "| "):
+        idx = truncated.find(sep)
+        if idx != -1 and idx < 100:
+            return truncated[idx + len(sep):]
+    return truncated[-max_chars:].lstrip()
 
 
 def prune(max_interactions: int = 20, summarizer=None):
     conn = _get_conn()
-    try:
-        return _prune_conn(conn, max_interactions=max_interactions, summarizer=summarizer)
-    finally:
-        conn.close()
+    return _prune_conn(conn, max_interactions=max_interactions, summarizer=summarizer)
 
 
 def _prune_conn(conn, max_interactions: int = 20, summarizer=None):
@@ -128,7 +165,6 @@ def clear():
     conn.execute("DELETE FROM history")
     conn.execute("DELETE FROM memory_summary")
     conn.commit()
-    conn.close()
 
 
 def export() -> dict:
@@ -138,5 +174,4 @@ def export() -> dict:
     rows = cur.fetchall()
     history = [{"id": r[0], "query": r[1], "response": r[2], "ts": r[3]} for r in rows]
     summary = get_summary_from_conn(conn)
-    conn.close()
     return {"history": history, "summary": summary}

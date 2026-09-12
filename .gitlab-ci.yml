@@ -22,6 +22,40 @@ default:
   interruptible: true
 
 # -------------------------------------------------------------------------
+# Security & Lint (runs first to fail fast)
+# -------------------------------------------------------------------------
+secret-scan:
+  stage: security-and-lint
+  image: python:3.10
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  cache:
+    key: "python-3.10-pip-lint"
+    paths:
+      - .cache/pip
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements-test.txt
+  script:
+    - python scripts/secret_scan.py
+
+lint:
+  stage: security-and-lint
+  image: python:3.10
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  cache:
+    key: "python-3.10-pip-lint"
+    paths:
+      - .cache/pip
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install ruff || pip install flake8
+  script:
+    - ruff check . || flake8
+  allow_failure: true
+
+# -------------------------------------------------------------------------
 # Python Backend Tests
 # -------------------------------------------------------------------------
 backend-test:
@@ -38,7 +72,6 @@ backend-test:
     - python -m pip install --upgrade pip
     - pip install -r requirements-test.txt
   script:
-    - python scripts/secret_scan.py
     - python verify_changes.py
     - python -m pytest -q
 
@@ -129,3 +162,14 @@ docker-build-smoke:
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
     - if: '$CI_PIPELINE_SOURCE == "web"'
+
+# Run Dockerfile.websafe on every MR to catch breakage early
+docker-build-websafe-mr:
+  stage: build
+  image: docker:24
+  services:
+    - docker:24-dind
+  script:
+    - docker build --file Dockerfile.websafe --tag meero-websafe-mr .
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
