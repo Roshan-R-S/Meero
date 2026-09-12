@@ -63,15 +63,19 @@ function App() {
     let failedChecks = 0;
     bootPollingPausedRef.current = false;
     
+    let interval = null;
     const checkStatus = async () => {
-      if (bootPollingPausedRef.current) return;
+      if (!polling || bootPollingPausedRef.current) return;
       const status = await getModelStatus();
       if (!polling) return;
 
       if (!status) {
         failedChecks += 1;
-        if (failedChecks >= 3) setBootError(true);
-        if (failedChecks >= 3) bootPollingPausedRef.current = true;
+        if (failedChecks >= 3) {
+          setBootError(true);
+          bootPollingPausedRef.current = true;
+          if (interval) clearInterval(interval);
+        }
         return;
       }
       failedChecks = 0;
@@ -103,7 +107,7 @@ function App() {
       if (nnLoaded && ggufLoaded) {
         setBooting(false);
         polling = false;
-        clearInterval(interval);
+        if (interval) clearInterval(interval);
       }
     };
 
@@ -111,11 +115,11 @@ function App() {
     checkStatus();
 
     // Poll every 2 seconds during boot only
-    const interval = setInterval(checkStatus, 2000);
+    interval = setInterval(checkStatus, 2000);
 
     return () => {
       polling = false;
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
     };
   }, [bootRetryKey]);
 
@@ -228,7 +232,7 @@ function App() {
     localVoiceEnabled,
   );
 
-  const handleCommand = useCallback(async (text) => {
+  const handleCommand = useCallback(async (text, options = null) => {
     if (!text.trim()) return;
     setStatusNotice("");
     const userText = text.trim();
@@ -243,10 +247,12 @@ function App() {
         setConfirmationSubmitting(true);
         setState("processing");
         playProcessing();
-        const confirmData = await sendCommand(pendingConfirmationCommand, {
+        const confirmPayload = {
           confirm: true,
           pendingCommand: pendingConfirmationCommand,
-        });
+        };
+        if (options && options.mode) confirmPayload.mode = options.mode;
+        const confirmData = await sendCommand(pendingConfirmationCommand, confirmPayload);
         setConfirmationSubmitting(false);
         setPendingConfirmationCommand(null);
         if (confirmData.sentiment) setSentiment(confirmData.sentiment);
@@ -278,7 +284,7 @@ function App() {
     setState("processing");
     playProcessing();
 
-    const data = await sendCommand(userText);
+    const data = options ? await sendCommand(userText, options) : await sendCommand(userText);
     if (data.action_status === "confirmation_required" && data.pending_command) {
       setPendingConfirmationCommand(data.pending_command);
     }
@@ -450,7 +456,7 @@ function App() {
   return (
     <div className="min-h-screen text-white font-sans overflow-hidden flex flex-col items-center justify-center p-4 relative">
       {/* Screen-reader live region for TTS responses */}
-      <div aria-live="polite" className="sr-only" data-testid="aria-response">{ariaResponse}</div>
+      <div aria-live="polite" aria-atomic="true" className="sr-only" data-testid="aria-response">{ariaResponse}</div>
       <Background />
       <HologramOverlay />
 

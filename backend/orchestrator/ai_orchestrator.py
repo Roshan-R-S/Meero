@@ -8,6 +8,7 @@ from typing import Callable, Optional
 
 from backend.schemas import CommandOutcome
 from backend.telemetry import log_audit_event
+import config
 from core.actions import ACTION_TIMEOUT_RESULT, Actions
 from core.response_collector import ResponseCollector
 
@@ -81,11 +82,19 @@ class AIOrchestrator:
 
             trace.add("safety", "allowed")
             actions_started = time.perf_counter()
-            result = actions.process_command(
-                context.routing_text,
-                input_func=(lambda: "yes") if context.confirm else (lambda: "None"),
-                exit_func=lambda: response_collector.speak("Disconnecting..."),
-            )
+            import concurrent.futures
+            action_timeout = getattr(config, "ACTIONS_TIMEOUT_SECONDS", 10.0)
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(
+                        actions.process_command,
+                        context.routing_text,
+                        input_func=(lambda: "yes") if context.confirm else (lambda: "None"),
+                        exit_func=lambda: response_collector.speak("Disconnecting..."),
+                    )
+                    result = future.result(timeout=action_timeout)
+            except concurrent.futures.TimeoutError:
+                result = ACTION_TIMEOUT_RESULT
             actions_latency_ms = (time.perf_counter() - actions_started) * 1000
             if result == ACTION_TIMEOUT_RESULT:
                 trace.add(
@@ -122,6 +131,7 @@ class AIOrchestrator:
                     trace=trace,
                     actions=actions,
                     mode=context.mode,
+                    client_is_local=context.client_is_local,
                 )
                 if not response_text:
                     response_text = "I am unable to process that request."
@@ -133,7 +143,11 @@ class AIOrchestrator:
 
             final_response = response_collector.get_response() or "Done."
             self._append_conversation(append_conversation_fn, context.raw_text, final_response)
-            sentiment = analyze_sentiment_fn(final_response) if analyze_sentiment_fn else "neutral"
+            sentiment = (
+                analyze_sentiment_fn(final_response)
+                if (analyze_sentiment_fn and result == "neural_net_fallback")
+                else "neutral"
+            )
             outcome = self.outcome_builder.build(
                 final_response,
                 "success",
@@ -166,6 +180,7 @@ class AIOrchestrator:
                     confidence=outcome.metadata.get("confidence"),
                     intent=outcome.metadata.get("intent"),
                     latency_ms=latency_ms,
+                    confirmation_phrase=context.confirmation_phrase,
                 )
 
     @staticmethod

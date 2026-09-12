@@ -8,6 +8,18 @@ const WAKE_VARIANTS = [
   "hey mero", "hey mira", "hey mural", "meero", "miro",
 ];
 
+const matchesWakeVariant = (text) =>
+  WAKE_VARIANTS.some((w) => new RegExp(`(^|\\b)${w}(\\b|$)`, "i").test(text));
+
+const extractWakeCommand = (text) => {
+  let cmd = text;
+  for (const v of WAKE_VARIANTS) {
+    cmd = cmd.replace(new RegExp(`(^|\\b)${v}(\\b|$)`, "gi"), "").trim();
+  }
+  cmd = cmd.replace(/^(hey|hi|hello)\s*/i, "").trim();
+  return cmd;
+};
+
 const clean = (text) =>
   text.toLowerCase().replace(/[.,!?;:'"]/g, "").replace(/\s+/g, " ").trim();
 
@@ -24,6 +36,7 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
   const wakeActiveRef = useRef(false); // true = waiting for command (active listening)
   const manualRef = useRef(false);     // true = push-to-talk
   const timerRef = useRef(null);
+  const isRestartingRef = useRef(false);
 
   useEffect(() => { stateRef.current = currentState; }, [currentState]);
   useEffect(() => { wakeRef.current = wakeWordEnabled; }, [wakeWordEnabled]);
@@ -39,15 +52,25 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
   }, [setState]);
 
   // ── Restart Helper ─────────────────────────────────────────────
-  const restartWake = useCallback((ms = 150) => {
+  const restartWake = useCallback((ms = 300) => {
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       // Don't restart if disabled OR manual mode OR speaking
       if (!wakeRef.current || manualRef.current) return;
       if (stateRef.current === "processing" || stateRef.current === "speaking") return;
+      if (isRestartingRef.current) return;
 
+      isRestartingRef.current = true;
       logger.log(`[Wake] Restarting... active=${wakeActiveRef.current}`);
-      try { recRef.current?.start(); } catch { /* running */ }
+      try {
+        recRef.current?.start();
+      } catch {
+        /* already running */
+      } finally {
+        setTimeout(() => {
+          isRestartingRef.current = false;
+        }, 150);
+      }
     }, ms);
   }, []);
 
@@ -70,6 +93,7 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
     rec.lang = "en-US";
 
     rec.onstart = () => {
+      isRestartingRef.current = false;
       const mode = manualRef.current ? "MANUAL" : wakeActiveRef.current ? "ACTIVE" : "PASSIVE";
       logger.log(`[Speech] Started (${mode})`);
       setRecognitionError("");
@@ -95,14 +119,12 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
         return;
       }
 
-      // WAKE PASSIVE (scanning for wake word)
+      // WAKE PASSIVE (scanning for wake word with word boundary matching)
       if (wakeRef.current && !wakeActiveRef.current) {
-        if (WAKE_VARIANTS.some((w) => text.includes(w))) {
+        if (matchesWakeVariant(text)) {
           logger.log("[Wake] Detected!");
           // Check for inline command: "Hey Meero open YouTube"
-          let cmd = text;
-          for (const v of WAKE_VARIANTS) cmd = cmd.replace(v, "").trim();
-          cmd = cmd.replace(/^(hey|hi|hello)\s*/i, "").trim();
+          const cmd = extractWakeCommand(text);
 
           if (cmd.length > 2) {
             playListeningStart();
@@ -134,6 +156,7 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
     };
 
     rec.onerror = (e) => {
+      isRestartingRef.current = false;
       if (e.error === "not-allowed") {
         manualRef.current = false;
         setRecognitionError("Microphone permission denied.");
@@ -144,6 +167,7 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
     };
 
     rec.onend = () => {
+      isRestartingRef.current = false;
       // Manual -> handled by toggleListen
       if (manualRef.current) return;
 
@@ -158,7 +182,7 @@ const useSpeechRecognition = (onResult, currentState, setState, onInterrupt = nu
           wakeActiveRef.current = false;
         }
 
-        restartWake(150);
+        restartWake(300);
         return;
       }
 

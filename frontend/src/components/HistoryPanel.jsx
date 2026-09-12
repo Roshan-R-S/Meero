@@ -41,30 +41,43 @@ export default function HistoryPanel({ messages, mobileOpen, onClear, onCopy, on
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {messages.map((msg, index) => (
-            <div key={`${msg.role}-${index}`} className="mb-2 flex items-start gap-2 last:mb-0">
-              <div className="min-w-0 flex-1">
-                <div className="mb-0.5 flex items-center gap-2">
-                  <span className="text-cyan-300">{msg.role}:</span>
-                  {formatTime(msg.createdAt) && (
-                    <time className="text-[0.65rem] text-cyan-100/45">{formatTime(msg.createdAt)}</time>
-                  )}
+          {messages.map((msg, index) => {
+            const key = msg.id || `${msg.role}-${msg.createdAt || index}-${index}`;
+            return (
+              <div key={key} className="mb-2 flex items-start gap-2 last:mb-0">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-0.5 flex items-center gap-2">
+                    <span className="text-cyan-300">{msg.role}:</span>
+                    {formatTime(msg.createdAt) && (
+                      <time className="text-[0.65rem] text-cyan-100/45">{formatTime(msg.createdAt)}</time>
+                    )}
+                  </div>
+                  <span className="break-words">{msg.text}</span>
                 </div>
-                <span className="break-words">{msg.text}</span>
+                {msg.role === "assistant" ? (
+                  <button
+                    type="button"
+                    onClick={() => onCopy(msg.text)}
+                    aria-label={`Copy assistant response ${index + 1}`}
+                    title="Copy response"
+                    className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-cyan-100 transition hover:bg-cyan-900/40"
+                  >
+                    <Copy size={12} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => onCopy(msg.text)}
+                    aria-label={`Copy user command ${index + 1}`}
+                    title="Copy command"
+                    className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-cyan-100 transition hover:bg-cyan-900/40"
+                  >
+                    <Copy size={12} />
+                  </button>
+                )}
               </div>
-              {msg.role === "assistant" && (
-                <button
-                  type="button"
-                  onClick={() => onCopy(msg.text)}
-                  aria-label={`Copy assistant response ${index + 1}`}
-                  title="Copy response"
-                  className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-cyan-100 transition hover:bg-cyan-900/40"
-                >
-                  <Copy size={12} />
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </aside>
     </>

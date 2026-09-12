@@ -1,8 +1,18 @@
 import axios from 'axios';
 import { logger } from './utils/logger';
 
+/**
+ * Note on security: AUTH_VALUE is read from import.meta.env.VITE_MEERO_API_KEY.
+ * In client browser builds, this value is bundled into JavaScript and sent in HTTP headers.
+ * This is intended strictly for local-first desktop deployments.
+ */
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 export const AUTH_VALUE = import.meta.env.VITE_MEERO_API_KEY || '';
+
+// Global timeout to protect UI from indefinite backend stalls
+if (axios?.defaults) {
+  axios.defaults.timeout = 10000;
+}
 
 const authHeaders = AUTH_VALUE ? { 'x-meero-api-key': AUTH_VALUE } : {};
 
@@ -28,7 +38,7 @@ export const sendCommand = async (command, options = {}) => {
   try {
     const response = await axios.post(`${API_URL}/command`, {
       command,
-      mode: 'voice',
+      mode: options.mode || 'voice',
       confirm: Boolean(options.confirm),
       pending_command: options.pendingCommand || null,
     }, { headers: authHeaders });

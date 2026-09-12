@@ -82,6 +82,6 @@ class NeuralNet:
 
         for item in self.intents_data.get('intents', []):
             if item.get('tag') == tag:
-                return random.choice(item.get('responses', [None])), max_prob, tag
+                return random.choice(item.get('responses') or [None]), max_prob, tag
 
         return None, max_prob, tag

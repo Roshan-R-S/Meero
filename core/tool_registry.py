@@ -141,11 +141,30 @@ def format_tools_for_prompt() -> str:
     return "\n".join(lines)
 
 
-def execute_tool(tool_name: str, args: dict[str, Any], actions: Any) -> str:
+def execute_tool(
+    tool_name: str,
+    args: dict[str, Any],
+    actions: Any,
+    client_is_local: bool = True,
+) -> str:
     """
     Execute a tool call using the Actions instance or underlying services.
+    Enforces local desktop mode, web-safe mode, and app allowlists.
     Returns the action's spoken result text.
     """
+    import app_launcher
+    import config
+
+    desktop_tools = {
+        "open_app", "close_app", "set_volume", "media_control",
+        "schedule_reminder", "window_action", "take_screenshot", "lock_screen",
+    }
+    if tool_name in desktop_tools:
+        if not client_is_local:
+            return "Desktop control is available only from the local machine."
+        if not getattr(config, "LOCAL_DESKTOP_MODE", False) or getattr(config, "WEB_SAFE_MODE", True):
+            return "Desktop control is disabled. Enable LOCAL_DESKTOP_MODE to use that command."
+
     # Create a temporary collector if actions doesn't have a direct string return
     from core.response_collector import ResponseCollector
     collector = ResponseCollector()

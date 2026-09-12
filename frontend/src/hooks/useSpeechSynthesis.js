@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef } from "react";
-import { API_URL, AUTH_VALUE } from "../api";
+import { API_URL, AUTH_VALUE, streamVoiceSynthesis } from "../api";
 import { logger } from "../utils/logger";
+import { AudioChunkQueue } from "./useVoicePipeline";
 
 /**
  * Hook for TTS output.
- * - When localVoiceEnabled=true: sends text to /voice/synthesize (XTTS cloned voice).
- * - Fallback: browser Web Speech API.
+ * - When localVoiceEnabled=true: streams audio from /voice/synthesize/stream (XTTS cloned voice).
+ * - Fallback: /voice/synthesize blob or browser Web Speech API.
  */
 const useSpeechSynthesis = (setState, onComplete, voiceConfig = {}, localVoiceEnabled = false) => {
   const synth = useRef(null);
   const audioRef = useRef(null);
+  const chunkQueueRef = useRef(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -29,9 +31,9 @@ const useSpeechSynthesis = (setState, onComplete, voiceConfig = {}, localVoiceEn
       setState("speaking");
       const utterance = new SpeechSynthesisUtterance(text);
 
-      const voices = synth.current.getVoices();
+      const voices = synth.current.getVoices?.() || [];
       const preferredVoice =
-        voices.find((v) => v.lang?.startsWith("en") && v.name.toLowerCase().includes("female")) ||
+        voices.find((v) => v.lang?.startsWith("en") && (v.localService || v.default)) ||
         voices.find((v) => v.lang?.startsWith("en")) ||
         voices[0];
       if (preferredVoice) utterance.voice = preferredVoice;
@@ -53,50 +55,88 @@ const useSpeechSynthesis = (setState, onComplete, voiceConfig = {}, localVoiceEn
   const _playLocalXTTS = useCallback(
     async (text) => {
       setState("speaking");
-      try {
-        const headers = { "Content-Type": "application/json" };
-        if (AUTH_VALUE) headers["x-meero-api-key"] = AUTH_VALUE;
+      let receivedChunk = false;
 
-        const res = await fetch(`${API_URL}/voice/synthesize`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ text }),
+      // Stop previous chunk queue or audio
+      if (chunkQueueRef.current) {
+        chunkQueueRef.current.stop();
+        chunkQueueRef.current = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+
+      try {
+        const queue = new AudioChunkQueue(
+          () => setState("speaking"),
+          () => {
+            logger.log("[TTS] XTTS playback finished -> triggering onComplete");
+            setState("idle");
+            if (onComplete) onComplete();
+          },
+        );
+        chunkQueueRef.current = queue;
+
+        await streamVoiceSynthesis(text, (event) => {
+          if (event.type === "audio_chunk" && event.audio_base64) {
+            receivedChunk = true;
+            queue.enqueue(event.audio_base64, event.mime_type || "audio/wav");
+          } else if (event.type === "done") {
+            queue.markDone();
+          } else if (event.type === "error") {
+            throw new Error(event.message || "TTS stream error");
+          }
         });
 
-        if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
-
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-
-        // Stop any currently playing audio
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current = null;
+        if (!receivedChunk) {
+          throw new Error("No audio chunks received from stream");
         }
-
-        const audio = new Audio(url);
-        audioRef.current = audio;
-
-        audio.onended = () => {
-          URL.revokeObjectURL(url);
-          audioRef.current = null;
-          logger.log("[TTS] XTTS playback finished -> triggering onComplete");
-          setState("idle");
-          if (onComplete) onComplete();
-        };
-
-        audio.onerror = (err) => {
-          URL.revokeObjectURL(url);
-          audioRef.current = null;
-          logger.error("[TTS] XTTS audio playback error:", err);
-          setState("idle");
-          if (onComplete) onComplete();
-        };
-
-        await audio.play();
       } catch (err) {
-        logger.error("[TTS] XTTS synthesis failed, falling back to browser TTS:", err);
-        _playBrowserTTS(text);
+        logger.error("[TTS] XTTS streaming synthesis failed, falling back to full synthesis/browser TTS:", err);
+        try {
+          const headers = { "Content-Type": "application/json" };
+          if (AUTH_VALUE) headers["x-meero-api-key"] = AUTH_VALUE;
+
+          const res = await fetch(`${API_URL}/voice/synthesize`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ text }),
+          });
+
+          if (!res.ok) throw new Error(`TTS HTTP ${res.status}`);
+
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+
+          if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current = null;
+          }
+
+          const audio = new Audio(url);
+          audioRef.current = audio;
+
+          audio.onended = () => {
+            URL.revokeObjectURL(url);
+            audioRef.current = null;
+            logger.log("[TTS] XTTS playback finished -> triggering onComplete");
+            setState("idle");
+            if (onComplete) onComplete();
+          };
+
+          audio.onerror = (audioErr) => {
+            URL.revokeObjectURL(url);
+            audioRef.current = null;
+            logger.error("[TTS] XTTS audio playback error:", audioErr);
+            _playBrowserTTS(text);
+          };
+
+          await audio.play();
+        } catch (fallbackErr) {
+          logger.error("[TTS] Full synthesis also failed, falling back to browser TTS:", fallbackErr);
+          _playBrowserTTS(text);
+        }
       }
     },
     [setState, onComplete, _playBrowserTTS],
@@ -117,6 +157,11 @@ const useSpeechSynthesis = (setState, onComplete, voiceConfig = {}, localVoiceEn
     // Cancel browser TTS
     if (synth.current && synth.current.speaking) {
       synth.current.cancel();
+    }
+    // Cancel streamed audio queue
+    if (chunkQueueRef.current) {
+      chunkQueueRef.current.stop();
+      chunkQueueRef.current = null;
     }
     // Cancel XTTS audio
     if (audioRef.current) {

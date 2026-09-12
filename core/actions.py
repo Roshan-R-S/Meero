@@ -89,6 +89,13 @@ _WEBSITES = {
 }
 
 
+_COMPILED_ROUTE_PATTERNS = {
+    spec.handler: tuple(re.compile(pattern, re.IGNORECASE) for pattern in spec.patterns)
+    for spec in COMMAND_ROUTE_SPECS
+    if not spec.matcher
+}
+
+
 class Actions:
     def __init__(self, response_engine):
         self.speak = response_engine.speak
@@ -130,7 +137,9 @@ class Actions:
             if spec.matcher:
                 matcher = getattr(self, spec.matcher)
             else:
-                compiled = tuple(re.compile(pattern, re.IGNORECASE) for pattern in spec.patterns)
+                compiled = _COMPILED_ROUTE_PATTERNS.get(spec.handler) or tuple(
+                    re.compile(pattern, re.IGNORECASE) for pattern in spec.patterns
+                )
 
                 def matcher(query, _compiled=compiled):
                     return any(pattern.search(query) for pattern in _compiled)

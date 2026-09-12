@@ -56,14 +56,33 @@ def test_extract_tool_calls_conversational_text():
     assert calls is None
 
 
-def test_execute_tool_open_app():
+def test_execute_tool_open_app(monkeypatch):
+    monkeypatch.setattr("config.LOCAL_DESKTOP_MODE", True)
+    monkeypatch.setattr("config.WEB_SAFE_MODE", False)
     actions = MagicMock()
     result = execute_tool("open_app", {"name": "calculator"}, actions)
     assert "open_app" in result or "calculator" in result or result != ""
     actions.open_app.assert_called_once_with("open calculator")
 
 
-def test_execute_tool_set_volume():
+def test_execute_tool_set_volume(monkeypatch):
+    monkeypatch.setattr("config.LOCAL_DESKTOP_MODE", True)
+    monkeypatch.setattr("config.WEB_SAFE_MODE", False)
     actions = MagicMock()
     result = execute_tool("set_volume", {"action": "up"}, actions)
     actions.volume_control.assert_called_once_with("volume up")
+
+
+def test_execute_tool_blocks_remote_client():
+    actions = MagicMock()
+    result = execute_tool("open_app", {"name": "calculator"}, actions, client_is_local=False)
+    assert "Desktop control is available only from the local machine" in result
+    actions.open_app.assert_not_called()
+
+
+def test_execute_tool_blocks_when_desktop_mode_disabled(monkeypatch):
+    monkeypatch.setattr("config.LOCAL_DESKTOP_MODE", False)
+    actions = MagicMock()
+    result = execute_tool("open_app", {"name": "calculator"}, actions)
+    assert "Desktop control is disabled" in result
+    actions.open_app.assert_not_called()

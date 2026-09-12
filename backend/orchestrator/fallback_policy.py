@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import time
 from typing import Any, Optional
 
@@ -14,12 +16,30 @@ from .decision_trace import DecisionTrace
 
 logger = logging.getLogger(__name__)
 
-NEURAL_FAILURE_PHRASES = {
-    "I'm afraid I didn't catch that, sir.",
-    "Could you rephrase that directive?",
-    "My processing units require clarification, sir.",
-    "I'm not sure how to respond to that.",
-}
+
+def _load_neural_failure_phrases() -> set[str]:
+    phrases = {
+        "I'm afraid I didn't catch that, sir.",
+        "Could you rephrase that directive?",
+        "My processing units require clarification, sir.",
+        "I'm not sure how to respond to that.",
+    }
+    intents_path = getattr(config, "INTENTS_FILE", None)
+    if intents_path and os.path.exists(intents_path):
+        try:
+            with open(intents_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            for intent in data.get("intents", []):
+                if intent.get("tag") in ("noanswer", "fallback", "unknown"):
+                    for r in intent.get("responses", []):
+                        if r:
+                            phrases.add(r)
+        except Exception:
+            pass
+    return phrases
+
+
+NEURAL_FAILURE_PHRASES = _load_neural_failure_phrases()
 
 
 class FallbackPolicy:
@@ -36,11 +56,22 @@ class FallbackPolicy:
         trace: DecisionTrace,
         actions=None,
         mode: str = "voice",
+        client_is_local: bool = True,
     ) -> Optional[str]:
         response_text = self._run_neural(routing_text, brain, metadata, trace)
         if response_text:
             return response_text
-        return self._run_llm(raw_text, llm, history, memory_summary, metadata, trace, actions=actions, mode=mode)
+        return self._run_llm(
+            raw_text,
+            llm,
+            history,
+            memory_summary,
+            metadata,
+            trace,
+            actions=actions,
+            mode=mode,
+            client_is_local=client_is_local,
+        )
 
     @staticmethod
     def _run_neural(query, brain, metadata, trace) -> Optional[str]:
@@ -102,7 +133,17 @@ class FallbackPolicy:
         return None
 
     @staticmethod
-    def _run_llm(raw_text, llm, history, memory_summary, metadata, trace, actions=None, mode="voice") -> Optional[str]:
+    def _run_llm(
+        raw_text,
+        llm,
+        history,
+        memory_summary,
+        metadata,
+        trace,
+        actions=None,
+        mode="voice",
+        client_is_local=True,
+    ) -> Optional[str]:
         started = time.perf_counter()
         if not getattr(config, "USE_LLM", True):
             metadata["fallback_reason"] = "llm_disabled"
@@ -124,8 +165,12 @@ class FallbackPolicy:
             return None
 
         try:
-            # Cap token generation for voice mode to keep spoken responses short
-            max_tokens = getattr(config, "VOICE_LLM_MAX_TOKENS", 96) if mode == "local_voice" else 150
+            # Cap token generation for voice modes to keep spoken responses concise
+            max_tokens = (
+                getattr(config, "VOICE_LLM_MAX_TOKENS", 96)
+                if mode in ("voice", "local_voice")
+                else 150
+            )
             raw_output = llm.generate_response(raw_text, history=history, memory_summary=memory_summary, max_tokens=max_tokens)
             tool_calls = extract_tool_calls(raw_output)
 
@@ -136,7 +181,7 @@ class FallbackPolicy:
                     tool_name = call.get("tool")
                     args = call.get("args", {})
                     try:
-                        res = execute_tool(tool_name, args, actions)
+                        res = execute_tool(tool_name, args, actions, client_is_local=client_is_local)
                         if res:
                             tool_results.append(res)
                     except Exception as exc:

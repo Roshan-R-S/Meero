@@ -24,6 +24,8 @@ _SCHEMA_SQL = (
         summary TEXT NOT NULL,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )""",
+    """CREATE INDEX IF NOT EXISTS idx_history_id ON history(id)""",
+    """CREATE INDEX IF NOT EXISTS idx_history_session_id ON history(session_id)""",
 )
 
 
@@ -169,10 +171,16 @@ def clear():
     conn.commit()
 
 
-def export() -> dict:
+def export(limit: int | None = None, offset: int = 0) -> dict:
     conn = _get_conn()
     cur = conn.cursor()
-    cur.execute("SELECT id, query, response, ts FROM history ORDER BY id ASC")
+    if limit is not None:
+        cur.execute(
+            "SELECT id, query, response, ts FROM history ORDER BY id ASC LIMIT ? OFFSET ?",
+            (limit, max(0, offset)),
+        )
+    else:
+        cur.execute("SELECT id, query, response, ts FROM history ORDER BY id ASC")
     rows = cur.fetchall()
     history = [{"id": r[0], "query": r[1], "response": r[2], "ts": r[3]} for r in rows]
     summary = get_summary_from_conn(conn)

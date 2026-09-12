@@ -1,11 +1,14 @@
-"""Prompt builders for Meero's LLM fallback path with tool calling support."""
 from __future__ import annotations
 
 import json
 import re
 from typing import Any, Iterable
 
-SYSTEM_PROMPT = """You are Meero, a local AI assistant for Roshan.
+import config
+
+def get_system_prompt() -> str:
+    user_name = getattr(config, "USER_NAME", "User")
+    return f"""You are Meero, a local AI assistant for {user_name}.
 
 Rules:
 - Be concise and useful.
@@ -13,6 +16,8 @@ Rules:
 - If the user asks for dangerous system actions, ask for confirmation.
 - Use memory summary only as context, not as guaranteed truth.
 - If unsure, say so clearly."""
+
+SYSTEM_PROMPT = get_system_prompt()
 
 TOOL_INSTRUCTIONS = """You have access to desktop tools to execute user requests.
 If the user wants you to perform actions, output ONLY a JSON object:
@@ -41,7 +46,7 @@ def build_llama3_prompt(
     from .tool_registry import format_tools_for_prompt
 
     turns = list(history or [])[-max_history:]
-    system_text = SYSTEM_PROMPT
+    system_text = get_system_prompt()
     if include_tools:
         system_text += f"\n\n{TOOL_INSTRUCTIONS}\n\n{format_tools_for_prompt()}"
     if memory_summary:
@@ -68,7 +73,7 @@ def build_mistral_prompt(
     from .tool_registry import format_tools_for_prompt
 
     turns = list(history or [])[-max_history:]
-    system_text = SYSTEM_PROMPT
+    system_text = get_system_prompt()
     if include_tools:
         system_text += f"\n\n{TOOL_INSTRUCTIONS}\n\n{format_tools_for_prompt()}"
     if memory_summary:
@@ -97,7 +102,7 @@ def build_qwen_prompt(
     from .tool_registry import format_tools_for_prompt
 
     turns = list(history or [])[-max_history:]
-    system_text = SYSTEM_PROMPT
+    system_text = get_system_prompt()
     if include_tools:
         system_text += f"\n\n{TOOL_INSTRUCTIONS}\n\n{format_tools_for_prompt()}"
     if memory_summary:
@@ -121,7 +126,7 @@ def build_phi_prompt(
     from .tool_registry import format_tools_for_prompt
 
     turns = list(history or [])[-max_history:]
-    system_text = SYSTEM_PROMPT
+    system_text = get_system_prompt()
     if include_tools:
         system_text += f"\n\n{TOOL_INSTRUCTIONS}\n\n{format_tools_for_prompt()}"
     if memory_summary:
@@ -141,7 +146,19 @@ def build_local_prompt(
     memory_summary: str | None = None,
     include_tools: bool = True,
 ) -> str:
-    """Choose a prompt format based on the local GGUF model filename."""
+    """Choose a prompt format based on config override or the local GGUF model filename."""
+    override = getattr(config, "PROMPT_FORMAT", None)
+    if override:
+        fmt = str(override).lower().strip()
+        if fmt in ("mistral", "mixtral"):
+            return build_mistral_prompt(user_input, history, memory_summary=memory_summary, include_tools=include_tools)
+        if fmt == "qwen":
+            return build_qwen_prompt(user_input, history, memory_summary=memory_summary, include_tools=include_tools)
+        if fmt == "phi":
+            return build_phi_prompt(user_input, history, memory_summary=memory_summary, include_tools=include_tools)
+        if fmt in ("llama", "llama3"):
+            return build_llama3_prompt(user_input, history, memory_summary=memory_summary, include_tools=include_tools)
+
     normalized_name = (model_name or "").lower()
     if "mistral" in normalized_name or "mixtral" in normalized_name:
         return build_mistral_prompt(user_input, history, memory_summary=memory_summary, include_tools=include_tools)
@@ -216,7 +233,7 @@ def extract_tool_calls(text: str | None) -> list[dict[str, Any]] | None:
 
     # 2. If no code block, look for bare JSON object containing tool_calls
     if not candidate_json:
-        json_obj_match = re.search(r"(\{.*\"tool_calls\"\s*:\s*\[.*\]\s*\})", cleaned, re.DOTALL)
+        json_obj_match = re.search(r"(\{.*?\"tool_calls\"\s*:\s*\[.*?\]\s*\})", cleaned, re.DOTALL)
         if json_obj_match:
             candidate_json = json_obj_match.group(1)
 

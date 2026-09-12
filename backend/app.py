@@ -382,6 +382,9 @@ async def process_command(payload: CommandRequest, http_request: Request):
     try:
         logger.info("Processing command mode=%s", payload.mode)
 
+        with _state_lock:
+            history_snapshot = list(CONVERSATION_HISTORY)
+
         loop = asyncio.get_event_loop()
         outcome = await loop.run_in_executor(
             None,
@@ -392,7 +395,7 @@ async def process_command(payload: CommandRequest, http_request: Request):
                 pending_command=payload.pending_command,
                 brain=brain,
                 llm=llm,
-                conversation_history=CONVERSATION_HISTORY,
+                conversation_history=history_snapshot,
                 memory_summary_fn=_memory_summary,
                 append_conversation_fn=_append_conversation,
                 analyze_sentiment_fn=analyze_sentiment,
@@ -419,9 +422,9 @@ async def process_command(payload: CommandRequest, http_request: Request):
 
 
 @app.get("/memory", dependencies=[Depends(require_local_request), Depends(require_api_key)])
-def export_memory():
+def export_memory(limit: Optional[int] = None, offset: int = 0):
     """Export the local SQLite memory for the user."""
-    return memory_store.export()
+    return memory_store.export(limit=limit, offset=offset)
 
 
 @app.delete("/memory", dependencies=[Depends(require_local_request), Depends(require_api_key)])
@@ -522,6 +525,8 @@ async def process_voice_command(
     synthesize: bool = Form(True),
 ):
     try:
+        with _state_lock:
+            history_snapshot = list(CONVERSATION_HISTORY)
         result = voice_pipeline.execute(
             await audio.read(),
             execute_command,
@@ -530,7 +535,7 @@ async def process_voice_command(
             pending_command=pending_command,
             brain=brain,
             llm=llm,
-            conversation_history=CONVERSATION_HISTORY,
+            conversation_history=history_snapshot,
             memory_summary_fn=_memory_summary,
             append_conversation_fn=_append_conversation,
             analyze_sentiment_fn=analyze_sentiment,
@@ -568,6 +573,8 @@ async def process_voice_command_stream(
     audio_mode: str = Form("chunked"),
     fast_ack: bool = Form(False),
 ):
+    with _state_lock:
+        history_snapshot = list(CONVERSATION_HISTORY)
     audio_bytes = await audio.read()
     is_local = _is_local_request(http_request)
 
@@ -583,7 +590,7 @@ async def process_voice_command_stream(
                 pending_command=pending_command,
                 brain=brain,
                 llm=llm,
-                conversation_history=CONVERSATION_HISTORY,
+                conversation_history=history_snapshot,
                 memory_summary_fn=_memory_summary,
                 append_conversation_fn=_append_conversation,
                 analyze_sentiment_fn=analyze_sentiment,
@@ -626,6 +633,8 @@ def model_status():
 
 
 def _debug_health():
+    with _state_lock:
+        history_len = len(CONVERSATION_HISTORY)
     return {
         "status": "ok",
         "use_neural_net": getattr(config, "USE_NEURAL_NET", True),
@@ -635,7 +644,7 @@ def _debug_health():
 
         "local_desktop_mode": getattr(config, "LOCAL_DESKTOP_MODE", False),
         "web_safe_mode": getattr(config, "WEB_SAFE_MODE", True),
-        "conversation_history_len": len(CONVERSATION_HISTORY),
+        "conversation_history_len": history_len,
         "memory_summary_chars": len(_memory_summary()),
     }
 

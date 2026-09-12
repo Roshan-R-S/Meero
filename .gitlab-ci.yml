@@ -18,6 +18,10 @@ stages:
   - validate
   - build
 
+include:
+  - template: Security/SAST.gitlab-ci.yml
+  - template: Security/Dependency-Scanning.gitlab-ci.yml
+
 default:
   interruptible: true
 
@@ -124,7 +128,27 @@ frontend-test:
     name: "frontend-build-$CI_COMMIT_SHORT_SHA"
     paths:
       - frontend/dist/
-    expire_in: 1 week
+    expire_in: 3 days
+
+frontend-e2e:
+  stage: test
+  image: mcr.microsoft.com/playwright:v1.45.0-jammy
+  variables:
+    CI: "true"
+  before_script:
+    - npm install -g pnpm
+    - cd frontend
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm exec playwright test
+  artifacts:
+    when: on_failure
+    paths:
+      - frontend/playwright-report/
+    expire_in: 3 days
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: '$CI_PIPELINE_SOURCE == "web"'
 
 # -------------------------------------------------------------------------
 # Deployment & Docker Compose Validation

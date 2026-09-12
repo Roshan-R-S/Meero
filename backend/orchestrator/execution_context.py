@@ -16,6 +16,7 @@ class ExecutionContext:
     client_is_local: bool = True
     confirm: bool = False
     pending_command: Optional[str] = None
+    confirmation_phrase: Optional[str] = None
 
     @classmethod
     def build(
@@ -28,6 +29,7 @@ class ExecutionContext:
         pending_command: Optional[str] = None,
     ) -> "ExecutionContext":
         raw_text = (pending_command or query).strip()
+        confirmation_phrase = query.strip() if (confirm and pending_command) else None
         return cls(
             raw_text=raw_text,
             routing_text=prepare_routing_text(raw_text),
@@ -35,4 +37,5 @@ class ExecutionContext:
             client_is_local=client_is_local,
             confirm=confirm,
             pending_command=pending_command,
+            confirmation_phrase=confirmation_phrase,
         )
