@@ -30,16 +30,14 @@ const usePrefersReducedMotion = () => {
  *  - Slightly expand the scale, giving a "breathing with the voice" effect
  *  - Increase emissive intensity for a brighter glow during loud speech
  */
-const AnimatedCore = ({ state, sentiment, micEnergyLevel = 0, reducedMotion = false }) => {
+const AnimatedCore = ({ state, sentiment, micEnergyLevel = 0, reducedMotion = false, theme }) => {
   const mesh = useRef();
-  const { theme } = useTheme();
-  const orbConfig = theme.orb[state] || theme.orb.idle;
-
   // Base config driven by theme & state
   const baseConfig = useMemo(() => {
+    const orbConfig = theme?.orb?.[state] || theme?.orb?.idle || {};
     let color = orbConfig.color;
     if (state === "speaking") {
-      if (sentiment === "negative") color = theme.orb.error?.color || "#ef4444";
+      if (sentiment === "negative") color = theme?.orb?.error?.color || "#ef4444";
       if (sentiment === "neutral") color = orbConfig.color;
     }
     return {
@@ -50,7 +48,8 @@ const AnimatedCore = ({ state, sentiment, micEnergyLevel = 0, reducedMotion = fa
       scale: state === "listening" ? 2.5 : state === "processing" ? 2.0 : 2.2,
       emissiveIntensity: 0.5,
     };
-  }, [state, sentiment, orbConfig, theme]);
+  }, [state, sentiment, theme]);
+
 
   // Compute mic-reactive overrides (only meaningful while listening)
   const energyBoost = state === "listening" && !reducedMotion ? micEnergyLevel : 0;
@@ -142,10 +141,9 @@ const createSpherePositions = (count, distance = 4.5) => {
  * ParticleRing — ambient particle cloud orbiting the orb.
  * Uses uniform spherical coordinate sampling for true 3D orbital cloud.
  */
-const ParticleRing = ({ count = 1500, color, energyBoost = 0, reducedMotion = false }) => {
+const ParticleRing = ({ count = 1500, color, energyBoost = 0, reducedMotion = false, theme }) => {
   const points = useRef();
-  const { theme } = useTheme();
-  const particleColor = color || theme.orb.particleColor || "#22d3ee";
+  const particleColor = color || theme?.orb?.particleColor || "#22d3ee";
 
   const particlesPosition = useMemo(() => {
     return createSpherePositions(count, 4.5);
@@ -179,7 +177,7 @@ const ParticleRing = ({ count = 1500, color, energyBoost = 0, reducedMotion = fa
   );
 };
 
-const OrbScene = ({ state, sentiment, micEnergyLevel, mouse, reducedMotion }) => {
+const OrbScene = ({ state, sentiment, micEnergyLevel, mouse, reducedMotion, theme }) => {
   const groupRef = useRef();
   const energyBoost = state === "listening" && !reducedMotion ? micEnergyLevel : 0;
 
@@ -205,11 +203,13 @@ const OrbScene = ({ state, sentiment, micEnergyLevel, mouse, reducedMotion }) =>
         sentiment={sentiment}
         micEnergyLevel={micEnergyLevel}
         reducedMotion={reducedMotion}
+        theme={theme}
       />
       <ParticleRing
         count={1500}
         energyBoost={energyBoost}
         reducedMotion={reducedMotion}
+        theme={theme}
       />
     </group>
   );
@@ -246,8 +246,10 @@ const ThreeOrb = ({ state, sentiment, micEnergyLevel = 0 }) => {
             micEnergyLevel={micEnergyLevel}
             mouse={mouse}
             reducedMotion={reducedMotion}
+            theme={theme}
           />
         </Suspense>
+
       </Canvas>
     </div>
   );

@@ -1,3 +1,4 @@
+import { AnimatePresence } from "framer-motion";
 import { MessagesSquare, Settings } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getModelStatus, sendCommand } from "./api";
@@ -405,14 +406,19 @@ function App() {
     return () => clearTimeout(statusNoticeTimerRef.current);
   }, []);
 
-  const handleSettingsSave = useCallback(async () => {
-    const result = await saveAssistantSettings();
+  const handleSettingsSave = useCallback(async (overrides) => {
+    const validOverrides =
+      overrides && typeof overrides === "object" && !overrides.nativeEvent && !overrides._reactName
+        ? overrides
+        : {};
+    const result = await saveAssistantSettings(validOverrides);
     if (result.status === "ok") {
       showTransientStatusNotice("Settings saved.");
     } else {
       setStatusNotice("Could not save settings.");
     }
   }, [saveAssistantSettings, showTransientStatusNotice]);
+
 
   const bootProgress = (() => {
     if (!modelStatus) return 25;
@@ -555,40 +561,46 @@ function App() {
         <Settings size={18} />
       </button>
 
-      {settingsOpen && (
-        <SettingsPanel
-          apiHealth={apiHealth}
-          lastHealthCheckedAt={lastHealthCheckedAt}
-          onClose={() => setSettingsOpen(false)}
-          onRefreshHealth={refreshHealth}
-          onSave={handleSettingsSave}
-          setVoicePitch={setVoicePitch}
-          setVoiceRate={setVoiceRate}
-          setWakeWordEnabled={setWakeWordEnabled}
-          setMicEnabled={setMicEnabled}
-          setTextOutputEnabled={setTextOutputEnabled}
-          setShowHistory={handleShowHistoryChange}
-          setTextInputEnabled={setTextInputEnabled}
-          voicePitch={voicePitch}
-          voiceRate={voiceRate}
-          wakeWordEnabled={wakeWordEnabled}
-          micEnabled={micEnabled}
-          textOutputEnabled={textOutputEnabled}
-          showHistory={showHistory}
-          textInputEnabled={textInputEnabled}
-          localVoiceEnabled={localVoiceEnabled}
-          browserSpeechFallbackEnabled={browserSpeechFallbackEnabled}
-          setLocalVoiceEnabled={setLocalVoiceEnabled}
-          setBrowserSpeechFallbackEnabled={setBrowserSpeechFallbackEnabled}
-        />
-      )}
+      <AnimatePresence>
+        {settingsOpen && (
+          <SettingsPanel
+            key="settings-panel"
+            apiHealth={apiHealth}
+            lastHealthCheckedAt={lastHealthCheckedAt}
+            onClose={() => setSettingsOpen(false)}
+            onRefreshHealth={refreshHealth}
+            onSave={handleSettingsSave}
+            setVoicePitch={setVoicePitch}
+            setVoiceRate={setVoiceRate}
+            setWakeWordEnabled={setWakeWordEnabled}
+            setMicEnabled={setMicEnabled}
+            setTextOutputEnabled={setTextOutputEnabled}
+            setShowHistory={handleShowHistoryChange}
+            setTextInputEnabled={setTextInputEnabled}
+            voicePitch={voicePitch}
+            voiceRate={voiceRate}
+            wakeWordEnabled={wakeWordEnabled}
+            micEnabled={micEnabled}
+            textOutputEnabled={textOutputEnabled}
+            showHistory={showHistory}
+            textInputEnabled={textInputEnabled}
+            localVoiceEnabled={localVoiceEnabled}
+            browserSpeechFallbackEnabled={browserSpeechFallbackEnabled}
+            setLocalVoiceEnabled={setLocalVoiceEnabled}
+            setBrowserSpeechFallbackEnabled={setBrowserSpeechFallbackEnabled}
+          />
+        )}
+      </AnimatePresence>
+
 
       <ConfirmationCard
+        key={pendingConfirmationCommand || "confirmation"}
         command={pendingConfirmationCommand}
         disabled={confirmationSubmitting}
         onCancel={() => handleConfirmation(false)}
         onConfirm={() => handleConfirmation(true)}
       />
+
 
       {/* Tactical Center */}
       <div className="w-full max-w-lg h-auto aspect-square flex flex-col items-center justify-center p-8 relative z-10">

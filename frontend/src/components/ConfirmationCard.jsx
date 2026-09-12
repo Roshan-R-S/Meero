@@ -4,12 +4,7 @@ import { useEffect, useState } from "react";
 
 export default function ConfirmationCard({ command, disabled, onCancel, onConfirm }) {
   const [secondsLeft, setSecondsLeft] = useState(15);
-  const [prevCommand, setPrevCommand] = useState(command);
 
-  if (command !== prevCommand) {
-    setPrevCommand(command);
-    setSecondsLeft(15);
-  }
 
   useEffect(() => {
     if (!command) return;

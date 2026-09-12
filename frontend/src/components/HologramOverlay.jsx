@@ -105,13 +105,13 @@ const HologramOverlay = ({ state = "idle", lastMetadata = null }) => {
       {/* 5. Dual Scan Lines */}
       <Motion.div
         className="absolute w-full h-[2px] opacity-40 pointer-events-none"
-        style={{ background: `linear-gradient(90deg, transparent, ${theme.primary}, transparent)` }}
+        style={{ background: "linear-gradient(90deg, transparent, var(--th-primary), transparent)" }}
         animate={{ y: ["-10vh", "110vh"] }}
         transition={{ duration: 7, repeat: Infinity, ease: "linear" }}
       />
       <Motion.div
         className="absolute w-full h-[1px] opacity-20 pointer-events-none"
-        style={{ background: `linear-gradient(90deg, transparent, ${theme.primary}, transparent)` }}
+        style={{ background: "linear-gradient(90deg, transparent, var(--th-primary), transparent)" }}
         animate={{ y: ["110vh", "-10vh"] }}
         transition={{ duration: 11, repeat: Infinity, ease: "linear" }}
       />

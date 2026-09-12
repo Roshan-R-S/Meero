@@ -36,8 +36,9 @@ test.beforeEach(async ({ page }) => {
       body: JSON.stringify(body),
     });
   });
-  await page.goto('/');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
 });
+
 
 test('app loads with title and primary voice control', async ({ page }) => {
   await expect(page.locator('text=MEERO')).toBeVisible();

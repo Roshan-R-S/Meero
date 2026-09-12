@@ -411,18 +411,7 @@ async def process_command(payload: CommandRequest, http_request: Request):
             ),
         )
 
-        with _state_lock:
-            CONVERSATION_HISTORY.append((payload.command, outcome.response))
-            max_interactions = getattr(config, "MEMORY_MAX_INTERACTIONS", 20)
-            while len(CONVERSATION_HISTORY) > max_interactions:
-                CONVERSATION_HISTORY.pop(0)
-
-        memory_store.append(
-            payload.command,
-            outcome.response,
-            max_interactions=getattr(config, "MEMORY_MAX_INTERACTIONS", 20),
-            summarizer=summarize_conversation,
-        )
+        _append_conversation(payload.command, outcome.response)
 
         return CommandResponse(
             response=outcome.response,
@@ -712,11 +701,20 @@ def update_settings(payload: SettingsPayload):
     try:
         import json
         data = payload.model_dump(exclude_none=True)
+        existing = {}
+        if os.path.exists(settings_path):
+            try:
+                with open(settings_path, "r", encoding="utf-8") as f:
+                    existing = json.load(f)
+            except Exception:
+                logger.warning("Could not parse existing settings.json, overwriting with new settings")
+        existing.update(data)
         os.makedirs(os.path.dirname(settings_path), exist_ok=True)
         with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+            json.dump(existing, f, indent=2)
         os.replace(tmp_path, settings_path)
         return {"status": "ok"}
+
     except Exception:
         try:
             if os.path.exists(tmp_path):

@@ -46,25 +46,35 @@ def load_model_compat(model_path):
 
 
 try:
-    from keras.utils import pad_sequences
+    from tensorflow.keras.preprocessing.sequence import pad_sequences
 except ImportError:
     try:
-        from tensorflow.keras.preprocessing.sequence import pad_sequences
-    except ImportError:
         from keras.preprocessing.sequence import pad_sequences
+    except ImportError:
+        try:
+            from tf_keras.preprocessing.sequence import pad_sequences
+        except ImportError:
+            from keras.utils import pad_sequences
 
 try:
-    from keras.utils import to_categorical
+    from tensorflow.keras.utils import to_categorical
 except ImportError:
     try:
-        from tensorflow.keras.utils import to_categorical
+        from keras.utils import to_categorical
     except ImportError:
-        from keras.utils.np_utils import to_categorical
+        try:
+            from tf_keras.utils import to_categorical
+        except ImportError:
+            from keras.utils.np_utils import to_categorical
 
 try:
-    from keras._tf_keras.keras.preprocessing.text import Tokenizer
+    from tensorflow.keras.preprocessing.text import Tokenizer
 except ImportError:
     try:
-        from tensorflow.keras.preprocessing.text import Tokenizer
-    except ImportError:
         from keras.preprocessing.text import Tokenizer
+    except ImportError:
+        try:
+            from tf_keras.preprocessing.text import Tokenizer
+        except ImportError:
+            from keras._tf_keras.keras.preprocessing.text import Tokenizer
+

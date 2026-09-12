@@ -1,6 +1,7 @@
 import { Copy, Trash2, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { formatTime } from "../utils/formatTime";
+import Typewriter from "./Typewriter";
 
 export default function HistoryPanel({ messages, mobileOpen, onClear, onCopy, onMobileClose }) {
   const bottomRef = useRef(null);
@@ -70,8 +71,13 @@ export default function HistoryPanel({ messages, mobileOpen, onClear, onCopy, on
                     )}
                   </div>
                   <div className="break-words leading-relaxed text-neutral-200">
-                    <span>{msg.text}</span>
+                    {msg.role === "assistant" && index === messages.length - 1 ? (
+                      <Typewriter text={msg.text} speed={8} />
+                    ) : (
+                      <span>{msg.text}</span>
+                    )}
                   </div>
+
                 </div>
                 <button
                   type="button"

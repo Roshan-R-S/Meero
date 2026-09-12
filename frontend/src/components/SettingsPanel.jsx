@@ -383,7 +383,8 @@ export default function SettingsPanel({
         {/* Save Settings */}
         <div className="mt-auto pt-4 border-t" style={{ borderColor: "var(--th-border)" }}>
           <button
-            onClick={onSave}
+            type="button"
+            onClick={() => onSave()}
             className="w-full py-2.5 rounded font-orbitron text-xs font-bold uppercase tracking-wider transition-all"
             style={{
               background: "var(--th-primary)",
