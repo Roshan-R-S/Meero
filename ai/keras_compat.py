@@ -52,3 +52,19 @@ except ImportError:
         from tensorflow.keras.preprocessing.sequence import pad_sequences
     except ImportError:
         from keras.preprocessing.sequence import pad_sequences
+
+try:
+    from keras.utils import to_categorical
+except ImportError:
+    try:
+        from tensorflow.keras.utils import to_categorical
+    except ImportError:
+        from keras.utils.np_utils import to_categorical
+
+try:
+    from keras._tf_keras.keras.preprocessing.text import Tokenizer
+except ImportError:
+    try:
+        from tensorflow.keras.preprocessing.text import Tokenizer
+    except ImportError:
+        from keras.preprocessing.text import Tokenizer
