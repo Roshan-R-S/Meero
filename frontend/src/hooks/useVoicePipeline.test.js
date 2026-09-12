@@ -4,6 +4,7 @@ import useVoicePipeline from "./useVoicePipeline";
 
 const mocks = vi.hoisted(() => ({
   sendVoiceCommand: vi.fn(),
+  streamVoiceCommand: vi.fn(),
   recorder: {
     supported: true,
     recording: false,
@@ -22,6 +23,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../api", () => ({
   sendVoiceCommand: mocks.sendVoiceCommand,
+  streamVoiceCommand: mocks.streamVoiceCommand,
 }));
 
 vi.mock("./useAudioRecorder", () => ({
@@ -53,10 +55,12 @@ describe("useVoicePipeline", () => {
     mocks.recorder.startRecording.mockReset();
     mocks.recorder.stopRecording.mockReset();
     mocks.recorder.cancelRecording.mockReset();
+    mocks.vad.vadReady = true;
     mocks.vad.startVAD.mockReset().mockResolvedValue(undefined);
     mocks.vad.stopVAD.mockReset();
     mocks.vad.processAudioChunk.mockReset().mockResolvedValue(0.8);
     mocks.sendVoiceCommand.mockReset();
+    mocks.streamVoiceCommand.mockReset().mockRejectedValue(new Error("fallback to sendVoiceCommand"));
   });
 
   afterEach(() => {
@@ -189,4 +193,47 @@ describe("useVoicePipeline", () => {
     expect(result.current.error).toBe("Local voice processing failed.");
     expect(result.current.processing).toBe(false);
   });
+
+  test("submits audio via streamVoiceCommand and plays streamed audio chunks", async () => {
+    const audio = new Blob(["wav"], { type: "audio/wav" });
+    const onResult = vi.fn();
+    const setState = vi.fn();
+
+    mocks.streamVoiceCommand.mockImplementation(async (_audio, _opts, onEvent) => {
+      await onEvent({ type: "transcript", text: "what time is it" });
+      await onEvent({
+        type: "text_final",
+        transcript: "what time is it",
+        response: "The time is 11:30 AM.",
+        action_status: "success",
+      });
+      await onEvent({
+        type: "audio_chunk",
+        index: 0,
+        total: 1,
+        audio_base64: "UklGRg==",
+        mime_type: "audio/wav",
+      });
+      await onEvent({ type: "done" });
+    });
+
+    mocks.recorder.startRecording.mockImplementation(async ({ onStop }) => {
+      await onStop(audio);
+    });
+
+    const { result } = renderHook(() =>
+      useVoicePipeline({ onResult, setState }),
+    );
+
+    await act(async () => {
+      await result.current.toggleRecording();
+    });
+
+    expect(mocks.streamVoiceCommand).toHaveBeenCalledOnce();
+    expect(onResult).toHaveBeenCalledWith(
+      expect.objectContaining({ response: "The time is 11:30 AM." }),
+    );
+    expect(setState).toHaveBeenCalledWith("speaking");
+  });
 });
+

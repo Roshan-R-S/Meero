@@ -3,11 +3,13 @@ import os
 import threading
 import time
 import base64
+import json
 from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 try:
@@ -25,7 +27,7 @@ from .middleware import rate_limit as rate_limit_middleware
 from .middleware.errors import global_exception_handler
 from .voice import LocalVoicePipeline
 from .voice.audio_utils import AudioValidationError
-from .voice.schemas import SynthesisRequest, TranscriptionResponse, VoiceCommandResponse
+from .voice.schemas import SynthesisRequest, SynthesisStreamRequest, TranscriptionResponse, VoiceCommandResponse
 from .voice.stt_service import STTUnavailableError
 from .voice.tts_service import TTSUnavailableError
 
@@ -71,6 +73,8 @@ from core.reminder_service import get_reminder_service
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     threading.Thread(target=_load_llm_background, daemon=True).start()
+    threading.Thread(target=_load_tts_background, daemon=True).start()
+    threading.Thread(target=_load_vosk_background, daemon=True).start()
     reminder_srv = get_reminder_service()
     reminder_srv.start_daemon()
     await startup_rate_limiter()
@@ -184,6 +188,39 @@ def _load_llm_background():
         _llm_status["loading"] = False
         _llm_status["message"] = f"Error: {e}"
 
+
+def _load_tts_background():
+    tts = getattr(voice_pipeline, "tts", None)
+    if not tts:
+        return
+    tts._warmup_loading = True
+    start_t = time.perf_counter()
+    try:
+        ref_audios = getattr(config, "VOICE_CLONE_REFERENCE_AUDIOS", [])
+        if getattr(config, "VOICE_TTS_PROVIDER", "piper") == "xtts" or ref_audios:
+            if hasattr(tts, "_get_xtts_model"):
+                model = tts._get_xtts_model()
+                valid_refs = [p for p in ref_audios if os.path.exists(p)]
+                if valid_refs and hasattr(tts, "_get_xtts_latents"):
+                    tts._get_xtts_latents(model, valid_refs)
+        tts._warmup_latency_ms = round((time.perf_counter() - start_t) * 1000, 2)
+        tts._warmup_error = None
+    except Exception as exc:
+        tts._warmup_error = str(exc)
+        logger.warning("Background TTS pre-warm failed: %s", exc)
+    finally:
+        tts._warmup_loading = False
+
+
+def _load_vosk_background():
+    stt = getattr(voice_pipeline, "stt", None)
+    if stt and hasattr(stt, "_get_vosk_model"):
+        try:
+            logger.info("Pre-warming Vosk STT model in background...")
+            stt._get_vosk_model()
+            logger.info("Vosk STT model pre-warmed successfully.")
+        except Exception as exc:
+            logger.warning("Vosk STT pre-warm failed: %s", exc)
 
 
 class CommandRequest(BaseModel):
@@ -411,6 +448,45 @@ def synthesize_voice(payload: SynthesisRequest):
 
 
 @app.post(
+    "/voice/synthesize/stream",
+    dependencies=[Depends(require_local_request), Depends(require_api_key)],
+)
+def synthesize_voice_stream(payload: SynthesisStreamRequest):
+    def event_generator():
+        try:
+            tts = getattr(voice_pipeline, "tts", None)
+            if tts and hasattr(tts, "synthesize_stream"):
+                for idx, total, chunk_audio, prov in tts.synthesize_stream(
+                    payload.text, fast_ack=payload.fast_ack
+                ):
+                    b64 = base64.b64encode(chunk_audio).decode("ascii")
+                    yield json.dumps({
+                        "type": "audio_chunk",
+                        "index": idx,
+                        "total": total,
+                        "audio_base64": b64,
+                        "mime_type": "audio/wav",
+                        "provider": prov,
+                    }) + "\n"
+            else:
+                audio = voice_pipeline.synthesize(payload.text)
+                b64 = base64.b64encode(audio).decode("ascii")
+                yield json.dumps({
+                    "type": "audio_chunk",
+                    "index": 0,
+                    "total": 1,
+                    "audio_base64": b64,
+                    "mime_type": "audio/wav",
+                    "provider": getattr(voice_pipeline.tts, "provider", "unknown"),
+                }) + "\n"
+            yield json.dumps({"type": "done"}) + "\n"
+        except Exception as exc:
+            yield json.dumps({"type": "error", "message": str(exc)}) + "\n"
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
+
+
+@app.post(
     "/voice-command",
     response_model=VoiceCommandResponse,
     dependencies=[
@@ -456,6 +532,52 @@ async def process_voice_command(
         raise _voice_http_error(exc) from exc
 
 
+@app.post(
+    "/voice-command/stream",
+    dependencies=[
+        Depends(distributed_rate_limit),
+        Depends(require_local_request),
+        Depends(require_api_key),
+    ],
+)
+async def process_voice_command_stream(
+    http_request: Request,
+    audio: UploadFile = File(...),
+    confirm: bool = Form(False),
+    pending_command: Optional[str] = Form(None),
+    synthesize: bool = Form(True),
+    audio_mode: str = Form("chunked"),
+    fast_ack: bool = Form(False),
+):
+    audio_bytes = await audio.read()
+    is_local = _is_local_request(http_request)
+
+    def event_generator():
+        try:
+            for event in voice_pipeline.execute_stream(
+                audio_bytes,
+                execute_command,
+                synthesize=synthesize,
+                audio_mode=audio_mode,
+                fast_ack=fast_ack,
+                confirm=confirm,
+                pending_command=pending_command,
+                brain=brain,
+                llm=llm,
+                conversation_history=CONVERSATION_HISTORY,
+                memory_summary_fn=_memory_summary,
+                append_conversation_fn=_append_conversation,
+                analyze_sentiment_fn=analyze_sentiment,
+                client_is_local=is_local,
+            ):
+                yield json.dumps(event) + "\n"
+        except Exception as exc:
+            logger.exception("Error in voice-command/stream event generator: %s", exc)
+            yield json.dumps({"type": "error", "message": str(exc)}) + "\n"
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -465,6 +587,7 @@ def health():
 def model_status():
     """Return the status of the local models for UI lazy-loading and management."""
     status_str = "ready" if _llm_status["ready"] else ("missing" if _llm_status["missing"] else ("loading" if _llm_status["loading"] else "error"))
+    tts_readiness = voice_pipeline.tts.readiness_status() if hasattr(voice_pipeline, "tts") and hasattr(voice_pipeline.tts, "readiness_status") else {}
     return {
         "neural_net": {
             "enabled": getattr(config, "USE_NEURAL_NET", True),
@@ -479,6 +602,7 @@ def model_status():
             "name": os.path.basename(MODEL_PATH)
         },
         "voice": voice_pipeline.status(),
+        "tts": tts_readiness,
     }
 
 

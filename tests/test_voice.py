@@ -509,3 +509,82 @@ def test_voice_command_synthesize_false_skips_tts(monkeypatch):
         "provider": "fake",
         "reason": "disabled",
     }
+
+
+def test_split_text_into_chunks():
+    from backend.voice.tts_service import split_text_into_chunks
+
+    assert split_text_into_chunks("") == []
+    assert split_text_into_chunks("Hello world.") == ["Hello world."]
+
+    long_text = (
+        "Hello Roshan! Today the weather in Chennai is sunny and warm. "
+        "The current temperature is 28 degrees celsius with gentle breeze. "
+        "Have a wonderful and productive day ahead."
+    )
+    chunks = split_text_into_chunks(long_text, min_chars=50, max_chars=120)
+    assert len(chunks) >= 2
+    for c in chunks:
+        assert len(c) > 0
+
+
+def test_voice_command_stream_ndjson_events(monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "voice_pipeline",
+        LocalVoicePipeline(FakeSTT("what time is it"), FakeTTS()),
+    )
+    monkeypatch.setattr(app_module.config, "MEERO_API_KEY", "")
+    client = TestClient(app_module.app)
+
+    response = client.post(
+        "/voice-command/stream",
+        data={"synthesize": "true", "audio_mode": "chunked"},
+        files={"audio": ("voice.wav", wav_bytes(), "audio/wav")},
+    )
+
+    assert response.status_code == 200
+    assert "application/x-ndjson" in response.headers.get("content-type", "")
+
+    lines = [json.loads(line) for line in response.text.strip().split("\n") if line.strip()]
+    types = [line["type"] for line in lines]
+
+    assert "trace" in types
+    assert "transcript" in types
+    assert "text_final" in types
+    assert "audio_chunk" in types
+    assert "done" in types
+
+    # Check transcript content
+    transcript_event = next(item for item in lines if item["type"] == "transcript")
+    assert transcript_event["text"] == "what time is it"
+
+    # Check privacy: trace items must not contain command transcript or response
+    traces = [item for item in lines if item["type"] == "trace"]
+    trace_dump = json.dumps(traces)
+    assert "what time is it" not in trace_dump
+
+
+def test_voice_synthesize_stream_ndjson_events(monkeypatch):
+    monkeypatch.setattr(
+        app_module,
+        "voice_pipeline",
+        LocalVoicePipeline(FakeSTT(), FakeTTS()),
+    )
+    monkeypatch.setattr(app_module.config, "MEERO_API_KEY", "")
+    client = TestClient(app_module.app)
+
+    response = client.post(
+        "/voice/synthesize/stream",
+        json={"text": "Test synthesis text for streaming", "audio_mode": "chunked"},
+    )
+
+    assert response.status_code == 200
+    assert "application/x-ndjson" in response.headers.get("content-type", "")
+
+    lines = [json.loads(line) for line in response.text.strip().split("\n") if line.strip()]
+    types = [line["type"] for line in lines]
+
+    assert "audio_chunk" in types
+    assert "done" in types
+

@@ -123,9 +123,9 @@ export default function useVAD() {
 
   /**
    * Start VAD session. Loads the model lazily on first call.
-   * @param {function(Float32Array, number): void} onFrame - called per 512-sample frame
+   * @param {function(Float32Array, number): void} [onFrame] - optional callback per 512-sample frame
    */
-  const startVAD = useCallback(async (onFrame) => {
+  const startVAD = useCallback(async (onFrame = null) => {
     callbackRef.current = onFrame;
     _initState();
     await _loadModel();
@@ -142,13 +142,13 @@ export default function useVAD() {
   /**
    * Process a chunk of audio samples from the ScriptProcessorNode.
    * Splits the buffer into 512-sample VAD frames, runs inference on each,
-   * and calls the registered onFrame callback.
+   * and calls the registered onFrame callback if provided.
    *
    * Returns the average speech probability across all frames in this chunk,
    * or null if VAD is not ready.
    */
   const processAudioChunk = useCallback(async (inputSamples) => {
-    if (!sessionRef.current || !stateRef.current || !callbackRef.current) return null;
+    if (!sessionRef.current || !stateRef.current) return null;
 
     let totalProb = 0;
     let frameCount = 0;
@@ -157,7 +157,9 @@ export default function useVAD() {
       const frame = inputSamples.subarray(offset, offset + VAD_FRAME_SAMPLES);
       const prob = await _infer(frame);
       if (prob !== null) {
-        callbackRef.current(frame, prob);
+        if (typeof callbackRef.current === "function") {
+          callbackRef.current(frame, prob);
+        }
         totalProb += prob;
         frameCount++;
       }

@@ -86,6 +86,54 @@ def build_mistral_prompt(
     return prompt
 
 
+def build_qwen_prompt(
+    user_input: str,
+    history: Iterable[tuple[str, str]] | None = None,
+    memory_summary: str | None = None,
+    max_history: int = 5,
+    include_tools: bool = True,
+) -> str:
+    """Build a Qwen ChatML prompt for local GGUF models."""
+    from .tool_registry import format_tools_for_prompt
+
+    turns = list(history or [])[-max_history:]
+    system_text = SYSTEM_PROMPT
+    if include_tools:
+        system_text += f"\n\n{TOOL_INSTRUCTIONS}\n\n{format_tools_for_prompt()}"
+    if memory_summary:
+        system_text += f"\n\nMemory summary:\n{memory_summary}"
+
+    prompt = f"<|im_start|>system\n{system_text}<|im_end|>\n"
+    for query, response in turns:
+        prompt += f"<|im_start|>user\n{query.strip()}<|im_end|>\n<|im_start|>assistant\n{response.strip()}<|im_end|>\n"
+    prompt += f"<|im_start|>user\n{user_input.strip()}<|im_end|>\n<|im_start|>assistant\n"
+    return prompt
+
+
+def build_phi_prompt(
+    user_input: str,
+    history: Iterable[tuple[str, str]] | None = None,
+    memory_summary: str | None = None,
+    max_history: int = 5,
+    include_tools: bool = True,
+) -> str:
+    """Build a Phi-3 / Phi-3.5 prompt for local GGUF models."""
+    from .tool_registry import format_tools_for_prompt
+
+    turns = list(history or [])[-max_history:]
+    system_text = SYSTEM_PROMPT
+    if include_tools:
+        system_text += f"\n\n{TOOL_INSTRUCTIONS}\n\n{format_tools_for_prompt()}"
+    if memory_summary:
+        system_text += f"\n\nMemory summary:\n{memory_summary}"
+
+    prompt = f"<|system|>\n{system_text}<|end|>\n"
+    for query, response in turns:
+        prompt += f"<|user|>\n{query.strip()}<|end|>\n<|assistant|>\n{response.strip()}<|end|>\n"
+    prompt += f"<|user|>\n{user_input.strip()}<|end|>\n<|assistant|>\n"
+    return prompt
+
+
 def build_local_prompt(
     model_name: str | None,
     user_input: str,
@@ -97,6 +145,10 @@ def build_local_prompt(
     normalized_name = (model_name or "").lower()
     if "mistral" in normalized_name or "mixtral" in normalized_name:
         return build_mistral_prompt(user_input, history, memory_summary=memory_summary, include_tools=include_tools)
+    if "qwen" in normalized_name:
+        return build_qwen_prompt(user_input, history, memory_summary=memory_summary, include_tools=include_tools)
+    if "phi" in normalized_name:
+        return build_phi_prompt(user_input, history, memory_summary=memory_summary, include_tools=include_tools)
     return build_llama3_prompt(user_input, history, memory_summary=memory_summary, include_tools=include_tools)
 
 
@@ -120,6 +172,9 @@ def clean_llm_response(text: str | None) -> str:
         return ""
 
     cleaned = text.strip()
+    cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL).strip()
+    cleaned = cleaned.replace("<|im_end|>", "").replace("<|im_start|>", "")
+    cleaned = cleaned.replace("<|end|>", "").replace("<|system|>", "")
     cleaned = cleaned.replace(BEGIN_TEXT, "")
     cleaned = cleaned.replace(EOT_TOKEN, "")
     cleaned = RESERVED_TOKEN_RE.sub("", cleaned)

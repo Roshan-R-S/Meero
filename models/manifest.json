@@ -1,21 +1,20 @@
 {
-  "version": "20260605221301-dd0f848",
+  "version": "20260905125103-025fd29",
   "model": "chat_model.h5",
   "tokenizer": "tokenizer.pkl",
   "label_encoder": "label_encoder.pkl",
   "versioned_artifacts": [
-    "chat_model_20260605221301-dd0f848.h5",
-    "tokenizer_20260605221301-dd0f848.pkl",
-    "label_encoder_20260605221301-dd0f848.pkl"
+    "chat_model_20260905125103-025fd29.h5",
+    "tokenizer_20260905125103-025fd29.pkl",
+    "label_encoder_20260905125103-025fd29.pkl"
   ],
-  "timestamp": "2026-06-05T22:20:06Z",
-  "git": "dd0f848",
-  "dataset_hash": "db70ac135d2f0545ecdef1dab3d0b45d8e9601925494d7e6943646f9077bcf9e",
+  "timestamp": "2026-09-05T12:55:23Z",
+  "git": "025fd29",
+  "dataset_hash": "bf10f9b03a554a0cc6830c9649bcd688d776cf5cd10b9ca57f431db622915a96",
   "source_dataset_hash": "9db7010f1254fba367ff0f911fa857281e06402e18affff08292746a95442d98",
   "training_dataset": "intents.teacher_augmented.json",
   "teacher_models": [
     "Llama-3.2-1B-Instruct-Q4_K_M.gguf",
-    "mistral-7b-instruct-v0.1.Q5_K_M.gguf",
     "Qwen3-4B-Q2_K_L.gguf"
   ],
   "teacher_manifest": "intents.teacher_augmented.json.manifest.json"
