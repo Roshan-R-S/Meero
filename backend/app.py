@@ -76,6 +76,7 @@ else:
 
 from core.reminder_service import get_reminder_service
 
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     threading.Thread(target=_load_brain_background, daemon=True).start()
@@ -102,7 +103,7 @@ app.add_middleware(
 
 app.add_exception_handler(Exception, global_exception_handler)
 
-if _PROMETHEUS_AVAILABLE:
+if _PROMETHEUS_AVAILABLE and Counter is not None and Histogram is not None:
     HTTP_REQUESTS_TOTAL = Counter(
         "meero_http_requests_total",
         "Total HTTP requests",
@@ -154,7 +155,7 @@ async def distributed_rate_limit(request: Request):
 
 
 brain = None
-_brain_status = {"loading": False, "ready": False, "error": None}
+_brain_status: dict[str, bool | str | None] = {"loading": False, "ready": False, "error": None}
 
 
 def _load_brain_background():
@@ -184,8 +185,9 @@ _llm_status = {
 }
 voice_pipeline = LocalVoicePipeline()
 
+
 def _load_llm_background():
-    global llm, _llm_status
+    global llm
     if not getattr(config, "USE_LLM", True) or LLMEngine is None:
         _llm_status["message"] = "LLM disabled in config or not installed."
         return
@@ -427,7 +429,7 @@ async def process_command(payload: CommandRequest, http_request: Request):
                 decision_trace=outcome.metadata.get("decision_trace", []),
             ),
         )
-        
+
     except Exception as e:
         logger.exception("Error processing command")
         return CommandResponse(

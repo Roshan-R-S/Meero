@@ -131,4 +131,3 @@ class LLMEngine:
         except Exception:
             logger.exception("LLM streaming generation error (%s)", self._backend)
             yield "I am having trouble accessing my higher brain functions."
-

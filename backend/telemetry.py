@@ -10,6 +10,7 @@ import config
 
 logger = logging.getLogger(__name__)
 
+
 def _resolve_audit_log_path() -> str:
     configured = getattr(config, "AUDIT_LOG_PATH", None)
     if configured:
@@ -21,11 +22,13 @@ def _resolve_audit_log_path() -> str:
         os.path.dirname(__file__), "..", "data", "audit.jsonl"
     ))
 
+
 AUDIT_LOG_PATH = _resolve_audit_log_path()
 
 _handler_lock = threading.Lock()
 _cached_handler = None
 _cached_handler_path = None
+
 
 def _get_rotating_handler(path: str) -> RotatingFileHandler:
     global _cached_handler, _cached_handler_path
@@ -48,6 +51,7 @@ def _get_rotating_handler(path: str) -> RotatingFileHandler:
         _cached_handler = handler
         _cached_handler_path = path
         return _cached_handler
+
 
 def log_audit_event(
     command: str,

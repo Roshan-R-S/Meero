@@ -144,7 +144,7 @@ def find_and_open_app(app_name):
         "word": "WINWORD.EXE",
         "excel": "EXCEL.EXE",
         "powerpoint": "POWERPNT.EXE",
-        "outlook": "OUTLOOK.EXE", 
+        "outlook": "OUTLOOK.EXE",
         "teams": "ms-teams.exe",
         "spotify": "Spotify.exe",
         "discord": "Discord.exe",

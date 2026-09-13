@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
-import json
 import logging
-from typing import Any, Callable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +151,6 @@ def execute_tool(
     Enforces local desktop mode, web-safe mode, and app allowlists.
     Returns the action's spoken result text.
     """
-    import app_launcher
     import config
 
     desktop_tools = {
@@ -169,7 +167,7 @@ def execute_tool(
     from core.response_collector import ResponseCollector
     collector = ResponseCollector()
     original_speak = getattr(actions, "speak", None)
-    
+
     # Intercept speech output to capture response
     actions.speak = collector.speak
     try:
@@ -215,7 +213,7 @@ def execute_tool(
             actions.search_wikipedia(f"search wikipedia for {q}")
         else:
             return f"Unknown tool: {tool_name}"
-        
+
         return collector.get_response() or f"Executed {tool_name}."
     finally:
         if original_speak is not None:

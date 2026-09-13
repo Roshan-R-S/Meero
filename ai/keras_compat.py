@@ -2,6 +2,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+__all__ = [
+    "load_model_compat",
+    "pad_sequences",
+    "to_categorical",
+    "Tokenizer",
+]
+
 
 def _patch_layer_from_config(layer_cls):
     if getattr(layer_cls, "_meero_quantization_config_patch", False):
@@ -77,4 +84,3 @@ except ImportError:
             from tf_keras.preprocessing.text import Tokenizer
         except ImportError:
             from keras._tf_keras.keras.preprocessing.text import Tokenizer
-

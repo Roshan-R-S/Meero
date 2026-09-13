@@ -94,7 +94,6 @@ def get_summary() -> str:
 
 
 def update_summary(summary: str, conn=None) -> None:
-    owns_conn = conn is None
     conn = conn or _get_conn()
     conn.execute(
         """INSERT INTO memory_summary (id, summary, updated_at)

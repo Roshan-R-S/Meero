@@ -52,7 +52,6 @@ def compute_dataset_hash(path):
         return hashlib.sha256(f.read()).hexdigest()
 
 import pickle
-import pathlib
 import sys
 
 # Ensure project root is on sys.path so imports like `config` work when invoked from scripts/
@@ -388,7 +387,12 @@ def validate_hf(hf_token, hf_repo):
 
 
 def validate_s3():
-    import boto3
+    try:
+        import boto3
+    except Exception:
+        logger.error("boto3 not available; cannot validate S3")
+        return False
+
     bucket = os.environ.get("S3_BUCKET")
     if not bucket:
         logger.error("S3_BUCKET not set")

@@ -6,6 +6,7 @@ from typing import Any, Iterable
 
 import config
 
+
 def get_system_prompt() -> str:
     user_name = getattr(config, "USER_NAME", "User")
     return f"""You are Meero, a local AI assistant for {user_name}.
@@ -16,6 +17,7 @@ Rules:
 - If the user asks for dangerous system actions, ask for confirmation.
 - Use memory summary only as context, not as guaranteed truth.
 - If unsure, say so clearly."""
+
 
 SYSTEM_PROMPT = get_system_prompt()
 
@@ -226,7 +228,7 @@ def extract_tool_calls(text: str | None) -> list[dict[str, Any]] | None:
         return None
 
     cleaned = text.strip()
-    
+
     # 1. Check for markdown code blocks ```json ... ``` or ``` ... ```
     code_block_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", cleaned, re.DOTALL)
     candidate_json = code_block_match.group(1) if code_block_match else None

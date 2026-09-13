@@ -243,7 +243,7 @@ def parse_reminder_query(query: str) -> Optional[tuple[str, float]]:
     """
     Parse duration and message from natural language reminder queries.
     Returns (reminder_message, delay_seconds) or None if unparseable.
-    
+
     Supports formats:
       - "remind me in 10 minutes to drink water"
       - "remind me in 5 seconds to test"

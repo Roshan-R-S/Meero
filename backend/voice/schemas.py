@@ -21,7 +21,6 @@ class SynthesisStreamRequest(BaseModel):
     fast_ack: bool = False
 
 
-
 class TranscriptionResponse(BaseModel):
     transcript: str
     provider: str

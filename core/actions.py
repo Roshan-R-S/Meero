@@ -389,9 +389,9 @@ class Actions:
 
     def open_social_media(self, command, **_kwargs):
         if "close" in command:
-             self.speak("Closing current tab immediately, sir.")
-             pyautogui.hotkey('ctrl', 'w')
-             return
+            self.speak("Closing current tab immediately, sir.")
+            pyautogui.hotkey('ctrl', 'w')
+            return
 
         for platform, url in config.SOCIAL_MEDIA_URLS.items():
             if platform in command:
@@ -613,6 +613,7 @@ class Actions:
             self.speak(f"I will remind you to {message} in {time_str}.")
         else:
             self.speak("I couldn't understand the time for that reminder. Try saying 'remind me in 10 minutes to drink water'.")
+
     def handle_window_management(self, command):
         q = command.lower()
         if "minimize all" in q or "show desktop" in q:

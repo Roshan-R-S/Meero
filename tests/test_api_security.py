@@ -35,7 +35,7 @@ def test_authenticated_local_model_status(monkeypatch):
     monkeypatch.setattr(config, "MEERO_API_KEY", "test-key")
     
     resp = client.get(
-        "/model/status", 
+        "/model/status",
         headers={"x-meero-api-key": "test-key", "host": "localhost:8000"}
     )
     # 200 OK because it is local (localhost) and has the correct API key
