@@ -132,10 +132,13 @@ frontend-test:
 
 frontend-e2e:
   stage: test
-  image: mcr.microsoft.com/playwright:v1.45.0-jammy
+  # Image tag MUST match @playwright/test in frontend/pnpm-lock.yaml.
+  # When bumping @playwright/test, update this tag in lockstep.
+  image: mcr.microsoft.com/playwright:v1.60.0-jammy
   variables:
     CI: "true"
   before_script:
+    - node --version                        # must be >= 20.19 (Vite 7 requirement)
     - npm install -g pnpm
     - cd frontend
     - pnpm install --frozen-lockfile
@@ -145,6 +148,7 @@ frontend-e2e:
     when: on_failure
     paths:
       - frontend/playwright-report/
+      - frontend/test-results/
     expire_in: 3 days
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
