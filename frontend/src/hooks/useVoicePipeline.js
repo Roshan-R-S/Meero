@@ -135,7 +135,7 @@ export default function useVoicePipeline({ onResult, pendingCommand, setState })
         let currentTranscript = "";
         await streamVoiceCommand(
           audio,
-          { pendingCommand, audioMode: "chunked", fastAck: true },
+          { pendingCommand, audioMode: "chunked", fastAck: false },
           async (event) => {
             streamHandled = true;
             if (event.type === "transcript") {

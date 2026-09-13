@@ -155,7 +155,7 @@ def _default_llm_device() -> str:
 LLM_DEVICE = _default_llm_device()
 LOCAL_DESKTOP_MODE = _env_bool("LOCAL_DESKTOP_MODE", False)
 WEB_SAFE_MODE = _env_bool("WEB_SAFE_MODE", True)
-CORS_ORIGINS = _env_list("CORS_ORIGINS", ["http://localhost:5173"])
+CORS_ORIGINS = _env_list("CORS_ORIGINS", ["http://localhost:5173", "http://127.0.0.1:5173"])
 RATE_LIMIT_COOLDOWN = float(os.environ.get("RATE_LIMIT_COOLDOWN", "1.0"))
 MEERO_API_KEY = os.environ.get("MEERO_API_KEY", "")
 # API key requirement: False by default for local desktop / test environments.

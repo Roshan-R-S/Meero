@@ -26,7 +26,17 @@ try:
 
     _orig_load = getattr(torchaudio, "load", None)
 
-    def _safe_load(uri, frame_offset=0, num_frames=-1, normalize=True, channels_first=True, **kwargs):
+    def _safe_load(
+        uri,
+        frame_offset: int = 0,
+        num_frames: int = -1,
+        normalize: bool = True,
+        channels_first: bool = True,
+        format: str | None = None,
+        buffer_size: int = 4096,
+        backend: str | None = None,
+        **kwargs,
+    ) -> tuple[torch.Tensor, int]:
         try:
             if _orig_load:
                 return _orig_load(
@@ -35,6 +45,9 @@ try:
                     num_frames=num_frames,
                     normalize=normalize,
                     channels_first=channels_first,
+                    format=format,
+                    buffer_size=buffer_size,
+                    backend=backend,
                     **kwargs,
                 )
         except Exception:
@@ -50,9 +63,9 @@ try:
             tensor = tensor.unsqueeze(0)
         elif channels_first:
             tensor = tensor.t()
-        return tensor, sr
+        return tensor, int(sr)
 
-    torchaudio.load = _safe_load
+    setattr(torchaudio, "load", _safe_load)
 except Exception:
     pass
 
@@ -202,10 +215,11 @@ class TTSService:
         if not clean_text:
             raise ValueError("Synthesis text is empty")
 
+        fast_ack_enabled = getattr(config, "VOICE_FAST_ACK_ENABLED", True)
         low_latency = getattr(config, "VOICE_LOW_LATENCY_MODE", False)
-        # In low-latency mode, if fast_ack is requested OR if XTTS is still warming up, use fast-ack
-        should_fast_ack = fast_ack or (
-            low_latency and self.provider == "xtts" and (self._warmup_loading or self._xtts_model is None)
+        # Only use fast-ack if enabled in config and either explicitly requested or XTTS is actively warming up
+        should_fast_ack = fast_ack_enabled and (
+            fast_ack or (low_latency and self.provider == "xtts" and self._warmup_loading)
         )
 
         if should_fast_ack:

@@ -10,7 +10,7 @@ const DEFAULT_TICKER_LINES = [
   "STATUS.NOMINAL // ALL SYSTEMS GO",
 ];
 
-const HologramOverlay = ({ state = "idle", lastMetadata = null }) => {
+const HologramOverlay = ({ lastMetadata = null }) => {
   const { theme } = useTheme();
   const tickerLines = theme.ticker || DEFAULT_TICKER_LINES;
   const [tickerIndex, setTickerIndex] = useState(0);
@@ -24,13 +24,7 @@ const HologramOverlay = ({ state = "idle", lastMetadata = null }) => {
 
   return (
     <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden select-none">
-      {/* 1. Corner Bracket Markers (All 4 Corners) */}
-      <div className="absolute top-6 left-6 w-6 h-6 border-t border-l" style={{ borderColor: theme.css["--th-border"] }} />
-      <div className="absolute top-6 right-6 w-6 h-6 border-t border-r" style={{ borderColor: theme.css["--th-border"] }} />
-      <div className="absolute bottom-6 left-6 w-6 h-6 border-b border-l" style={{ borderColor: theme.css["--th-border"] }} />
-      <div className="absolute bottom-6 right-6 w-6 h-6 border-b border-r" style={{ borderColor: theme.css["--th-border"] }} />
-
-      {/* 2. Live Telemetry Readout (Bottom-Left) */}
+      {/* 1. Live Telemetry Readout (Bottom-Left) */}
       {lastMetadata && (
         <div
           className="absolute bottom-16 left-6 font-mono text-[9px] leading-relaxed tracking-wider"
@@ -43,26 +37,7 @@ const HologramOverlay = ({ state = "idle", lastMetadata = null }) => {
         </div>
       )}
 
-      {/* 3. Targeting Reticle (Center) */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 pointer-events-none">
-        {["top-left", "top-right", "bottom-left", "bottom-right"].map((pos) => (
-          <Motion.div
-            key={pos}
-            animate={{
-              scale: state === "processing" ? [1, 0.85, 1] : 1,
-              opacity: state === "idle" ? 0.15 : 0.6,
-            }}
-            transition={{ duration: 0.6, repeat: state === "processing" ? Infinity : 0 }}
-            className={`absolute w-4 h-4
-              ${pos.includes("top") ? "top-0 border-t" : "bottom-0 border-b"}
-              ${pos.includes("left") ? "left-0 border-l" : "right-0 border-r"}
-            `}
-            style={{ borderColor: "var(--th-primary)" }}
-          />
-        ))}
-      </div>
-
-      {/* 4. 3 Orbiting Partial Arc Rings */}
+      {/* 2. Orbiting Circular Arc Rings */}
       <svg className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] opacity-25 pointer-events-none">
         <Motion.circle
           cx="350"
@@ -102,21 +77,7 @@ const HologramOverlay = ({ state = "idle", lastMetadata = null }) => {
         />
       </svg>
 
-      {/* 5. Dual Scan Lines */}
-      <Motion.div
-        className="absolute w-full h-[2px] opacity-40 pointer-events-none"
-        style={{ background: "linear-gradient(90deg, transparent, var(--th-primary), transparent)" }}
-        animate={{ y: ["-10vh", "110vh"] }}
-        transition={{ duration: 7, repeat: Infinity, ease: "linear" }}
-      />
-      <Motion.div
-        className="absolute w-full h-[1px] opacity-20 pointer-events-none"
-        style={{ background: "linear-gradient(90deg, transparent, var(--th-primary), transparent)" }}
-        animate={{ y: ["110vh", "-10vh"] }}
-        transition={{ duration: 11, repeat: Infinity, ease: "linear" }}
-      />
-
-      {/* 6. System Status Ticker */}
+      {/* 3. System Status Ticker */}
       <div
         className="absolute bottom-6 left-1/2 -translate-x-1/2 font-mono text-[9px] tracking-widest uppercase transition-all duration-500 text-center"
         style={{ color: theme.css["--th-text-dim"] }}
