@@ -10,7 +10,6 @@ import HistoryPanel from "./components/HistoryPanel";
 import HologramOverlay from "./components/HologramOverlay";
 import SettingsPanel from "./components/SettingsPanel";
 import StatusBanner from "./components/StatusBanner";
-import SubtitleBar from "./components/SubtitleBar";
 import VoiceControls from "./components/VoiceControls";
 import useHealthSettings from "./hooks/useHealthSettings";
 import useMessages from "./hooks/useMessages";
@@ -618,17 +617,11 @@ function App() {
         </div>
 
         {/* Visualizer - Center Stage */}
-        <div className="flex-1 flex items-center justify-center w-full min-h-[220px] max-h-[380px] relative z-20">
+        <div className="flex-1 flex items-center justify-center w-full min-h-[260px] max-h-[440px] relative z-20">
           <ErrorBoundary>
             <AssistantOrb state={state} sentiment={sentiment} micEnergyLevel={micEnergyLevel} />
           </ErrorBoundary>
         </div>
-
-        <SubtitleBar
-          messages={messages}
-          enabled={textOutputEnabled}
-          assistantName={theme.assistantName}
-        />
 
         <VoiceControls
           browserFallbackEnabled={browserSpeechFallbackEnabled}

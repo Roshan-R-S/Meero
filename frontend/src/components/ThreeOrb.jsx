@@ -42,11 +42,11 @@ const AnimatedCore = ({ state, sentiment, micEnergyLevel = 0, reducedMotion = fa
     }
     return {
       color,
-      emissive: orbConfig.emissive,
+      emissive: orbConfig.emissive || color,
       speed: orbConfig.speed,
       distort: orbConfig.distort,
-      scale: state === "listening" ? 2.5 : state === "processing" ? 2.0 : 2.2,
-      emissiveIntensity: 0.5,
+      scale: state === "listening" ? 3.0 : state === "processing" ? 2.5 : 2.7,
+      emissiveIntensity: 0.85,
     };
   }, [state, sentiment, theme]);
 
@@ -56,7 +56,7 @@ const AnimatedCore = ({ state, sentiment, micEnergyLevel = 0, reducedMotion = fa
 
   const targetScale = useMemo(() => new THREE.Vector3(), []);
   const distortRef = useRef(baseConfig.distort);
-  const emissiveRef = useRef(baseConfig.emissive);
+  const emissiveRef = useRef(baseConfig.emissiveIntensity);
 
   useFrame((_state, delta) => {
     if (!mesh.current) return;
@@ -66,7 +66,7 @@ const AnimatedCore = ({ state, sentiment, micEnergyLevel = 0, reducedMotion = fa
       mesh.current.scale.copy(targetScale);
       if (mesh.current.material) {
         mesh.current.material.distort = 0.1;
-        mesh.current.material.emissiveIntensity = baseConfig.emissive;
+        mesh.current.material.emissiveIntensity = baseConfig.emissiveIntensity;
       }
       return;
     }
@@ -84,7 +84,7 @@ const AnimatedCore = ({ state, sentiment, micEnergyLevel = 0, reducedMotion = fa
     );
     emissiveRef.current = THREE.MathUtils.lerp(
       emissiveRef.current,
-      baseConfig.emissive + energyBoost * 0.5,
+      baseConfig.emissiveIntensity + energyBoost * 0.5,
       0.15,
     );
 
@@ -100,22 +100,22 @@ const AnimatedCore = ({ state, sentiment, micEnergyLevel = 0, reducedMotion = fa
   });
 
   return (
-    <Sphere ref={mesh} visible args={[1, 100, 200]} scale={2}>
+    <Sphere ref={mesh} visible args={[1, 100, 200]} scale={2.6}>
       <MeshDistortMaterial
         color={baseConfig.color}
         attach="material"
         distort={reducedMotion ? 0.1 : baseConfig.distort}
         speed={reducedMotion ? 0 : baseConfig.speed}
-        roughness={0.2}
-        metalness={0.8}
+        roughness={0.25}
+        metalness={0.12}
         emissive={baseConfig.color}
-        emissiveIntensity={baseConfig.emissive}
+        emissiveIntensity={baseConfig.emissiveIntensity}
       />
     </Sphere>
   );
 };
 
-const createSpherePositions = (count, distance = 4.5) => {
+const createSpherePositions = (count, distance = 3.6) => {
   const positions = new Float32Array(count * 3);
   let seed = 123456789;
   const lcg = () => {
@@ -128,7 +128,7 @@ const createSpherePositions = (count, distance = 4.5) => {
     const v = lcg();
     const theta = u * 2.0 * Math.PI;
     const phi = Math.acos(2.0 * v - 1.0);
-    const r = distance + (lcg() - 0.5) * 0.5;
+    const r = distance + (lcg() - 0.5) * 0.4;
     const x = r * Math.sin(phi) * Math.cos(theta);
     const y = r * Math.sin(phi) * Math.sin(theta);
     const z = r * Math.cos(phi);
@@ -141,12 +141,12 @@ const createSpherePositions = (count, distance = 4.5) => {
  * ParticleRing — ambient particle cloud orbiting the orb.
  * Uses uniform spherical coordinate sampling for true 3D orbital cloud.
  */
-const ParticleRing = ({ count = 1500, color, energyBoost = 0, reducedMotion = false, theme }) => {
+const ParticleRing = ({ count = 750, color, energyBoost = 0, reducedMotion = false, theme }) => {
   const points = useRef();
   const particleColor = color || theme?.orb?.particleColor || "#22d3ee";
 
   const particlesPosition = useMemo(() => {
-    return createSpherePositions(count, 4.5);
+    return createSpherePositions(count, 3.6);
   }, [count]);
 
   useFrame((_state, delta) => {
@@ -225,19 +225,12 @@ const ThreeOrb = ({ state, sentiment, micEnergyLevel = 0 }) => {
       <Canvas
         className="absolute inset-0 z-10"
         dpr={[1, 1.5]}
-        camera={{ position: [0, 0, 8], fov: 75 }}
+        camera={{ position: [0, 0, 7.5], fov: 75 }}
       >
-        <ambientLight intensity={0.5} />
-        {theme.lights ? (
-          theme.lights.map((l, i) => (
-            <pointLight key={i} position={l.position} color={l.color} intensity={l.intensity} />
-          ))
-        ) : (
-          <>
-            <pointLight position={[10, 10, 10]} intensity={1.5} />
-            <pointLight position={[-10, -10, -10]} color="blue" intensity={1} />
-          </>
-        )}
+        <ambientLight intensity={0.85} />
+        <pointLight position={[0, 0, 6]} color={theme?.primaryGlow || "#22d3ee"} intensity={2.0} />
+        <pointLight position={[10, 10, 8]} intensity={1.5} color="#ffffff" />
+        <pointLight position={[-10, -8, -5]} color={theme?.accent || "#6366f1"} intensity={1.2} />
 
         <Suspense fallback={null}>
           <OrbScene

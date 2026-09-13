@@ -47,10 +47,10 @@ export default function VoiceControls({
         {active && [1, 2, 3].map((ring) => (
           <Motion.div
             key={ring}
-            className="absolute rounded-full border pointer-events-none w-20 h-20"
+            className="absolute rounded-full border pointer-events-none w-14 h-14"
             style={{ borderColor: "var(--th-primary)" }}
             animate={{
-              scale: [1, 1.35 + ring * 0.3 + micEnergyLevel * 0.5],
+              scale: [1, 1.3 + ring * 0.25 + micEnergyLevel * 0.4],
               opacity: [0.6 - ring * 0.15, 0],
             }}
             transition={{
@@ -65,7 +65,7 @@ export default function VoiceControls({
         {/* Processing Spinner Ring */}
         {processing && (
           <Motion.div
-            className="absolute w-24 h-24 rounded-full border-t-2 pointer-events-none"
+            className="absolute w-16 h-16 rounded-full border-t-2 pointer-events-none"
             style={{ borderColor: "var(--th-primary)" }}
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -77,21 +77,21 @@ export default function VoiceControls({
           onClick={voiceEnabled ? onClick : undefined}
           aria-label={active ? "Stop listening" : "Start listening"}
           disabled={!voiceEnabled || processing}
-          className="relative w-20 h-20 rounded-full flex items-center justify-center backdrop-blur-md transition-transform duration-200 active:scale-95 disabled:opacity-40"
+          className="relative w-14 h-14 rounded-full flex items-center justify-center backdrop-blur-md transition-transform duration-200 active:scale-95 disabled:opacity-40 shadow-lg"
           style={{
             background: active ? "var(--th-primary-glow)" : "rgba(10, 14, 23, 0.85)",
             border: "1px solid var(--th-border)",
-            boxShadow: active ? "0 0 25px var(--th-primary-glow)" : "none",
+            boxShadow: active ? "0 0 20px var(--th-primary-glow)" : "none",
           }}
         >
           {processing ? (
-            <RefreshCw className="w-8 h-8 animate-spin" style={{ color: "var(--th-primary)" }} />
+            <RefreshCw className="w-6 h-6 animate-spin" style={{ color: "var(--th-primary)" }} />
           ) : active ? (
-            <Mic className="w-8 h-8" style={{ color: "var(--th-primary)" }} />
+            <Mic className="w-6 h-6" style={{ color: "var(--th-primary)" }} />
           ) : !voiceEnabled ? (
-            <MicOff className="w-8 h-8 text-neutral-500" />
+            <MicOff className="w-6 h-6 text-neutral-500" />
           ) : (
-            <Mic className="w-8 h-8 text-neutral-300" />
+            <Mic className="w-6 h-6 text-neutral-300" />
           )}
         </button>
       </div>

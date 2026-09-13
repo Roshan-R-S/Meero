@@ -1,4 +1,3 @@
-import { motion as Motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import noiseSvg from "../assets/noise.svg";
 import { useTheme } from "../hooks/useTheme";
@@ -24,7 +23,7 @@ const HologramOverlay = ({ lastMetadata = null }) => {
 
   return (
     <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden select-none">
-      {/* 1. Live Telemetry Readout (Bottom-Left) */}
+      {/* Live Telemetry Readout (Bottom-Left) */}
       {lastMetadata && (
         <div
           className="absolute bottom-16 left-6 font-mono text-[9px] leading-relaxed tracking-wider"
@@ -37,47 +36,7 @@ const HologramOverlay = ({ lastMetadata = null }) => {
         </div>
       )}
 
-      {/* 2. Orbiting Circular Arc Rings */}
-      <svg className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] opacity-25 pointer-events-none">
-        <Motion.circle
-          cx="350"
-          cy="350"
-          r="180"
-          fill="none"
-          stroke={theme.hudRing}
-          strokeWidth="1"
-          strokeDasharray="60 300"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "350px 350px" }}
-        />
-        <Motion.circle
-          cx="350"
-          cy="350"
-          r="260"
-          fill="none"
-          stroke={theme.hudRing}
-          strokeWidth="0.75"
-          strokeDasharray="80 440"
-          animate={{ rotate: -360 }}
-          transition={{ duration: 35, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "350px 350px" }}
-        />
-        <Motion.circle
-          cx="350"
-          cy="350"
-          r="340"
-          fill="none"
-          stroke={theme.hudRing}
-          strokeWidth="0.5"
-          strokeDasharray="40 600"
-          animate={{ rotate: 360 }}
-          transition={{ duration: 50, repeat: Infinity, ease: "linear" }}
-          style={{ transformOrigin: "350px 350px" }}
-        />
-      </svg>
-
-      {/* 3. System Status Ticker */}
+      {/* System Status Ticker (Bottom-Center) */}
       <div
         className="absolute bottom-6 left-1/2 -translate-x-1/2 font-mono text-[9px] tracking-widest uppercase transition-all duration-500 text-center"
         style={{ color: theme.css["--th-text-dim"] }}
@@ -85,7 +44,7 @@ const HologramOverlay = ({ lastMetadata = null }) => {
         {tickerLines[tickerIndex]}
       </div>
 
-      {/* 7. Noise Texture Overlay */}
+      {/* Noise Texture Overlay */}
       <div
         className="absolute inset-0 opacity-[0.03] pointer-events-none"
         style={{ backgroundImage: `url(${noiseSvg})` }}
