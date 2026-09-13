@@ -10,6 +10,7 @@ import HistoryPanel from "./components/HistoryPanel";
 import HologramOverlay from "./components/HologramOverlay";
 import SettingsPanel from "./components/SettingsPanel";
 import StatusBanner from "./components/StatusBanner";
+import SubtitleBar from "./components/SubtitleBar";
 import VoiceControls from "./components/VoiceControls";
 import useHealthSettings from "./hooks/useHealthSettings";
 import useMessages from "./hooks/useMessages";
@@ -462,14 +463,15 @@ function App() {
         {bootError && (
           <div className="mt-8 w-[min(28rem,calc(100vw-2rem))] rounded-2xl border border-red-400/35 bg-red-950/25 p-5 text-center shadow-[0_0_32px_rgba(239,68,68,0.16)]">
             <p className="text-sm font-semibold text-red-300">Meero cannot reach the local server.</p>
-            <p className="mt-2 text-xs leading-relaxed text-cyan-50/60">
+            <p className="mt-2 text-xs leading-relaxed" style={{ color: "var(--th-text-dim)" }}>
               You can retry the connection or open the interface in limited mode.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setBooting(false)}
-                className="rounded-lg border border-cyan-300/25 px-3 py-2 text-xs text-cyan-50 transition hover:bg-cyan-900/35"
+                className="rounded-lg border px-3 py-2 text-xs transition hover:brightness-125"
+                style={{ borderColor: "var(--th-border)", color: "var(--th-text)" }}
               >
                 Limited mode
               </button>
@@ -481,7 +483,8 @@ function App() {
                   setLoadingText("RECONNECTING TO LOCAL SERVER...");
                   setBootRetryKey((value) => value + 1);
                 }}
-                className="rounded-lg bg-cyan-500 px-3 py-2 text-xs font-semibold text-black transition hover:bg-cyan-400"
+                className="rounded-lg px-3 py-2 text-xs font-semibold text-black transition hover:brightness-110 active:scale-95"
+                style={{ background: "var(--th-primary)" }}
               >
                 Retry connection
               </button>
@@ -515,15 +518,11 @@ function App() {
       <Background />
       <HologramOverlay state={state} lastMetadata={lastMetadata} />
 
-      {!serverReachable && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-60 rounded bg-red-700/90 px-4 py-2 text-sm text-white shadow">
-          Server unreachable - <button onClick={tryReconnect} className="underline">Retry</button>
-        </div>
-      )}
-      {serverReachable && (statusNotice || recognitionError || localVoiceError) && (
+      {(!serverReachable || statusNotice || recognitionError || localVoiceError) && (
         <StatusBanner
           serverReachable={serverReachable}
           notice={statusNotice || recognitionError || localVoiceError}
+          transient={!recognitionError && !localVoiceError && statusNotice !== "Please answer yes or no."}
           onRetry={tryReconnect}
         />
       )}
@@ -599,13 +598,14 @@ function App() {
         disabled={confirmationSubmitting}
         onCancel={() => handleConfirmation(false)}
         onConfirm={() => handleConfirmation(true)}
+        onAnnounce={setAriaResponse}
       />
 
 
       {/* Tactical Center */}
-      <div className="w-full max-w-lg h-auto aspect-square flex flex-col items-center justify-center p-8 relative z-10">
+      <div className="w-full max-w-lg flex flex-col items-center justify-center min-h-[calc(100dvh-2rem)] md:min-h-0 gap-4 px-4 py-8 pb-[env(safe-area-inset-bottom,1rem)] relative z-10">
         {/* Header */}
-        <div className="text-center z-30 mb-4 transform translate-y-4">
+        <div className="text-center z-30 mb-2">
           <h1
             className="text-2xl font-orbitron font-bold tracking-[0.2em] transition-colors"
             style={{
@@ -618,11 +618,17 @@ function App() {
         </div>
 
         {/* Visualizer - Center Stage */}
-        <div className="flex-1 flex items-center justify-center w-full h-full relative z-20">
+        <div className="flex-1 flex items-center justify-center w-full min-h-[220px] max-h-[380px] relative z-20">
           <ErrorBoundary>
             <AssistantOrb state={state} sentiment={sentiment} micEnergyLevel={micEnergyLevel} />
           </ErrorBoundary>
         </div>
+
+        <SubtitleBar
+          messages={messages}
+          enabled={textOutputEnabled}
+          assistantName={theme.assistantName}
+        />
 
         <VoiceControls
           browserFallbackEnabled={browserSpeechFallbackEnabled}
@@ -646,9 +652,9 @@ function App() {
         />
       </div>
 
-      {/* Minimal State Indicator */}
+      {/* Minimal State Indicator (desktop only to prevent mobile overlay clipping) */}
       <div
-        className="absolute bottom-10 flex flex-col items-center gap-1 font-mono text-[10px] tracking-widest uppercase transition-colors"
+        className="hidden md:flex absolute bottom-12 flex-col items-center gap-1 font-mono text-[10px] tracking-widest uppercase transition-colors pointer-events-none z-10"
         style={{ color: "var(--th-text-dim)" }}
       >
         <span>{wakeWordEnabled ? "● WAKE ACTIVE" : `${state.toUpperCase()} MODE`}</span>

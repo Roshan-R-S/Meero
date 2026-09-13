@@ -1,11 +1,12 @@
 import { motion as Motion } from "framer-motion";
 import { Check, Download, RefreshCw, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { clearMemory, exportMemory, getModelStatus } from "../api";
 import { useTheme } from "../hooks/useTheme";
 import { THEMES } from "../themes";
 import { formatTime } from "../utils/formatTime";
 import ModelStatusCard from "./ModelStatusCard";
+import Toggle from "./Toggle";
 
 export default function SettingsPanel({
   apiHealth,
@@ -35,6 +36,31 @@ export default function SettingsPanel({
   const { themeName, setTheme } = useTheme();
   const [modelStatus, setModelStatus] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [memoryFeedback, setMemoryFeedback] = useState("");
+  const saveTimeoutRef = useRef(null);
+
+  const queueAutoSave = useCallback(() => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      onSave?.();
+    }, 800);
+  }, [onSave]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     getModelStatus().then((data) => {
@@ -43,6 +69,7 @@ export default function SettingsPanel({
   }, []);
 
   const handleExportMemory = async () => {
+    setMemoryFeedback("Exporting memory...");
     const data = await exportMemory();
     if (data) {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -54,12 +81,16 @@ export default function SettingsPanel({
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      setMemoryFeedback("Memory exported successfully.");
+    } else {
+      setMemoryFeedback("Memory export failed.");
     }
   };
 
   const handleClearMemory = async () => {
     await clearMemory();
     setConfirmClear(false);
+    setMemoryFeedback("Memory erased.");
   };
 
   return (
@@ -72,6 +103,9 @@ export default function SettingsPanel({
 
       {/* Slide-in tactical drawer */}
       <Motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Settings"
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
@@ -90,6 +124,7 @@ export default function SettingsPanel({
             </span>
           </div>
           <button
+            autoFocus
             onClick={onClose}
             aria-label="Close settings"
             className="grid h-8 w-8 place-items-center rounded text-neutral-400 hover:text-white hover:bg-neutral-800 transition"
@@ -143,70 +178,43 @@ export default function SettingsPanel({
             VOICE & AUDIO CONTROLS
           </h3>
 
-          <div className="space-y-3 font-mono text-xs">
-            <div className="flex items-center justify-between">
-              <span style={{ color: "var(--th-text)" }}>Wake Word Detection</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={wakeWordEnabled}
-                  onChange={(e) => setWakeWordEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div
-                  className="w-11 h-6 rounded-full transition-colors bg-neutral-800 peer-checked:bg-[var(--th-primary)]"
-                />
-                <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
-              </label>
-            </div>
+          <div className="space-y-3">
+            <Toggle
+              label="Wake Word Detection"
+              checked={wakeWordEnabled}
+              onChange={(val) => {
+                setWakeWordEnabled(val);
+                queueAutoSave();
+              }}
+              helpText={!browserSpeechFallbackEnabled ? "Requires Browser Speech Fallback" : null}
+            />
 
-            <div className="flex items-center justify-between">
-              <span style={{ color: "var(--th-text)" }}>Microphone Active</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={micEnabled}
-                  onChange={(e) => setMicEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div
-                  className="w-11 h-6 rounded-full transition-colors bg-neutral-800 peer-checked:bg-[var(--th-primary)]"
-                />
-                <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
-              </label>
-            </div>
+            <Toggle
+              label="Microphone Active"
+              checked={micEnabled}
+              onChange={(val) => {
+                setMicEnabled(val);
+                queueAutoSave();
+              }}
+            />
 
-            <div className="flex items-center justify-between">
-              <span style={{ color: "var(--th-text)" }}>Prefer Local Voice (TTS)</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={localVoiceEnabled}
-                  onChange={(e) => setLocalVoiceEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div
-                  className="w-11 h-6 rounded-full transition-colors bg-neutral-800 peer-checked:bg-[var(--th-primary)]"
-                />
-                <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
-              </label>
-            </div>
+            <Toggle
+              label="Prefer Local Voice (TTS)"
+              checked={localVoiceEnabled}
+              onChange={(val) => {
+                setLocalVoiceEnabled(val);
+                queueAutoSave();
+              }}
+            />
 
-            <div className="flex items-center justify-between">
-              <span style={{ color: "var(--th-text)" }}>Browser Speech Fallback</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={browserSpeechFallbackEnabled}
-                  onChange={(e) => setBrowserSpeechFallbackEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div
-                  className="w-11 h-6 rounded-full transition-colors bg-neutral-800 peer-checked:bg-[var(--th-primary)]"
-                />
-                <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
-              </label>
-            </div>
+            <Toggle
+              label="Browser Speech Fallback"
+              checked={browserSpeechFallbackEnabled}
+              onChange={(val) => {
+                setBrowserSpeechFallbackEnabled(val);
+                queueAutoSave();
+              }}
+            />
           </div>
         </div>
 
@@ -224,6 +232,9 @@ export default function SettingsPanel({
               step="0.1"
               value={voiceRate}
               onChange={(e) => setVoiceRate(Number(e.target.value))}
+              onPointerUp={queueAutoSave}
+              onKeyUp={queueAutoSave}
+              onBlur={queueAutoSave}
               className="w-full"
               style={{ accentColor: "var(--th-primary)" }}
             />
@@ -241,6 +252,9 @@ export default function SettingsPanel({
               step="0.1"
               value={voicePitch}
               onChange={(e) => setVoicePitch(Number(e.target.value))}
+              onPointerUp={queueAutoSave}
+              onKeyUp={queueAutoSave}
+              onBlur={queueAutoSave}
               className="w-full"
               style={{ accentColor: "var(--th-primary)" }}
             />
@@ -255,48 +269,33 @@ export default function SettingsPanel({
           >
             DISPLAY & INPUT
           </h3>
-          <div className="space-y-3 font-mono text-xs">
-            <div className="flex items-center justify-between">
-              <span style={{ color: "var(--th-text)" }}>Text Output (Subtitles)</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={textOutputEnabled}
-                  onChange={(e) => setTextOutputEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 rounded-full transition-colors bg-neutral-800 peer-checked:bg-[var(--th-primary)]" />
-                <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
-              </label>
-            </div>
+          <div className="space-y-3">
+            <Toggle
+              label="Text Output (Subtitles)"
+              checked={textOutputEnabled}
+              onChange={(val) => {
+                setTextOutputEnabled(val);
+                queueAutoSave();
+              }}
+            />
 
-            <div className="flex items-center justify-between">
-              <span style={{ color: "var(--th-text)" }}>Show History Panel</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showHistory}
-                  onChange={(e) => setShowHistory(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 rounded-full transition-colors bg-neutral-800 peer-checked:bg-[var(--th-primary)]" />
-                <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
-              </label>
-            </div>
+            <Toggle
+              label="Show History Panel"
+              checked={showHistory}
+              onChange={(val) => {
+                setShowHistory(val);
+                queueAutoSave();
+              }}
+            />
 
-            <div className="flex items-center justify-between">
-              <span style={{ color: "var(--th-text)" }}>Text Input Field</span>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={textInputEnabled}
-                  onChange={(e) => setTextInputEnabled(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 rounded-full transition-colors bg-neutral-800 peer-checked:bg-[var(--th-primary)]" />
-                <span className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-5" />
-              </label>
-            </div>
+            <Toggle
+              label="Text Input Field"
+              checked={textInputEnabled}
+              onChange={(val) => {
+                setTextInputEnabled(val);
+                queueAutoSave();
+              }}
+            />
           </div>
         </div>
 
@@ -378,13 +377,21 @@ export default function SettingsPanel({
               </button>
             )}
           </div>
+          {memoryFeedback && (
+            <p className="font-mono text-[10px] mt-2 text-center" style={{ color: "var(--th-primary)" }}>
+              {memoryFeedback}
+            </p>
+          )}
         </div>
 
         {/* Save Settings */}
         <div className="mt-auto pt-4 border-t" style={{ borderColor: "var(--th-border)" }}>
           <button
             type="button"
-            onClick={() => onSave()}
+            onClick={() => {
+              if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+              onSave();
+            }}
             className="w-full py-2.5 rounded font-orbitron text-xs font-bold uppercase tracking-wider transition-all"
             style={{
               background: "var(--th-primary)",

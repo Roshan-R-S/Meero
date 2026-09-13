@@ -2,9 +2,14 @@ import { motion as Motion } from "framer-motion";
 import { AlertCircle, Check, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
-export default function ConfirmationCard({ command, disabled, onCancel, onConfirm }) {
+export default function ConfirmationCard({ command, disabled, onCancel, onConfirm, onAnnounce }) {
   const [secondsLeft, setSecondsLeft] = useState(15);
 
+  const [prevCommand, setPrevCommand] = useState(command);
+  if (command !== prevCommand) {
+    setPrevCommand(command);
+    setSecondsLeft(15);
+  }
 
   useEffect(() => {
     if (!command) return;
@@ -15,11 +20,14 @@ export default function ConfirmationCard({ command, disabled, onCancel, onConfir
           onCancel();
           return 0;
         }
+        if (s - 1 === 10 || s - 1 === 5) {
+          onAnnounce?.(`Confirmation expires in ${s - 1} seconds.`);
+        }
         return s - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [command, onCancel]);
+  }, [command, onCancel, onAnnounce]);
 
   if (!command) return null;
 
@@ -27,8 +35,10 @@ export default function ConfirmationCard({ command, disabled, onCancel, onConfir
 
   return (
     <section
+      role="alertdialog"
+      aria-modal="true"
       aria-label="Action confirmation"
-      className="absolute left-1/2 top-20 z-40 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-amber-500/40 bg-black/90 p-5 shadow-[0_0_36px_rgba(245,158,11,0.25)] backdrop-blur-xl"
+      className="fixed left-1/2 top-1/2 -translate-y-1/2 z-40 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-amber-500/40 bg-black/95 p-5 shadow-[0_0_36px_rgba(245,158,11,0.25)] backdrop-blur-xl"
     >
       {/* 15s Countdown SVG Arc */}
       <svg className="absolute top-4 right-4 w-8 h-8 -rotate-90" viewBox="0 0 32 32">
@@ -89,6 +99,7 @@ export default function ConfirmationCard({ command, disabled, onCancel, onConfir
           type="button"
           onClick={onConfirm}
           disabled={disabled}
+          autoFocus
           aria-label="Confirm"
           className="flex items-center justify-center gap-2 rounded-lg bg-amber-500 px-3 py-2 font-mono text-xs font-bold text-black transition hover:bg-amber-400 disabled:opacity-50 shadow-[0_0_15px_rgba(245,158,11,0.3)]"
         >

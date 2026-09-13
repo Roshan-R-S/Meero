@@ -1,10 +1,11 @@
 import { Copy, Trash2, X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatTime } from "../utils/formatTime";
 import Typewriter from "./Typewriter";
 
 export default function HistoryPanel({ messages, mobileOpen, onClear, onCopy, onMobileClose }) {
   const bottomRef = useRef(null);
+  const [animatedKeys, setAnimatedKeys] = useState(() => new Set());
 
   useEffect(() => {
     if (typeof bottomRef.current?.scrollIntoView === "function") {
@@ -28,8 +29,12 @@ export default function HistoryPanel({ messages, mobileOpen, onClear, onCopy, on
         aria-label="Conversation history"
         className={`${
           mobileOpen ? "flex" : "hidden"
-        } fixed inset-x-3 bottom-3 top-20 z-50 flex-col overflow-hidden rounded-2xl border bg-black/90 p-3 text-xs shadow-[0_0_32px_rgba(8,145,178,0.2)] backdrop-blur-xl md:absolute md:bottom-auto md:left-4 md:right-auto md:top-4 md:flex md:max-h-[60vh] md:w-64 md:bg-black/50`}
-        style={{ borderColor: "var(--th-border)", color: "var(--th-text)" }}
+        } fixed inset-x-3 bottom-3 top-20 z-50 flex-col overflow-hidden rounded-2xl border bg-black/90 p-3 text-xs backdrop-blur-xl md:absolute md:bottom-auto md:left-4 md:right-auto md:top-4 md:flex md:max-h-[60vh] md:w-64 md:bg-black/50`}
+        style={{
+          borderColor: "var(--th-border)",
+          color: "var(--th-text)",
+          boxShadow: "0 0 32px var(--th-primary-glow)",
+        }}
       >
         <div className="mb-3 flex items-center justify-between border-b pb-2" style={{ borderColor: "var(--th-border)" }}>
           <span className="font-orbitron text-[0.65rem] uppercase tracking-widest font-bold" style={{ color: "var(--th-primary)" }}>
@@ -58,6 +63,10 @@ export default function HistoryPanel({ messages, mobileOpen, onClear, onCopy, on
         <div className="min-h-0 flex-1 overflow-y-auto space-y-3 font-mono text-[11px] scrollbar-hide">
           {messages.map((msg, index) => {
             const key = msg.id || `${msg.role}-${msg.createdAt || index}-${index}`;
+            const shouldAnimate =
+              msg.role === "assistant" &&
+              index === messages.length - 1 &&
+              !animatedKeys.has(key);
 
             return (
               <div key={key} className="flex items-start gap-2">
@@ -71,8 +80,14 @@ export default function HistoryPanel({ messages, mobileOpen, onClear, onCopy, on
                     )}
                   </div>
                   <div className="break-words leading-relaxed text-neutral-200">
-                    {msg.role === "assistant" && index === messages.length - 1 ? (
-                      <Typewriter text={msg.text} speed={8} />
+                    {shouldAnimate ? (
+                      <Typewriter
+                        text={msg.text}
+                        speed={8}
+                        onComplete={() => {
+                          setAnimatedKeys((prev) => new Set(prev).add(key));
+                        }}
+                      />
                     ) : (
                       <span>{msg.text}</span>
                     )}

@@ -17,8 +17,14 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex flex-col items-center justify-center h-64 font-mono text-center text-cyan-400/80">
-          <div className="w-24 h-24 rounded-full border border-cyan-500/40 animate-pulse mb-3" />
+        <div
+          className="flex flex-col items-center justify-center h-64 font-mono text-center"
+          style={{ color: "var(--th-primary)" }}
+        >
+          <div
+            className="w-24 h-24 rounded-full border animate-pulse mb-3"
+            style={{ borderColor: "var(--th-border-bright)" }}
+          />
           <p className="text-xs uppercase tracking-widest">[TACTICAL CORE 2D FALLBACK]</p>
         </div>
       );

@@ -1,10 +1,10 @@
 import { motion as Motion } from "framer-motion";
 import { AlertTriangle, WifiOff } from "lucide-react";
-export default function StatusBanner({ serverReachable, notice, onRetry }) {
+export default function StatusBanner({ serverReachable, notice, onRetry, transient = true }) {
 
   return (
     <>
-      {/* HUD Alert Strip for transient notices */}
+      {/* HUD Alert Strip for notices */}
       {notice && (
         <Motion.div
           initial={{ y: -60, opacity: 0 }}
@@ -23,13 +23,15 @@ export default function StatusBanner({ serverReachable, notice, onRetry }) {
               [SYS_ALERT] {notice}
             </span>
           </div>
-          <Motion.div
-            initial={{ width: "100%" }}
-            animate={{ width: "0%" }}
-            transition={{ duration: 5, ease: "linear" }}
-            className="h-[2px] mt-2"
-            style={{ background: "var(--th-primary)" }}
-          />
+          {transient && (
+            <Motion.div
+              initial={{ width: "100%" }}
+              animate={{ width: "0%" }}
+              transition={{ duration: 5, ease: "linear" }}
+              className="h-[2px] mt-2"
+              style={{ background: "var(--th-primary)" }}
+            />
+          )}
         </Motion.div>
       )}
 
